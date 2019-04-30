@@ -15,3 +15,6 @@
 	path = externals/kokkos
 	url = git@github.com:kokkos/kokkos.git
 	branch = develop
+[submodule "components/ww3/src/source/WW3"]
+	path = components/ww3/src/source/WW3
+	url = git@github.com:NOAA-EMC/WW3.git

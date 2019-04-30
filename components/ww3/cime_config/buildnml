@@ -68,7 +68,7 @@ def buildnml(case, caseroot, compname):
     """Build the ww3 namelist """
 
     # Build the component namelist
-    if compname != "ww":
+    if compname != "ww3":
         raise AttributeError
 
     srcroot = case.get_value("SRCROOT")
@@ -123,7 +123,7 @@ def buildnml(case, caseroot, compname):
             inst_string_label = "\"\""
 
         # create namelist_infile using user_nl_file as input
-        user_nl_file = os.path.join(caseroot, "user_nl_ww" + inst_string)
+        user_nl_file = os.path.join(caseroot, "user_nl_ww3" + inst_string)
         expect(os.path.isfile(user_nl_file),
                "Missing required user_nl_file %s " %(user_nl_file))
         infile = os.path.join(confdir, "namelist_infile")
@@ -148,12 +148,12 @@ def buildnml(case, caseroot, compname):
     rundir = case.get_value("RUNDIR")
     din_loc_root = case.get_value("DIN_LOC_ROOT")
 
-    file1 = os.path.join(din_loc_root,"wav","ww3","core2_G4_wns_30min_20000601_to_05.nc")
-    file2 = os.path.join(rundir,"wind.ww3")
-    if os.path.isfile(file1):
-        shutil.copy(file1, file2)
+    #file1 = os.path.join(din_loc_root,"wav","ww3","core2_G4_wns_30min_20000601_to_05.nc")
+    #file2 = os.path.join(rundir,"wind.ww3")
+    #if os.path.isfile(file1):
+    #    shutil.copy(file1, file2)
 
-    file1 = os.path.join(din_loc_root,"wav","ww3","G4L1.mod_def.ww3.121031")
+    file1 = os.path.join(din_loc_root,"wav","ww3","mod_def.ww3.v6")
     file2 = os.path.join(rundir,"mod_def.ww3")
     if os.path.isfile(file1):
         shutil.copy(file1, file2)
@@ -168,7 +168,7 @@ def _main_func():
 
     caseroot = parse_input(sys.argv)
     with Case(caseroot) as case:
-        buildnml(case, caseroot, "ww")
+        buildnml(case, caseroot, "ww3")
 
 
 ###############################################################################

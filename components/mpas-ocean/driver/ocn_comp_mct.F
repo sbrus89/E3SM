@@ -1597,7 +1597,11 @@ contains
                                   iceFluxDOCrField, &
                                   iceFluxFeParticulateField, &
                                   iceFluxFeDissolvedField, &
-                                  iceFluxDustField
+                                  iceFluxDustField, &
+                                  waveRadiationStressXXField, &
+                                  waveRadiationStressXYField, &
+                                  waveRadiationStressYYField
+                                  
 
    type (field2DReal), pointer :: iceFluxPhytoCField, &
                                   iceFluxDOCField
@@ -1625,7 +1629,10 @@ contains
                                                iceFluxDOCr, &
                                                iceFluxFeParticulate, &
                                                iceFluxFeDissolved, &
-                                               iceFluxDust
+                                               iceFluxDust, &
+                                               waveRadiationStressXX, &
+                                               waveRadiationStressXY, &
+                                               waveRadiationStressYY
 
    real (kind=RKIND), dimension(:), pointer :: latCell
 
@@ -1697,6 +1704,9 @@ contains
       call mpas_pool_get_field(forcingPool, 'iceRunoffFlux', iceRunoffFluxField)
       call mpas_pool_get_field(forcingPool, 'removedRiverRunoffFlux', removedRiverRunoffFluxField)
       call mpas_pool_get_field(forcingPool, 'removedIceRunoffFlux', removedIceRunoffFluxField)
+      call mpas_pool_get_field(forcingPool, 'waveRadiationStressXX', waveRadiationStressXXField)
+      call mpas_pool_get_field(forcingPool, 'waveRadiationStressXY', waveRadiationStressXYField)
+      call mpas_pool_get_field(forcingPool, 'waveRadiationStressYY', waveRadiationStressYYField)
 
       windStressZonal => windStressZonalField % array
       windStressMeridional => windStressMeridionalField % array
@@ -1721,6 +1731,9 @@ contains
       iceRunoffFlux => iceRunoffFluxField % array
       removedRiverRunoffFlux => removedRiverRunoffFluxField % array
       removedIceRunoffFlux => removedIceRunoffFluxField % array
+      waveRadiationStressXX => waveRadiationStressXXField % array
+      waveRadiationStressXY => waveRadiationStressXYField % array
+      waveRadiationStressYY => waveRadiationStressYYField % array
 
       call mpas_pool_get_array(meshPool, 'latCell', latCell)
 
@@ -1868,6 +1881,15 @@ contains
         if ( iceFractionField % isActive ) then
            iceFraction(i) = x2o_o % rAttr(index_x2o_Si_ifrac, n)
         end if
+        if ( waveRadiationStressXXField % isActive ) then
+           waveRadiationStressXX(i) = x2o_o % rAttr(index_x2o_Sw_Sxx, n)
+        end if
+        if ( waveRadiationStressXYField % isActive ) then
+           waveRadiationStressXY(i) = x2o_o % rAttr(index_x2o_Sw_Sxy, n)
+        end if
+        if ( waveRadiationStressYYField % isActive ) then
+           waveRadiationStressYY(i) = x2o_o % rAttr(index_x2o_Sw_Syy, n)
+        end if
 
         ! BGC fields
         if (config_use_ecosysTracers) then
@@ -1985,6 +2007,9 @@ contains
    call mpas_pool_get_field(forcingPool, 'atmosphericPressure', atmosphericPressureField)
    call mpas_pool_get_field(forcingPool, 'seaIcePressure', seaIcePressureField)
    call mpas_pool_get_field(forcingPool, 'iceFraction', iceFractionField)
+   call mpas_pool_get_field(forcingPool, 'waveRadiationStressXX', waveRadiationStressXXField)
+   call mpas_pool_get_field(forcingPool, 'waveRadiationStressXY', waveRadiationStressXYField)
+   call mpas_pool_get_field(forcingPool, 'waveRadiationStressYY', waveRadiationStressYYField)
 
    ! BGC fields
    if (config_use_ecosysTracers) then
@@ -2076,6 +2101,15 @@ contains
    end if
    if ( iceFractionField % isActive ) then
       call mpas_dmpar_exch_halo_field(iceFractionField)
+   end if
+   if ( waveRadiationStressXXField % isActive ) then
+      call mpas_dmpar_exch_halo_field(waveRadiationStressXXField)
+   end if
+   if ( waveRadiationStressXYField % isActive ) then
+      call mpas_dmpar_exch_halo_field(waveRadiationStressXYField)
+   end if
+   if ( waveRadiationStressYYField % isActive ) then
+      call mpas_dmpar_exch_halo_field(waveRadiationStressYYField)
    end if
 
    ! BGC fields
@@ -2217,7 +2251,8 @@ contains
                                                avgOceanSurfaceDMSP, &
                                                avgOceanSurfaceDOCr, &
                                                avgOceanSurfaceFeParticulate, &
-                                               avgOceanSurfaceFeDissolved
+                                               avgOceanSurfaceFeDissolved, &
+                                               ssh
  
    real (kind=RKIND), dimension(:,:), pointer :: avgTracersSurfaceValue, avgSurfaceVelocity, &
                                                  avgOceanSurfacePhytoC, &
@@ -2263,6 +2298,7 @@ contains
      call mpas_pool_get_dimension(forcingPool, 'index_avgSurfaceVelocityZonal', index_avgZonalSurfaceVelocity)
      call mpas_pool_get_dimension(forcingPool, 'index_avgSurfaceVelocityMeridional', index_avgMeridionalSurfaceVelocity)
 
+     call mpas_pool_get_array(statePool, 'ssh', ssh)
      call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, 1)
 
      call mpas_pool_get_array(forcingPool, 'landIceMask', landIceMask)
@@ -2320,6 +2356,7 @@ contains
        o2x_o % rAttr(index_o2x_So_u, n) = avgSurfaceVelocity(index_avgZonalSurfaceVelocity, i)
        o2x_o % rAttr(index_o2x_So_v, n) = avgSurfaceVelocity(index_avgMeridionalSurfaceVelocity, i)
 
+       o2x_o % rAttr(index_o2x_So_ssh, n)  = shh(i)
        o2x_o % rAttr(index_o2x_So_dhdx, n) = filteredSSHGradientZonal(i)
        o2x_o % rAttr(index_o2x_So_dhdy, n) = filteredSSHGradientMeridional(i)
        if ( frazilIceActive ) then

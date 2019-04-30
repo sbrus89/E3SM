@@ -20,6 +20,7 @@ module mpaso_cpl_indices
   integer :: index_o2x_Fioo_frazil
   integer :: index_o2x_Faoo_fco2_ocn
   integer :: index_o2x_Faoo_fdms_ocn
+  integer :: index_o2x_So_ssh
 
   ! ocn -> drv  (BGC)
 
@@ -88,6 +89,9 @@ module mpaso_cpl_indices
   integer :: index_x2o_Faxa_dstdry4    ! flux: Size 4 dust -- dry deposition
   integer :: index_x2o_Foxx_rofl       ! river runoff flux                (kg/m2/s)
   integer :: index_x2o_Foxx_rofi       ! ice runoff flux                  (kg/m2/s)
+  integer :: index_x2o_Sw_Sxx          ! wave radiation stress
+  integer :: index_x2o_Sw_Sxy          ! wave radiation stress
+  integer :: index_x2o_Sw_Syy          ! wave radiation stress
 
   ! drv -> ocn (BGC)
 
@@ -135,6 +139,7 @@ contains
     index_o2x_Fioo_frazil   = mct_avect_indexra(o2x,'Fioo_frazil',perrWith='quiet')
     index_o2x_Faoo_fco2_ocn = mct_avect_indexra(o2x,'Faoo_fco2_ocn',perrWith='quiet')
     index_o2x_Faoo_fdms_ocn = mct_avect_indexra(o2x,'Faoo_fdms_ocn',perrWith='quiet')
+    index_o2x_So_ssh        = mct_avect_indexra(o2x,'So_ssh')
 
     index_o2x_So_algae1     = mct_avect_indexra(o2x,'So_algae1',perrWith='quiet')
     index_o2x_So_algae2     = mct_avect_indexra(o2x,'So_algae2',perrWith='quiet')
@@ -220,6 +225,10 @@ contains
     index_x2o_Fioi_fed1     = mct_avect_indexra(x2o,'Fioi_fed1',perrWith='quiet')
     index_x2o_Fioi_fed2     = mct_avect_indexra(x2o,'Fioi_fed2',perrWith='quiet')
     index_x2o_Fioi_dust1    = mct_avect_indexra(x2o,'Fioi_dust1',perrWith='quiet')
+
+    index_x2o_Sw_Sxx        = mct_avect_indexra(x2o,'Sw_Sxx')
+    index_x2o_Sw_Sxy        = mct_avect_indexra(x2o,'Sw_Sxy')
+    index_x2o_Sw_Syy        = mct_avect_indexra(x2o,'Sw_Syy')
 
     call mct_aVect_clean(x2o)
     call mct_aVect_clean(o2x)
