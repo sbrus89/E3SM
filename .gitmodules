@@ -31,3 +31,6 @@
 	path = components/cam/src/physics/cosp2/external
 	url = git@github.com:CFMIP/COSPv2.0.git
 	branch = CESM_v2.1.4
+[submodule "components/ww3/src/source/WW3"]
+	path = components/ww3/src/source/WW3
+	url = git@github.com:NOAA-EMC/WW3.git
