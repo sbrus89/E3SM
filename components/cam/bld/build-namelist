@@ -548,6 +548,15 @@ add_default($nl, 'start_type');
 my $dyn = $cfg->get('dyn');
 if ($dyn =~ /se/) {add_default($nl, 'vect_map', 'val'=>'cart3d');}
 
+if ($dyn =~ /se/) {
+  my $npg = $cfg->get('npg');
+  my $se_fv_nphys = $nl->get_value('se_fv_nphys');
+  if (defined($se_fv_nphys) and $se_fv_nphys != $npg) {
+    die "$ProgName - ERROR: se_fv_nphys should not be set by the user\n";
+  }
+  add_default($nl, 'se_fv_nphys', 'val'=>$npg);
+}
+
 # Adiabatic or Ideal physics
 my $phys = $cfg->get('phys');
 if ($phys eq 'adiabatic') { add_default($nl, 'atm_adiabatic',  'val'=>'.true.'); }
@@ -800,6 +809,12 @@ add_default($nl,'use_rad_dt_cosz','val'=>'.false.');
 #if 0., no rayleigh friction is applied
 add_default($nl, 'raytau0');
 
+# these options werre added for global RCE and they only work with RRTMGP
+my $rad_pkg = $cfg->get('rad');
+if ($rad_pkg eq 'rrtmgp') {
+  add_default($nl,'do_aerosol_rad');
+  add_default($nl,'fixed_total_solar_irradiance');
+}
 
 #
 # Simulated years: sim_year and sim_year_start
@@ -829,7 +844,6 @@ add_default($nl, 'bnd_topo', 'nofail'=>1);
 add_default($nl, 'tropopause_climo_file');
 
 # Radiation
-my $rad_pkg = $cfg->get('rad');
 if ($rad_pkg eq 'camrt') {
     # Only needed for CAM3/4 RT code
     # Absorptivity and emissivity data
@@ -1609,12 +1623,28 @@ if ($nl->get_value('strat_aero_feedback') =~ /$TRUE/io) {
 
 add_default($nl, 'rad_climate', 'val'=>$radval);
 
-# Cloud optics
+# Cloud optics; for MMF be specific about which optics package to use
 if ($rad_pkg eq 'rrtmg' or $rad_pkg eq 'rrtmgp') {
-    add_default($nl, 'liqcldoptics');
-    add_default($nl, 'icecldoptics');
+    if ($cfg->get('use_MMF')) {
+        if ($cfg->get('MMF_microphysics_scheme') eq 'sam1mom') {
+            add_default($nl, 'liqcldoptics', 'val' => 'slingo');
+            add_default($nl, 'icecldoptics', 'val' => 'ebertcurry');
+        } else {
+            add_default($nl, 'liqcldoptics', 'val' => 'gammadist');
+            add_default($nl, 'icecldoptics', 'val' => 'mitchell');
+        }
+    } else {
+        add_default($nl, 'liqcldoptics');
+        add_default($nl, 'icecldoptics');
+    }
     add_default($nl, 'liqopticsfile');
     add_default($nl, 'iceopticsfile');
+}
+
+# Run radiation every time step with MMF
+if ($cfg->get('use_MMF')) {
+  add_default($nl, 'iradsw', 'val' => '1');
+  add_default($nl, 'iradlw', 'val' => '1');
 }
 
 # Gaseous absorption coefficients files for RRTMGP
@@ -3322,8 +3352,8 @@ if ( $chem ) {
 
     # drydep_srf_file is only needed for prognostic MAM when the grid is unstructured.
     # structured grids can do interpolation on the fly.
-    if ($chem =~ /_mam/ and $dyn =~ /se/) {
-	add_default($nl, 'drydep_srf_file');
+    if ($chem =~ /_mam/ and $dyn =~ /se/ and !$aqua_mode ) {
+      add_default($nl, 'drydep_srf_file');
     }
 }
 
@@ -3506,6 +3536,16 @@ if ($clubb_sgs  =~ /$TRUE/io) {
    add_default($nl, 'relvar_fix');
    add_default($nl, 'clubb_use_sgv');
 }
+
+# MMF Microphysics scheme
+add_default($nl, 'MMF_microphysics_scheme');
+add_default($nl, 'use_MMF');
+add_default($nl, 'use_ECPP');
+
+# MMF CRM mean-state acceleration
+add_default($nl, 'use_crm_accel');
+add_default($nl, 'crm_accel_uv');
+add_default($nl, 'crm_accel_factor');
 
 add_default($nl, 'do_aerocom_ind3');
 my $aerocom_ind3 = $nl->get_value('do_aerocom_ind3');
@@ -3979,7 +4019,7 @@ if ($cfg->get('scam')) {
 }
 
 # CAM generates IOP file for SCAM
-if ($cfg->get('camiop')) {
+if ($cfg->get('e3smreplay')) {
     add_default($nl, 'inithist', 'val'=>'CAMIOP');
     add_default($nl, 'ndens', 'val'=>'1,1');
     add_default($nl, 'mfilt', 'val'=>'1,10');
@@ -4012,11 +4052,15 @@ if ($cfg->get('dyn') =~ /se/) {
     }
 
     my @vars = qw(se_nsplit hypervis_order phys_loadbalance
-                  hypervis_subcycle hypervis_subcycle_q
+                  hypervis_subcycle hypervis_subcycle_q hypervis_subcycle_tom
                   statefreq se_partmethod se_topology se_ftype
-                  integration nu nu_div nu_p nu_q nu_top  se_phys_tscale
+                  integration nu nu_div nu_p nu_q nu_s nu_top
                   vert_remap_q_alg se_limiter_option qsplit rsplit tstep_type
-                  hypervis_scaling mesh_file vthreads);
+                  hypervis_scaling mesh_file vthreads
+                  theta_hydrostatic_mode transport_alg theta_advect_form
+                  se_tstep dt_tracer_factor dt_remap_factor 
+                  cubed_sphere_map
+                  );
 
     foreach my $var (@vars) {
 	add_default($nl, $var);

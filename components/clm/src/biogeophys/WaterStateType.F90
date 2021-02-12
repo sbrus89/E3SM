@@ -10,8 +10,9 @@ module WaterstateType
   use shr_kind_mod   , only : r8 => shr_kind_r8
   use shr_log_mod    , only : errMsg => shr_log_errMsg
   use decompMod      , only : bounds_type
-  use clm_varctl     , only : use_vancouver, use_mexicocity, use_cn, iulog, use_fates_planthydro
-  use clm_varpar     , only : nlevgrnd, nlevurb, nlevsno   
+  use clm_varctl     , only : use_vancouver, use_mexicocity, use_cn, iulog, use_fates_planthydro, &
+                              use_hydrstress
+  use clm_varpar     , only : nlevgrnd, nlevurb, nlevsno 
   use clm_varcon     , only : spval
   use LandunitType   , only : lun_pp                
   use ColumnType     , only : col_pp                
@@ -515,6 +516,15 @@ contains
 
     SHR_ASSERT_ALL((ubound(watsat_col) == (/bounds%endc,nlevgrnd/)) , errMsg(__FILE__, __LINE__))
 
+
+    call restartvar(ncid=ncid, flag=flag, varname='TWS_MONTH_BEGIN', xtype=ncd_double,  &
+         dim1name='gridcell', &
+         long_name='surface watertotal water storage at the beginning of a month', units='mm', &
+          interpinic_flag='interp', readvar=readvar, data=this%tws_month_beg_grc)
+
+    call restartvar(ncid=ncid, flag=flag, varname='ENDWB_COL', xtype=ncd_double, &
+         dim1name='column', long_name='col-level water mass end of the time step', &
+         units='mm', interpinic_flag='interp', readvar=readvar, data=this%endwb_col)
 
   end subroutine Restart
 

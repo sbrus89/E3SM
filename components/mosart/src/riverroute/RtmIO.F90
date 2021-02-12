@@ -173,6 +173,11 @@ contains
     character(len=*),parameter :: subname='ncd_pio_openfile' ! subroutine name
     !-----------------------------------------------------------------------
 
+    if (masterproc) then
+       write(iulog,*) trim(subname),' opening ', trim(fname), file%fh
+       call shr_sys_flush(iulog)
+    endif
+
     ierr = pio_openfile(pio_subsystem, file, io_type, fname, mode)
 
     if(ierr/= PIO_NOERR) then
@@ -723,8 +728,8 @@ contains
        lxtype = xtype
     end if
     if (masterproc .and. debug > 1) then
-       write(iulog,*) 'Error in defining variable = ', trim(varname)
-       write(iulog,*) subname//' ',trim(varname),lxtype,ndims,ldimid(1:ndims)
+       write(iulog,*) trim(subname),' Defining variable = ', trim(varname)
+       write(iulog,*) trim(subname),' ',trim(varname),lxtype,ndims,ldimid(1:ndims)
     endif
 
     if (ndims >  0) then 
@@ -1250,7 +1255,7 @@ contains
     integer :: status                  ! error code
     logical :: varpresent              ! if true, variable is on tape
     character(len=32) :: vname         ! variable error checking
-    character(len=1)  :: tmpString(128)! temp for manipulating output string
+    character(len=1), allocatable, dimension(:) :: tmpString ! temp for manipulating output string
     type(var_desc_t)  :: vardesc       ! local vardesc pointer
     character(len=*),parameter :: subname='ncd_io_char_var1_nf'
     !-----------------------------------------------------------------------
@@ -1268,18 +1273,18 @@ contains
        call ncd_inqvid  (ncid, varname, varid, vardesc)
 
        if (present(nt))      then
-          count(1) = len_trim(data)
+          allocate(tmpString(len(data)))
+          count(1) = len(data)
           count(2) = 1
+          ! Copy the string to a character array
           do m = 1,count(1)
              tmpString(m:m) = data(m:m)
           end do
-          if ( count(1) > size(tmpString) )then
-             write(iulog,*) subname//' ERROR: input string size is too large:'//trim(data)
-          end if
           start(1) = 1
           start(2) = nt
           status = pio_put_var(ncid, varid, start=start, count=count, &
-               ival=tmpString(1:count(1)) )
+               ival=tmpString)
+          deallocate(tmpString)
        else
           status = pio_put_var(ncid, varid, data )
        end if

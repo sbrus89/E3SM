@@ -516,6 +516,8 @@ end subroutine clubb_init_cnst
     use constituents,           only: cnst_get_ind
     use phys_control,           only: phys_getopts
 
+    use parameters_tunable, only: params_list
+
 #endif
 
     use physics_buffer,         only: pbuf_get_index, pbuf_set_field, physics_buffer_desc
@@ -657,10 +659,21 @@ end subroutine clubb_init_cnst
     ! Setup CLUBB core
     ! ----------------------------------------------------------------- !
     
-    !  Read in parameters for CLUBB.  Just read in default values 
+    !  Read in parameters for CLUBB.  Pack the default and updated (via nml) 
+    !  tunable parameters into clubb_params
 !$OMP PARALLEL
     call read_parameters( -99, "", clubb_params )
 !$OMP END PARALLEL
+
+    ! Print the list of CLUBB parameters, if multi-threaded, it may print by each thread
+    if (masterproc) then
+       write(iulog,*)'CLUBB tunable parameters: total ',nparams
+       write(iulog,*)'--------------------------------------------------'
+       do i = 1, nparams
+          write(iulog,*) params_list(i), " = ", clubb_params(i)
+       enddo
+    endif
+ 
       
     !  Fill in dummy arrays for height.  Note that these are overwrote
     !  at every CLUBB step to physical values.    
@@ -745,7 +758,7 @@ end subroutine clubb_init_cnst
     call addfld ('CLOUDCOVER_CLUBB', (/ 'ilev' /), 'A', 'fraction', 'Cloud Cover') 
     call addfld ('WPTHVP_CLUBB',     (/ 'lev' /),  'A',     'W/m2', 'Buoyancy Flux')
     call addfld ('RVMTEND_CLUBB',  (/ 'lev' /),  'A',    'g/kg /s', 'Water vapor tendency')
-    call addfld ('STEND_CLUBB',      (/ 'lev' /),  'A',      'k/s', 'Temperature tendency')
+    call addfld ('TTEND_CLUBB',      (/ 'lev' /),  'A',      'k/s', 'Temperature tendency')
     call addfld ('RCMTEND_CLUBB',  (/ 'lev' /),  'A',    'g/kg /s', 'Cloud Liquid Water Tendency')
     call addfld ('RIMTEND_CLUBB',  (/ 'lev' /),  'A',    'g/kg /s', 'Cloud Ice Tendency')
     call addfld ('UTEND_CLUBB',   (/ 'lev' /),  'A',      'm/s /s', 'U-wind Tendency')
@@ -828,7 +841,7 @@ end subroutine clubb_init_cnst
        call add_default('CLOUDCOVER_CLUBB', 1, ' ')
        call add_default('WPTHVP_CLUBB',     1, ' ')
        call add_default('RVMTEND_CLUBB',    1, ' ')
-       call add_default('STEND_CLUBB',      1, ' ')
+       call add_default('TTEND_CLUBB',      1, ' ')
        call add_default('RCMTEND_CLUBB',    1, ' ')
        call add_default('RIMTEND_CLUBB',    1, ' ')
        call add_default('UTEND_CLUBB',      1, ' ')
@@ -853,7 +866,7 @@ end subroutine clubb_init_cnst
        call add_default('DPDLFLIQ',         history_budget_histfile_num, ' ')
        call add_default('DPDLFICE',         history_budget_histfile_num, ' ')
        call add_default('DPDLFT',           history_budget_histfile_num, ' ') 
-       call add_default('STEND_CLUBB',      history_budget_histfile_num, ' ')
+       call add_default('TTEND_CLUBB',      history_budget_histfile_num, ' ')
        call add_default('RCMTEND_CLUBB',    history_budget_histfile_num, ' ')
        call add_default('RIMTEND_CLUBB',    history_budget_histfile_num, ' ')
        call add_default('RVMTEND_CLUBB',    history_budget_histfile_num, ' ')
@@ -886,6 +899,7 @@ end subroutine clubb_init_cnst
        call pbuf_set_field(pbuf2d, kvh_idx,     0.0_r8)
        call pbuf_set_field(pbuf2d, fice_idx,    0.0_r8)
        call pbuf_set_field(pbuf2d, radf_idx,    0.0_r8)
+       call pbuf_set_field(pbuf2d, qrl_idx,     0.0_r8)
 
        call pbuf_set_field(pbuf2d, vmag_gust_idx,    1.0_r8)
 
@@ -923,7 +937,7 @@ end subroutine clubb_init_cnst
 
    use physics_types,  only: physics_state, physics_ptend, &
                              physics_state_copy, physics_ptend_init, &
-                             physics_ptend_sum
+                             physics_ptend_sum, set_dry_to_wet
 
    use physics_update_mod, only: physics_update
 
@@ -931,7 +945,8 @@ end subroutine clubb_init_cnst
                              pbuf_set_field, physics_buffer_desc
 
    use ppgrid,         only: pver, pverp, pcols
-   use constituents,   only: cnst_get_ind
+   use constituents,   only: cnst_get_ind, cnst_type
+   use co2_cycle,      only: co2_cycle_set_cnst_type
    use camsrfexch,     only: cam_in_t
    use ref_pres,       only: top_lev => trop_cloud_top_lev  
    use time_manager,   only: is_first_step   
@@ -1116,10 +1131,12 @@ end subroutine clubb_init_cnst
    real(r8) :: varmu(pcols)
    real(r8) :: varmu2
 
+   real(r8) :: invrs_gravit                     ! Preculate 1/gravit to reduce divide operations
+
    ! Variables below are needed to compute energy integrals for conservation
    real(r8) :: ke_a(pcols), ke_b(pcols), te_a(pcols), te_b(pcols)
    real(r8) :: wv_a(pcols), wv_b(pcols), wl_b(pcols), wl_a(pcols)
-   real(r8) :: se_dis, se_a(pcols), se_b(pcols), clubb_s(pver)
+   real(r8) :: se_dis, se_a(pcols), se_b(pcols), clubb_s(pver), enthalpy
 
    real(r8) :: exner_clubb(pcols,pverp)         ! Exner function consistent with CLUBB          [-]
    real(r8) :: wpthlp_output(pcols,pverp)       ! Heat flux output variable                     [W/m2]
@@ -1181,6 +1198,7 @@ end subroutine clubb_init_cnst
    type(pdf_parameter), dimension(pverp) :: pdf_params                  ! PDF parameters                    [units vary]
    character(len=200)                    :: temp1, sub                  ! Strings needed for CLUBB output
    logical                               :: l_Lscale_plume_centered, l_use_ice_latent
+   character(len=3), dimension(pcnst)    :: cnst_type_loc               ! local override option for constituents cnst_type
 
 
    ! --------------- !
@@ -1276,6 +1294,7 @@ end subroutine clubb_init_cnst
    !-----------------------------------------------------------------------------------------------!
 
    call t_startf('clubb_tend_cam_init')
+   invrs_gravit = 1._r8 / gravit
    frac_limit = 0.01_r8
    ic_limit   = 1.e-12_r8
 
@@ -1300,6 +1319,12 @@ end subroutine clubb_init_cnst
    endif
 
    call physics_state_copy(state,state1)
+
+   ! constituents are all treated as wet mmr by clubb
+   ! don't convert co2 tracers to wet mixing ratios
+   cnst_type_loc(:) = cnst_type(:)
+   call co2_cycle_set_cnst_type(cnst_type_loc, 'wet')
+   call set_dry_to_wet(state1, cnst_type_loc)
 
    if (micro_do_icesupersat) then
      naai_idx      = pbuf_get_index('NAAI')
@@ -1554,10 +1579,12 @@ end subroutine clubb_init_cnst
    wl_b = 0._r8
    do k=1,pver
      do i=1,ncol
-       se_b(i) = se_b(i) + state1%s(i,k)*state1%pdel(i,k)/gravit
-       ke_b(i) = ke_b(i) + 0.5_r8*(um(i,k)**2+vm(i,k)**2)*state1%pdel(i,k)/gravit
-       wv_b(i) = wv_b(i) + state1%q(i,k,ixq)*state1%pdel(i,k)/gravit
-       wl_b(i) = wl_b(i) + state1%q(i,k,ixcldliq)*state1%pdel(i,k)/gravit
+       ! use s=c_pT+g*z, total energy needs term c_pT but not gz
+       se_b(i) = se_b(i) + (state1%s(i,k) - gravit*state1%zm(i,k) - state1%phis(i)) &
+                         *  state1%pdel(i,k)*invrs_gravit
+       ke_b(i) = ke_b(i) + 0.5_r8*(um(i,k)**2+vm(i,k)**2)*state1%pdel(i,k)*invrs_gravit
+       wv_b(i) = wv_b(i) + state1%q(i,k,ixq)*state1%pdel(i,k)*invrs_gravit
+       wl_b(i) = wl_b(i) + state1%q(i,k,ixcldliq)*state1%pdel(i,k)*invrs_gravit
      enddo
    enddo
 
@@ -2046,15 +2073,18 @@ end subroutine clubb_init_cnst
       wv_a = 0._r8
       wl_a = 0._r8
       do k=1,pver
-         clubb_s(k) = cpair*((thlm(i,k)+(latvap/cpair)*rcm(i,k))/exner_clubb(i,k))+ &
-                      gravit*state1%zm(i,k)+state1%phis(i)
-         se_a(i) = se_a(i) + clubb_s(k)*state1%pdel(i,k)/gravit
-         ke_a(i) = ke_a(i) + 0.5_r8*(um(i,k)**2+vm(i,k)**2)*state1%pdel(i,k)/gravit
-         wv_a(i) = wv_a(i) + (rtm(i,k)-rcm(i,k))*state1%pdel(i,k)/gravit
-         wl_a(i) = wl_a(i) + (rcm(i,k))*state1%pdel(i,k)/gravit
+         enthalpy = cpair*((thlm(i,k)+(latvap/cpair)*rcm(i,k))/exner_clubb(i,k))
+         clubb_s(k) = enthalpy + gravit*state1%zm(i,k)+state1%phis(i)
+         se_a(i) = se_a(i) + enthalpy * state1%pdel(i,k)*invrs_gravit
+         ke_a(i) = ke_a(i) + 0.5_r8*(um(i,k)**2+vm(i,k)**2)*state1%pdel(i,k)*invrs_gravit
+         wv_a(i) = wv_a(i) + (rtm(i,k)-rcm(i,k))*state1%pdel(i,k)*invrs_gravit
+         wl_a(i) = wl_a(i) + (rcm(i,k))*state1%pdel(i,k)*invrs_gravit
       enddo
      
       ! Based on these integrals, compute the total energy before and after CLUBB call
+      ! TE as in Williamson2015, E= \int_{whole domain} (K+c_p*T) +
+      ! \int_{surface} p_s\phi_s (up to water forms), but we ignore surface term
+      ! under assumption that CLUBB does not change surface pressure
       do k=1,pver
          te_a(i) = se_a(i) + ke_a(i) + (latvap+latice)*wv_a(i)+latice*wl_a(i)
          te_b(i) = se_b(i) + ke_b(i) + (latvap+latice)*wv_b(i)+latice*wl_b(i)
@@ -2167,7 +2197,7 @@ end subroutine clubb_init_cnst
    call outfld( 'RVMTEND_CLUBB', ptend_loc%q(:,:,ixq), pcols, lchnk)
    call outfld( 'RCMTEND_CLUBB', ptend_loc%q(:,:,ixcldliq), pcols, lchnk)
    call outfld( 'RIMTEND_CLUBB', ptend_loc%q(:,:,ixcldice), pcols, lchnk)
-   call outfld( 'STEND_CLUBB',   ptend_loc%s,pcols, lchnk)
+   call outfld( 'TTEND_CLUBB',   ptend_loc%s/cpair,pcols, lchnk)
    call outfld( 'UTEND_CLUBB',   ptend_loc%u,pcols, lchnk)
    call outfld( 'VTEND_CLUBB',   ptend_loc%v,pcols, lchnk)     
 
@@ -2251,6 +2281,18 @@ end subroutine clubb_init_cnst
   
    call physics_ptend_sum(ptend_loc,ptend_all,ncol)
    call physics_update(state1,ptend_loc,hdtime)
+
+   ! ptend_all now has all accumulated tendencies.  Convert the tendencies for the
+   ! dry constituents to dry air basis.
+   do ixind = 1, pcnst
+      if (lq(ixind) .and. cnst_type(ixind).eq.'dry') then
+         do k = 1, pver
+            do i = 1, ncol
+               ptend_all%q(i,k,ixind) = ptend_all%q(i,k,ixind)*state1%pdel(i,k)/state1%pdeldry(i,k)
+            end do
+         end do
+      end if
+   end do
 
    ! ------------------------------------------------- !
    ! Diagnose relative cloud water variance            !
@@ -2644,10 +2686,13 @@ end subroutine clubb_init_cnst
 !   None
 !-------------------------------------------------------------------------------
 
-    use physics_types,          only: physics_state, physics_ptend, physics_ptend_init
+    use physics_types,          only: physics_state, physics_ptend, &
+                                      physics_ptend_init, &
+                                      set_dry_to_wet, set_wet_to_dry
     use physconst,              only: gravit, zvir, latvap
     use ppgrid,                 only: pver, pcols
-    use constituents,           only: pcnst, cnst_get_ind
+    use constituents,           only: pcnst, cnst_get_ind, cnst_type
+    use co2_cycle,              only: co2_cycle_set_cnst_type
     use camsrfexch,             only: cam_in_t
     
     implicit none
@@ -2656,7 +2701,7 @@ end subroutine clubb_init_cnst
     ! Input Auguments !
     ! --------------- !
 
-    type(physics_state), intent(in)     :: state                ! Physics state variables
+    type(physics_state), intent(inout)  :: state                ! Physics state variables
     type(cam_in_t),      intent(in)     :: cam_in
     
     real(r8),            intent(in)     :: ztodt                ! 2 delta-t        [ s ] 
@@ -2691,6 +2736,8 @@ end subroutine clubb_init_cnst
     
     logical  :: lq(pcnst)
 
+    character(len=3), dimension(pcnst) :: cnst_type_loc         ! local override option for constituents cnst_type
+
 #endif
     obklen(pcols) = 0.0_r8
     ustar(pcols)  = 0.0_r8
@@ -2700,6 +2747,11 @@ end subroutine clubb_init_cnst
     ! Main Computation Begins !
     ! ----------------------- !
 
+    ! Assume 'wet' mixing ratios in surface diffusion code.
+    ! don't convert co2 tracers to wet mixing ratios
+    cnst_type_loc(:) = cnst_type(:)
+    call co2_cycle_set_cnst_type(cnst_type_loc, 'wet')
+    call set_dry_to_wet(state, cnst_type_loc)
 
     call cnst_get_ind('Q',ixq)
     if (use_sgv) then
@@ -2739,6 +2791,18 @@ end subroutine clubb_init_cnst
     enddo
     
     ptend%q(:ncol,:pver,:) = (ptend%q(:ncol,:pver,:) - state%q(:ncol,:pver,:)) * rztodt
+
+    ! Convert tendencies of dry constituents to dry basis.
+    do m = 1,pcnst
+       if (cnst_type(m).eq.'dry') then
+          ptend%q(:ncol,:pver,m) = ptend%q(:ncol,:pver,m)*state%pdel(:ncol,:pver)/state%pdeldry(:ncol,:pver)
+       endif
+    end do
+    ! convert wet mmr back to dry before conservation check
+    ! avoid converting co2 tracers again
+    cnst_type_loc(:) = cnst_type(:)
+    call co2_cycle_set_cnst_type(cnst_type_loc, 'wet')
+    call set_wet_to_dry(state, cnst_type_loc)
     
     return
 
