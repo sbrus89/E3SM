@@ -134,6 +134,7 @@
       <value component="mpaso"    >$CIMEROOT/config/$MODEL/allactive/config_pesall.xml</value>
       <value component="mali"     >$CIMEROOT/config/$MODEL/allactive/config_pesall.xml</value>
       <value component="mpassi"   >$CIMEROOT/config/$MODEL/allactive/config_pesall.xml</value>
+      <value component="ww3"      >$CIMEROOT/config/$MODEL/allactive/config_pesall.xml</value>
     </values>
     <group>case_last</group>
     <file>env_case.xml</file>
