@@ -1671,7 +1671,8 @@ contains
                                   waveStokesDriftZonalWavenumber5Field, &
                                   waveStokesDriftMeridionalWavenumber5Field, &
                                   waveStokesDriftZonalWavenumber6Field, &
-                                  waveStokesDriftMeridionalWavenumber6Field
+                                  waveStokesDriftMeridionalWavenumber6Field, &
+                                  waveSignificantWaveHeightField
                                   !landIcePressureField
 
    type (field2DReal), pointer :: iceFluxPhytoCField, &
@@ -1729,7 +1730,8 @@ contains
                                                waveStokesDriftZonalWavenumber5, &
                                                waveStokesDriftMeridionalWavenumber5, &
                                                waveStokesDriftZonalWavenumber6, &
-                                               waveStokesDriftMeridionalWavenumber6
+                                               waveStokesDriftMeridionalWavenumber6, &
+                                               waveSignificantWaveHeight
                                                !landIcePressure
 
    real (kind=RKIND), dimension(:), pointer :: latCell
@@ -1820,6 +1822,7 @@ contains
       call mpas_pool_get_field(forcingPool, 'waveStokesDriftMeridionalWavenumber5', waveStokesDriftMeridionalWavenumber5Field)
       call mpas_pool_get_field(forcingPool, 'waveStokesDriftZonalWavenumber6', waveStokesDriftZonalWavenumber6Field)
       call mpas_pool_get_field(forcingPool, 'waveStokesDriftMeridionalWavenumber6', waveStokesDriftMeridionalWavenumber6Field)
+      call mpas_pool_get_field(forcingPool, 'waveSignificantWaveHeight', waveSignificantWaveHeightField)
 
       call mpas_pool_get_field(forcingPool, 'landIceFreshwaterFlux', landIceFreshwaterFluxField)
       call mpas_pool_get_field(forcingPool, 'landIceHeatFlux', landIceHeatFluxField)
@@ -1873,6 +1876,7 @@ contains
       waveStokesDriftMeridionalWavenumber5 => waveStokesDriftMeridionalWavenumber5Field % array
       waveStokesDriftZonalWavenumber6 => waveStokesDriftZonalWavenumber6Field % array
       waveStokesDriftMeridionalWavenumber6 => waveStokesDriftMeridionalWavenumber6Field % array
+      waveSignificantWaveHeight => waveSignificantWaveHeightField % array
       !landIcePressure => landIcePressureField % array
 
       call mpas_pool_get_array(meshPool, 'latCell', latCell)
@@ -2092,6 +2096,9 @@ contains
         if ( waveStokesDriftMeridionalWavenumber6Field % isActive ) then
            waveStokesDriftMeridionalWavenumber6(i) = x2o_o % rAttr(index_x2o_Sw_vstokes_wavenumber_6, n)
         end if
+        if ( waveSignificantWaveHeightField % isActive ) then
+           waveSignificantWaveHeight(i) = x2o_o % rAttr(index_x2o_Sw_Hs, n)
+        end if
 
         if (config_cvmix_kpp_use_theory_wave) then
            if ( windSpeed10mField% isActive ) then
@@ -2276,6 +2283,7 @@ contains
    call mpas_pool_get_field(forcingPool, 'waveStokesDriftMeridionalWavenumber5', waveStokesDriftMeridionalWavenumber5Field)
    call mpas_pool_get_field(forcingPool, 'waveStokesDriftZonalWavenumber6', waveStokesDriftZonalWavenumber6Field)
    call mpas_pool_get_field(forcingPool, 'waveStokesDriftMeridionalWavenumber6', waveStokesDriftMeridionalWavenumber6Field)
+   call mpas_pool_get_field(forcingPool, 'waveSignificantWaveHeight', waveSignificantWaveHeightField)
 
    call mpas_pool_get_field(forcingPool, 'landIceFreshwaterFlux', landIceFreshwaterFluxField)
    call mpas_pool_get_field(forcingPool, 'landIceHeatFlux', landIceHeatFluxField)
@@ -2432,6 +2440,9 @@ contains
    end if
    if ( waveStokesDriftMeridionalWavenumber6Field % isActive ) then
       call mpas_dmpar_exch_halo_field(waveStokesDriftMeridionalWavenumber6Field)
+   end if
+   if ( waveSignificantWaveHeightField % isActive ) then
+      call mpas_dmpar_exch_halo_field(waveSignificantWaveHeightField)
    end if
 
    if ( landIceFreshwaterFluxField % isActive ) then
