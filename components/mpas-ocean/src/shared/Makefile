@@ -69,7 +69,8 @@ OBJS = mpas_ocn_init_routines.o \
 	   mpas_ocn_vel_tidal_potential.o \
 	   mpas_ocn_vel_forcing_topographic_wave_drag.o \
 	   mpas_ocn_transport_tests.o \
-	   mpas_ocn_vel_self_attraction_loading.o 
+	   mpas_ocn_vel_self_attraction_loading.o \
+           mpas_ocn_stokes_drift.o
 
 all: $(OBJS)
 
@@ -147,7 +148,7 @@ mpas_ocn_tracer_short_wave_absorption_jerlov.o: mpas_ocn_constants.o mpas_ocn_co
 
 mpas_ocn_vmix.o: mpas_ocn_vmix_cvmix.o mpas_ocn_vmix_coefs_redi.o mpas_ocn_constants.o mpas_ocn_config.o mpas_ocn_diagnostics_variables.o mpas_ocn_vmix_gotm.o
 
-mpas_ocn_vmix_cvmix.o:  mpas_ocn_constants.o mpas_ocn_config.o mpas_ocn_diagnostics_variables.o mpas_ocn_mesh.o mpas_ocn_mesh.o
+mpas_ocn_vmix_cvmix.o:  mpas_ocn_constants.o mpas_ocn_config.o mpas_ocn_diagnostics_variables.o mpas_ocn_mesh.o mpas_ocn_stokes_drift.o
 
 mpas_ocn_vmix_coefs_redi.o: mpas_ocn_constants.o mpas_ocn_config.o mpas_ocn_diagnostics_variables.o
 
@@ -216,6 +217,8 @@ mpas_ocn_vel_self_attraction_loading.o: mpas_ocn_constants.o mpas_ocn_config.o m
 mpas_ocn_vel_pressure_grad.o: mpas_ocn_constants.o
 
 mpas_ocn_vel_tidal_potential.o: mpas_ocn_diagnostics_variables.o
+
+mpas_ocn_stokes_drift.o: mpas_ocn_constants.o mpas_ocn_config.o mpas_ocn_diagnostics_variables.o mpas_ocn_mesh.o
 
 clean:
 	$(RM) *.o *.i *.mod *.f90
