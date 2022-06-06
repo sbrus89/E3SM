@@ -62,6 +62,6 @@
 	path = components/mpas-ocean/src/FFTW
 	url = https://github.com/knbarton/fftw-3.3.8.git
 [submodule "components/ww3/src/source/WW3"]
-	path = components/ww3/src/source/WW3
+	path = components/ww3/src/WW3
 	url = git@github.com:E3SM-Project/WW3.git
         branch = e3sm
