@@ -78,6 +78,7 @@ module ocn_forward_mode
    use ocn_gm
    use ocn_submesoscale_eddies
    use ocn_stokes_drift 
+   use ocn_subgrid
 
    use ocn_high_freq_thickness_hmix_del2
 
@@ -297,6 +298,8 @@ module ocn_forward_mode
       call ocn_equation_of_state_init(domain, err_tmp)
       ierr = ior(ierr, err_tmp)
       call ocn_diagnostics_init(domain, err_tmp)
+      ierr = ior(ierr,err_tmp)
+      call ocn_subgrid_init(domain, err_tmp)
       ierr = ior(ierr,err_tmp)
 
       if(ierr.eq.1) then

@@ -29,6 +29,7 @@ module ocn_tidal_forcing
    use ocn_config
    use ocn_mesh
    use ocn_diagnostics_variables
+   use ocn_subgrid
 
    implicit none
    private
@@ -218,6 +219,8 @@ contains
       real (kind=RKIND) :: totalDepth, tidalHeight
 
       character (len=StrKIND), pointer :: xtime
+      
+      real (kind=RKIND), dimension(:), pointer:: subgridSShCekkTableRange 
 
       if ( .not. tidalfluxOn ) return
 
@@ -232,6 +235,12 @@ contains
       call mpas_pool_get_array(meshPool, 'minLevelCell', minLevelCell)
       call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
       call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
+
+
+      ! DW
+      call mpas_pool_get_array(meshPool, 'subgridSshCellTableRange', &
+                                subgridSshCellTableRange)
+
 
       ! tidal fields are needed only over 0 and 1 halos
       nCells = nCellsArray( 2 )
@@ -253,10 +262,20 @@ contains
         end if
 
         ! ensure tidalHeight can't push flow below anticipated minimum
+        !
+        ! - DW: will need some modfication here 
+        !
         if (config_use_wetting_drying .and. tidalInputMask(iCell) == 1.0_RKIND) then
           ! ensure that tidal height can't force below total minimum thickness
           ! condition wrong to ensure that there isn't any drying according to criteria
-          tidalHeight = max(-bottomDepth(iCell) + (float(maxLevelCell(iCell))+1.0_RKIND)*config_drying_min_cell_height, tidalHeight)
+          ! tidalHeight = max(-bottomDepth(iCell) + (float(maxLevelCell(iCell))+1.0_RKIND)*config_drying_min_cell_height, tidalHeight)
+
+          ! DW
+          if ( config_use_subgrid_wetting_drying ) then
+            tidalHeight = max(tidalHeight, subgridSShCellTableRange(3,iCell) ) ;      
+          else
+           tidalHeight = max(-bottomDepth(iCell) + (float(maxLevelCell(iCell))+1.0_RKIND)*config_drying_min_cell_height, tidalHeight)
+          end if
         end if
 
         ! compute total depth for relative thickness contribution
@@ -281,6 +300,7 @@ contains
         tidalBCValue(iCell) = tidalHeight
 
       end do   ! do iCell = 1, nCells
+
 
    end subroutine ocn_tidal_forcing_build_array !}}}
 

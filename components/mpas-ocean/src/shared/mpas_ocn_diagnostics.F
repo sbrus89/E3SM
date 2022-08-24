@@ -38,6 +38,7 @@ module ocn_diagnostics
    use ocn_mesh
    use ocn_surface_land_ice_fluxes
    use ocn_vertical_advection
+   use ocn_subgrid
 
    implicit none
    private
@@ -234,9 +235,19 @@ contains
 !     endif
 #endif
 
+
+      !
+      ! Z-coordinates
+      ! This section must be placed in the code before computing the density.
+      !
+      ! inputs : layerThickness
+      ! outputs : zMid, zTop, ssh)
+      call ocn_diagnostic_solve_z_coordinates(layerThickness, zMid, zTop, ssh)
+
       ! inputs: layerThickness, normalVelocity
       ! output: layerThickEdgeMean, layerThickEdgeDrag, layerThickEdgeFlux
       call ocn_diagnostic_solve_layerThicknessEdge(normalVelocity, &
+                                                   ssh, &
                                                    layerThickness)
 
       ! inputs: normalVelocity
@@ -319,7 +330,7 @@ contains
       ! outputs :: normRelVortEdge, normPlanetVortEdge, 
       !            normalizedRelativeVorticityCell
       call ocn_diagnostic_solve_vorticity(dt, normalVelocity, tangentialVelocity, &
-                layerThickness, relativeVorticity, &
+                layerThickness, relativeVorticity, ssh, &
                 normRelVortEdge, normPlanetVortEdge, &
                 normalizedRelativeVorticityCell)
 
@@ -332,13 +343,6 @@ contains
       call ocn_diagnostic_solve_surface_pressure(forcingPool, atmosphericPressure, &
                 seaIcePressure, surfacePressure)
 
-      !
-      ! Z-coordinates
-      ! This section must be placed in the code before computing the density.
-      !
-      ! inputs : layerThickness
-      ! outputs : zMid, zTop, ssh)
-      call ocn_diagnostic_solve_z_coordinates(layerThickness, zMid, zTop, ssh)
 
       !
       ! equation of state
@@ -679,6 +683,7 @@ contains
 !-----------------------------------------------------------------------
 
    subroutine ocn_diagnostic_solve_layerThicknessEdge(normalVelocity, &
+                                                      ssh, &
                                                       layerThickness)!{{{
 
       !-----------------------------------------------------------------
@@ -688,6 +693,8 @@ contains
       real (kind=RKIND), dimension(:,:), intent(in) :: &
          normalVelocity,  &!< [in] transport
          layerThickness    !< [in] layer thickness at cell center
+      real (kind=RKIND), dimension(:), intent(in) :: &
+         ssh               !< [in] sea surface height at cell center
 
       !-----------------------------------------------------------------
       ! output variables
@@ -707,49 +714,87 @@ contains
          iEdge, k,     &! edge and vertical loop indices
          cell1, cell2, &! neighbor cell indices across an edge
          kmin, kmax     ! min,max active vertical levels
+      real (kind=RKIND) :: &
+         sshMean, &
+         layerThicknessCell1, &
+         layerThicknessCell2
 
+      real(kind=RKIND):: eps = 1.0e-10_RKIND  
+     
+      
       ! End preamble
       !-----------------------------------------------------------------
       ! Begin code
 
       ! Compute mean layer thickness at edge
+
+      if (config_use_subgrid_wetting_drying) then
 #ifdef MPAS_OPENACC
-      !$acc parallel loop &
-      !$acc    present(layerThickness, layerThickEdgeMean, &
-      !$acc            minLevelEdgeBot, maxLevelEdgeTop, cellsOnEdge) &
-      !$acc    private(k, kmin, kmax, cell1, cell2)
+        !$acc parallel loop &
+        !$acc    present(layerThickness, layerThickEdgeMean, &
+        !$acc            minLevelEdgeBot, maxLevelEdgeTop, cellsOnEdge) &
+        !$acc    private(k, kmin, kmax, cell1, cell2)
 #else
-      !$omp parallel
-      !$omp do schedule(runtime) private(k, kmin, kmax, cell1, cell2)
-#endif
-      do iEdge = 1, nEdgesAll
-         kmin = minLevelEdgeBot(iEdge)
-         kmax = maxLevelEdgeTop(iEdge)
-         cell1 = cellsOnEdge(1,iEdge)
-         cell2 = cellsOnEdge(2,iEdge)
-         do k = 1,nVertLevels
-            ! initialize layerThicknessEdgeMean to avoid divide by
-            ! zero and NaN problems.
-            layerThickEdgeMean(k,iEdge) = -1.0e34_RKIND
-         end do
-         do k = kmin,kmax
-            ! central differenced
-            layerThickEdgeMean(k,iEdge) = 0.5_RKIND * &
-                                         (layerThickness(k,cell1) + &
-                                          layerThickness(k,cell2))
-         end do
-      end do
+        !$omp parallel
+        !$omp do schedule(runtime) private(k, kmin, kmax, cell1, cell2)
+#endif  
+        do iEdge = 1, nEdgesAll
+           cell1 = cellsOnEdge(1,iEdge)
+           cell2 = cellsOnEdge(2,iEdge)
+           !sshMean = 0.5_RKIND * (ssh(cell1) + ssh(cell2))
+           !call ocn_subgrid_layer_thickness_lookup(sshMean, &
+           !                                        subgridWetVolumeEdgeTable(:,iEdge), &
+           !                                        subgridSshEdgeTableRange(:,iEdge), &
+           !                                        subgridEdgeBathymetryMean(iEdge), &
+           !                                        layerThickEdgeMean(1,iEdge))
+           layerThickEdgeMean(1,iEdge) = 0.5_RKIND * &
+                                       ( layerThickness(1,cell1) + &
+                                         layerThickness(1,cell2) )
+        end do
 #ifndef MPAS_OPENACC
-      !$omp end do
-      !$omp end parallel
+        !$omp end do
+        !$omp end parallel
 #endif
+
+      else        
+#ifdef MPAS_OPENACC
+        !$acc parallel loop &
+        !$acc    present(layerThickness, layerThickEdgeMean, &
+        !$acc            minLevelEdgeBot, maxLevelEdgeTop, cellsOnEdge) &
+        !$acc    private(k, kmin, kmax, cell1, cell2)
+#else
+        !$omp parallel
+        !$omp do schedule(runtime) private(k, kmin, kmax, cell1, cell2)
+#endif  
+        do iEdge = 1, nEdgesAll
+           kmin = minLevelEdgeBot(iEdge)
+           kmax = maxLevelEdgeTop(iEdge)
+           cell1 = cellsOnEdge(1,iEdge)
+           cell2 = cellsOnEdge(2,iEdge)
+           do k = 1,nVertLevels
+              ! initialize layerThicknessEdgeMean to avoid divide by
+              ! zero and NaN problems.
+              layerThickEdgeMean(k,iEdge) = -1.0e34_RKIND
+           end do
+           do k = kmin,kmax
+              ! central differenced
+              layerThickEdgeMean(k,iEdge) = 0.5_RKIND * &
+                                           (layerThickness(k,cell1) + &
+                                            layerThickness(k,cell2))
+           end do
+        end do
+#ifndef MPAS_OPENACC
+        !$omp end do
+        !$omp end parallel
+#endif
+      end if
 
       ! Compute edge flux based on option set on init
       select case (thickEdgeFluxChoice)
 
       case (thickEdgeFluxCenter)
-         ! Use centered (mean) thickness as flux value
 
+         ! Use centered (mean) thickness as flux value
 #ifdef MPAS_OPENACC
          !$acc parallel loop collapse(2) &
          !$acc    present(layerThickEdgeFlux, layerThickEdgeMean)
@@ -757,12 +802,33 @@ contains
          !$omp parallel
          !$omp do schedule(runtime) private(k)
 #endif
-         do iEdge = 1, nEdgesAll
-         do k = 1,nVertLevels
-            layerThickEdgeFlux(k,iEdge) = &
-            layerThickEdgeMean(k,iEdge)
-         end do
-         end do
+         if ( config_use_subgrid_wetting_drying ) then
+           !      
+           do iEdge = 1, nEdgesAll
+              cell1 = cellsOnEdge(1,iEdge)
+              cell2 = cellsOnEdge(2,iEdge)
+              sshMean = 0.5_RKIND * (ssh(cell1) + ssh(cell2))
+              call ocn_subgrid_layer_thickness_lookup( sshMean, &
+                                                   subgridWetVolumeEdgeTable(:,iEdge), &
+                                                   subgridSshEdgeTableRange(:,iEdge), &
+                                                   subgridEdgeBathymetryMean(iEdge), &
+                                                   layerThickEdgeFlux(1,iEdge) )
+                                           
+              if ( layerThickEdgeFlux(1,iEdge) < eps ) then
+                  layerThickEdgeFlux(1,iEdge) = layerThickEdgeMean(1,iEdge) ;    
+              end if                      
+           end do
+           !
+         else
+
+           do iEdge = 1, nEdgesAll
+             do k = 1,nVertLevels
+               layerThickEdgeFlux(k,iEdge) = &
+               layerThickEdgeMean(k,iEdge)
+             end do
+           end do
+
+         end if  
 #ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
@@ -771,42 +837,109 @@ contains
       case (thickEdgeFluxUpwind)
          ! Use upwind thickness as the edge flux value
 
+        if (config_use_subgrid_wetting_drying) then
 #ifdef MPAS_OPENACC
-         !$acc parallel loop &
-         !$acc    present(normalVelocity, layerThickness, &
-         !$acc            minLevelEdgeBot, maxLevelEdgeTop, &
-         !$acc            layerThickEdgeFlux, cellsOnEdge) &
-         !$acc    private(k, kmin, kmax, cell1, cell2)
+           !$acc parallel loop &
+           !$acc    present(normalVelocity, layerThickness, &
+           !$acc            subgridWetVolumeCellTable, subgridWetVolumeCellTable, & 
+           !$acc            layerThickEdgeFlux, cellsOnEdge) &
+           !$acc    private(cell1, cell2, layerThicknessCell1, layerThicknessCell2)
 #else
-         !$omp parallel
-         !$omp do schedule(runtime) private(k, kmin, kmax, cell1, cell2)
+           !$omp parallel
+           !$omp do schedule(runtime) private(cell1, cell2, layerThicknessCell1, layerThicknessCell2)
 #endif
-         do iEdge = 1, nEdgesAll
-            kmin = minLevelEdgeBot(iEdge)
-            kmax = maxLevelEdgeTop(iEdge)
-            cell1 = cellsOnEdge(1,iEdge)
-            cell2 = cellsOnEdge(2,iEdge)
-            do k=1,nVertLevels
-               ! initialize layerThicknessEdgeFlux to avoid divide by
-               ! zero and NaN problems.
-               layerThickEdgeFlux(k,iEdge) = -1.0e34_RKIND
-            end do
-            do k = kmin,kmax
-               if (normalVelocity(k,iEdge) > 0.0_RKIND) then
-                  layerThickEdgeFlux(k,iEdge) = layerThickness(k,cell1)
-               elseif (normalVelocity(k,iEdge) < 0.0_RKIND) then
-                  layerThickEdgeFlux(k,iEdge) = layerThickness(k,cell2)
-               else
-                  layerThickEdgeFlux(k,iEdge) = &
-                                      max(layerThickness(k,cell1), &
-                                          layerThickness(k,cell2))
-               end if
-            end do
-         end do
+           do iEdge = 1, nEdgesAll
+              cell1 = cellsOnEdge(1,iEdge)
+              cell2 = cellsOnEdge(2,iEdge)
+              if (normalVelocity(1,iEdge) > 0.0_RKIND) then
+                 call ocn_subgrid_layer_thickness_lookup(ssh(cell1), &
+                                                         subgridWetVolumeEdgeTable(:,iEdge), &
+                                                         subgridSshEdgeTableRange(:,iEdge), &
+                                                         subgridEdgeBathymetryMean(iEdge), &
+                                                         layerThickEdgeFlux(1,iEdge))
+              elseif (normalVelocity(1,iEdge) < 0.0_RKIND) then
+                 call ocn_subgrid_layer_thickness_lookup(ssh(cell2), &
+                                                         subgridWetVolumeEdgeTable(:,iEdge), &
+                                                         subgridSshEdgeTableRange(:,iEdge), &
+                                                         subgridEdgeBathymetryMean(iEdge), &
+                                                         layerThickEdgeFlux(1,iEdge))
+              else
+!!$                 call ocn_subgrid_layer_thickness_lookup(ssh(cell1), &
+!!$                                                         subgridWetVolumeEdgeTable(:,iEdge), &
+!!$                                                         subgridSshEdgeTableRange(:,iEdge), &
+!!$                                                         subgridEdgeBathymetryMean(iEdge), &
+!!$                                                         layerThicknessCell1)
+!!$                 call ocn_subgrid_layer_thickness_lookup(ssh(cell2), &
+!!$                                                         subgridWetVolumeEdgeTable(:,iEdge), &
+!!$                                                         subgridSshEdgeTableRange(:,iEdge), &
+!!$                                                         subgridEdgeBathymetryMean(iEdge), &
+!!$                                                         layerThicknessCell2)
+!!$                 layerThickEdgeFlux(1,iEdge) = &
+!!$                                     max(layerThicknessCell1, &
+!!$                                         layerThicknessCell2)
+
+                 sshMean = (ssh(cell1) + ssh(cell2))/2.0_RKIND ; 
+                 call ocn_subgrid_layer_thickness_lookup(sshMean, &
+                                                         subgridWetVolumeEdgeTable(:,iEdge), &
+                                                         subgridSshEdgeTableRange(:,iEdge), &
+                                                         subgridEdgeBathymetryMean(iEdge), &
+                                                         layerThickEdgeFlux(1,iedge))                   
+              end if
+
+              if ( layerThickEdgeFlux(1,iedge) < eps ) then
+                 cell1 = cellsOnEdge(1,iEdge)
+                 cell2 = cellsOnEdge(2,iEdge)
+
+                 layerThickEdgeFlux(1,iEdge) = 0.5_RKIND * &
+                                          ( layerThickness(1,cell1) + &
+                                            layerThickness(1,cell2) ) 
+              end if
+              ! print*, iEdge, layerThickEdgeFlux(1,iedge), layerThickEdgeMean(1,iedge)  
+           end do
 #ifndef MPAS_OPENACC
-         !$omp end do
-         !$omp end parallel
+           !$omp end do
+           !$omp end parallel
 #endif
+
+        else        
+#ifdef MPAS_OPENACC
+           !$acc parallel loop &
+           !$acc    present(normalVelocity, layerThickness, &
+           !$acc            minLevelEdgeBot, maxLevelEdgeTop, &
+           !$acc            layerThickEdgeFlux, cellsOnEdge) &
+           !$acc    private(k, kmin, kmax, cell1, cell2)
+#else
+           !$omp parallel
+           !$omp do schedule(runtime) private(k, kmin, kmax, cell1, cell2)
+#endif
+           do iEdge = 1, nEdgesAll
+              kmin = minLevelEdgeBot(iEdge)
+              kmax = maxLevelEdgeTop(iEdge)
+              cell1 = cellsOnEdge(1,iEdge)
+              cell2 = cellsOnEdge(2,iEdge)
+              do k=1,nVertLevels
+                 ! initialize layerThicknessEdgeFlux to avoid divide by
+                 ! zero and NaN problems.
+                 layerThickEdgeFlux(k,iEdge) = -1.0e34_RKIND
+              end do
+              do k = kmin,kmax
+                 if (normalVelocity(k,iEdge) > 0.0_RKIND) then
+                    layerThickEdgeFlux(k,iEdge) = layerThickness(k,cell1)
+                 elseif (normalVelocity(k,iEdge) < 0.0_RKIND) then
+                    layerThickEdgeFlux(k,iEdge) = layerThickness(k,cell2)
+                 else
+                    layerThickEdgeFlux(k,iEdge) = &
+                                        max(layerThickness(k,cell1), &
+                                            layerThickness(k,cell2))
+                 end if
+              end do
+           end do
+#ifndef MPAS_OPENACC
+           !$omp end do
+           !$omp end parallel
+#endif
+
+        end if
 
       case default
          ! Should have been caught on init
@@ -1041,7 +1174,7 @@ contains
 
    subroutine ocn_diagnostic_solve_vorticity(dt, &
                          normalVelocity, tangentialVelocity, &
-                         layerThickness, relativeVorticity, &
+                         layerThickness, relativeVorticity, ssh, &
                          normalizedRelativeVorticityEdge, &
                          normalizedPlanetaryVorticityEdge, &
                          normalizedRelativeVorticityCell)!{{{
@@ -1057,6 +1190,8 @@ contains
          tangentialVelocity, &!< [in] velocity tangent to edge
          layerThickness,     &!< [in] layer thickness
          relativeVorticity    !< [in] relative vorticity at cell center
+      real (kind=RKIND), dimension(:), intent(in) :: &
+         ssh !< [in] sea surface height
 
       !-----------------------------------------------------------------
       ! output variables
@@ -1083,7 +1218,9 @@ contains
          invAreaCell1,         &! 1/cell area
          invLength,            &! 1/length
          layerThicknessVertex, &! layer thickness at vertex
-         apvm_scale_factor      ! scale factor for APVM form
+         apvm_scale_factor,    &! scale factor for APVM form
+         sshVertex,            &! sea surface height at vertex
+         bathymetryVertex       ! bathymetry at vertex
 
       ! Local arrays
       ! normalizedPlanetaryVorticityVertex: earth's rotational rate
@@ -1129,28 +1266,53 @@ contains
 #else
       !$omp parallel
       !$omp do schedule(runtime) &
-      !$omp    private(i, k, iCell, invAreaTri1, layerThicknessVertex)
+      !$omp    private(i, k, iCell, invAreaTri1, layerThicknessVertex, iVertex, sshVertex)
 #endif
-      do iVertex = 1, nVertices
-         invAreaTri1 = 1.0_RKIND / areaTriangle(iVertex)
-         do k = 1, maxLevelVertexBot(iVertex)
-            layerThicknessVertex = 0.0_RKIND
-            do i = 1, vertexDegree
-               iCell = cellsOnVertex(i,iVertex)
-               layerThicknessVertex = layerThicknessVertex &
-                                    + layerThickness(k,iCell) &
-                                    * kiteAreasOnVertex(i,iVertex)
-            end do
-            layerThicknessVertex = layerThicknessVertex*invAreaTri1
-            if (layerThicknessVertex == 0) cycle
+      !if (config_use_subgrid_wetting_drying) then
+      if (.false.) then
+        do iVertex = 1, nVertices
+           invAreaTri1 = 1.0_RKIND / areaTriangle(iVertex)
+           do k = 1, maxLevelVertexBot(iVertex)
+              sshVertex = 0.0_RKIND
+              do i = 1, vertexDegree
+                 sshVertex = sshVertex + ssh(cellsOnVertex(i,iVertex)) &
+                                      * kiteAreasOnVertex(i,iVertex)
+              end do
+              sshVertex = sshVertex * invAreaTri1
+               
+              call ocn_subgrid_layer_thickness_lookup(sshVertex, &
+                                                      subgridWetVolumeVertexTable(:,iVertex), &
+                                                      subgridSshVertexTableRange(:,iVertex), &
+                                                      subgridVertexBathymetryMean(iVertex), &
+                                                      layerThicknessVertex) 
+              if (layerThicknessVertex == 0) cycle
 
-            normalizedRelativeVorticityVertex(k,iVertex) = &
-                            relativeVorticity(k,iVertex) / &
-                            layerThicknessVertex
-            normalizedPlanetaryVorticityVertex(k,iVertex) = &
-                            fVertex(iVertex)/layerThicknessVertex
-         end do
-      end do
+              normalizedRelativeVorticityVertex(k,iVertex) = relativeVorticity(k,iVertex) / layerThicknessVertex
+              normalizedPlanetaryVorticityVertex(k,iVertex) = fVertex(iVertex) / layerThicknessVertex
+           end do
+        end do
+      else
+        do iVertex = 1, nVertices
+           invAreaTri1 = 1.0_RKIND / areaTriangle(iVertex)
+           do k = 1, maxLevelVertexBot(iVertex)
+              layerThicknessVertex = 0.0_RKIND
+              do i = 1, vertexDegree
+                 iCell = cellsOnVertex(i,iVertex)
+                 layerThicknessVertex = layerThicknessVertex &
+                                      + layerThickness(k,iCell) &
+                                      * kiteAreasOnVertex(i,iVertex)
+              end do
+              layerThicknessVertex = layerThicknessVertex*invAreaTri1
+              if (layerThicknessVertex == 0) cycle
+
+              normalizedRelativeVorticityVertex(k,iVertex) = &
+                              relativeVorticity(k,iVertex) / &
+                              layerThicknessVertex
+              normalizedPlanetaryVorticityVertex(k,iVertex) = &
+                              fVertex(iVertex)/layerThicknessVertex
+           end do
+        end do
+      endif
 #ifndef MPAS_OPENACC
       !$omp end do
       !$omp end parallel
@@ -2376,6 +2538,8 @@ contains
       real (kind=RKIND), dimension(:), intent(out) :: &
          ssh
 
+      logical, save:: first = .true.  
+
       !-----------------------------------------------------------------
       !
       ! local variables
@@ -2415,10 +2579,33 @@ contains
               + layerThickness(k  ,iCell)
          end do
 
-         ! copy zTop(1,iCell) into sea-surface height array
-         ssh(iCell) = zTop(minLevelCell(iCell),iCell)
+
+         if (config_use_subgrid_wetting_drying) then
+         !if (.false.) then
+           call ocn_subgrid_ssh_lookup(layerThickness(1,iCell), &
+                                       subgridWetVolumeCellTable(:,iCell), &
+                                       subgridSshCellTableRange(:,iCell), &
+                                       bottomDepth(iCell), &
+                                       subgridCellBathymetryMin(iCell), & 
+                                       ssh(iCell))
+
+!           if ( first ) then
+!                if ( abs(ssh(iCell)) < 1.0e-10_RKIND ) then
+!                   ssh(iCell) = 0.0_RKIND 
+!                end if 
+!           endif
+
+           zTop(1,iCell) = ssh(iCell)
+           zMid(1,iCell) = -bottomDepth(iCell) + 0.5_RKIND*layerThickness(1,iCell)         
+         else
+           ! copy zTop(1,iCell) into sea-surface height array
+           ssh(iCell) = zTop(minLevelCell(iCell),iCell)
+         end if
 
       end do
+
+      first = .false. ;
+
 #ifndef MPAS_OPENACC
       !$omp end do
       !$omp end parallel

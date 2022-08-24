@@ -28,6 +28,7 @@ module ocn_vel_pressure_grad
    use ocn_constants
    use ocn_config
    use ocn_mesh
+   use ocn_subgrid
 
    implicit none
    private
@@ -38,6 +39,19 @@ module ocn_vel_pressure_grad
    ! Public parameters
    !
    !--------------------------------------------------------------------
+
+   integer, public :: &
+      pGradType   ! id for pressure gradient method selected
+
+   integer, parameter, public :: &! ids for supported methods
+      pGradTypeNone        = 0, &! none selected
+      pGradTypeSSHgrad     = 1, &! ssh gradient
+      pGradTypePZmid       = 2, &! pressure and zMid
+      pGradTypeMontPot     = 3, &! Montgomery potential
+      pGradTypeMontPotDens = 4, &! Montgomery potential and density
+      pGradTypeJacobDens   = 5, &! Jacobian from density
+      pGradTypeJacobTS     = 6, &! Jacobian from T,S
+      pGradTypeConstForced = 7   ! constant forced
 
    !--------------------------------------------------------------------
    !
@@ -56,19 +70,6 @@ module ocn_vel_pressure_grad
 
    logical :: &
       pGradOff    ! flag for turning pressure gradient on/off
-
-   integer :: &
-      pGradType   ! id for pressure gradient method selected
-
-   integer, parameter ::        &! ids for supported methods
-      pGradTypeNone        = 0, &! none selected
-      pGradTypeSSHgrad     = 1, &! ssh gradient
-      pGradTypePZmid       = 2, &! pressure and zMid
-      pGradTypeMontPot     = 3, &! Montgomery potential
-      pGradTypeMontPotDens = 4, &! Montgomery potential and density
-      pGradTypeJacobDens   = 5, &! Jacobian from density
-      pGradTypeJacobTS     = 6, &! Jacobian from T,S
-      pGradTypeConstForced = 7   ! constant forced
 
    real (kind=RKIND) :: &! precomputed constants for efficiency
       density0Inv,      &! 1/density0
