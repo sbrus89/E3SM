@@ -42,6 +42,14 @@ module ocn_subgrid
    !
    !--------------------------------------------------------------------
 
+   real(kind=RKIND), public, dimension(:,:), pointer :: &
+      subgridWetVolumeCellTable, &
+      subgridWetVolumeEdgeTable, &
+      subgridWetVolumeVertexTable, &
+      subgridSshCellTableRange, &
+      subgridSshEdgeTableRange, &
+      subgridSshVertexTableRange
+
    !--------------------------------------------------------------------
    !
    ! Public member functions
@@ -63,7 +71,7 @@ contains
 
 !***********************************************************************
 !
-!  routine ocn_compute_subgrid_correction
+!  routine ecn_subgrid_layer_thickness_lookup
 !
 !> \brief   
 !> \author  Damrongsak Wirasaet, Steven Brus
@@ -73,25 +81,105 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_compute_subgrid_correction(err)!{{{
+   subroutine ocn_subgrid_layer_thickness_lookup(ssh, subgridTable, subgridTableRange, layerThickness)!{{{
 
       !-----------------------------------------------------------------
       ! input variables
       !-----------------------------------------------------------------
 
+      real (kind=RKIND), intent(in) :: ssh
+      real (kind=RKIND), dimension(:), intent(in) :: subgridTable
+      real (kind=RKIND), dimension(:), intent(in) :: subgridTableRange
+
       !-----------------------------------------------------------------
       ! output variables
       !-----------------------------------------------------------------
 
-      integer, intent(out) :: err !< Output: Error flag
+      real (kind=RKIND), intent(out) :: layerThickness
 
       !-----------------------------------------------------------------
       ! local variables
       !-----------------------------------------------------------------
 
+      real (kind=RKIND) :: tableMin
+      real (kind=RKIND) :: tableMax
+      real (kind=RKIND) :: deltaZ
+      real (kind=RKIND) :: ssh0, ssh1
 
-   end subroutine ocn_compute_subgrid_correction!}}}
+      tableMin = subgridTableRange(1)
+      tableMax = subgridTableRange(2)
+      deltaZ = (tableMax - tableMin)/(subgridTableLevels-1)
 
+      do lev = 1, subgridTableLevels-1
+        ssh0 = (real(lev,RKIND)-1.0_RKIND)*deltaZ + tableMin
+        ssh1 = ssh0 + deltaZ
+
+        if ((ssh <= ssh1) .and. (ssh >= ssh0)) then
+          layerThickness = ((ssh-ssh0)*subgridTable(lev+1) - (ssh-ssh1)*subgridTable(lev))/deltaZ
+          exit
+        end if
+
+      end do
+
+   end subroutine ocn_subgrid_layer_thickness_lookup!}}}
+
+!***********************************************************************
+!
+!  routine ecn_subgrid_ssh_lookup
+!> \brief   
+!> \author  Damrongsak Wirasaet, Steven Brus
+!> \date    September 2022
+!> \details
+!>  
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_subgrid_ssh_lookup(layerThickness, subgridTable, subgridTableRange, ssh)!{{{
+
+      !-----------------------------------------------------------------
+      ! input variables
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), intent(in) :: layerThickness
+      real (kind=RKIND), dimension(:), intent(in) :: subgridTable
+      real (kind=RKIND), dimension(:), intent(in) :: subgridTableRange
+
+      !-----------------------------------------------------------------
+      ! output variables
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), intent(out) :: ssh
+
+      !-----------------------------------------------------------------
+      ! local variables
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND) :: tableMin
+      real (kind=RKIND) :: tableMax
+      real (kind=RKIND) :: deltaZ
+      real (kind=RKIND) :: ssh0, ssh1
+
+      tableMin = subgridTableRange(1)
+      tableMax = subgridTableRange(2)
+      deltaZ = (tableMax - tableMin)/(subgridTableLevels-1)
+
+      do lev = 1, subgridTableLevels-1
+        ssh0 = (real(lev,RKIND)-1.0_RKIND)*deltaZ + tableMin
+        ssh1 = ssh0 + deltaZ
+
+        layerThickness0 = subgridTable(lev)
+        layerThickness1 = subgridTable(lev+1)
+
+        if ((layerThickness <= layerThickness1) .and. (layerThickness >= layerThickness0)) then
+          phi0 = (layerThickness-layerThickness1)/(layerThickness0-layerThickness1)
+          phi1 = (layerThickness-layerThickness0)/(layerThickness1-layerThickness0)
+          ssh = phi0*ssh0 + phi1*ssh1
+          exit
+        end if
+
+      end do
+
+   end subroutine ocn_subgrid_layer_thickness_lookup!}}}
 
 !***********************************************************************
 !
@@ -117,15 +205,36 @@ contains
       ! output variables
       !-----------------------------------------------------------------
 
-      integer, intent(out) :: err !< [out] error flag
+      integer, intent(out) :: err
 
       !-----------------------------------------------------------------
       ! local variables
       !-----------------------------------------------------------------
 
+      type(block_type), pointer :: block
+      type(mpas_pool_type), pointer :: statePool
+
       err = 0
 
-      !-----------------------------------------------------------------
+      if (config_use_subgrid_wetting_drying .and. (nVertLevels .ne. 1)) then
+        call mpas_log_write('config_config_use_subgrid_wetting_drying = .true. requires single layer' , MPAS_LOG_CRIT)
+      end if 
+
+      block => domain%blocklist
+      call mpas_pool_get_subpool(block%structs, 'state', statePool)
+
+      call mpas_pool_get_array(statePool, 'subgridWetVolumeCellTable', &
+                               subgridWetVolumeCellTable)
+      call mpas_pool_get_array(statePool, 'subgridWetVolumeEdgeTable', &
+                               subgridWetVolumeEdgeTable)
+      call mpas_pool_get_array(statePool, 'subgridWetVolumeVertexTable', &
+                               subgridWetVolumeVertexTable)
+      call mpas_pool_get_array(statePool, 'subgridSshCellTableRange', &
+                               subgridSshCellTableRange)
+      call mpas_pool_get_array(statePool, 'subgridSshEdgeTableRange', &
+                               subgridSshEdgeTableRange)
+      call mpas_pool_get_array(statePool, 'subgridSshVertexTableRange', &
+                               subgridSshVertexTableRange)
 
    end subroutine ocn_subgrid_init!}}}
 
