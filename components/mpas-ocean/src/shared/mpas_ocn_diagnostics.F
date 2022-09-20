@@ -710,6 +710,7 @@ contains
          kmin, kmax     ! min,max active vertical levels
       real (kind=RKIND) :: &
          sshMean, &
+         bathymetryMean, &
          layerThicknessCell1, &
          layerThicknessCell2
 
@@ -733,10 +734,12 @@ contains
            cell1 = cellsOnEdge(1,iEdge)
            cell2 = cellsOnEdge(2,iEdge)
            sshMean = 0.5_RKIND * (ssh(cell1) + ssh(cell2))
+           bathymetryMean = 0.5_RKIND * (bottomDepth(cell1) + bottomDepth(cell2))
            call ocn_subgrid_layer_thickness_lookup(sshMean, &
                                                    subgridWetVolumeEdgeTable(iEdge,:), &
                                                    subgridSshEdgeTableRange(iEdge,:), &
-                                                   layerThickEdgeFlux(1,iEdge))
+                                                   bathymetryMean, &
+                                                   layerThicknessEdgeMean(1,iEdge))
         end do
 #ifndef MPAS_OPENACC
         !$omp end do
@@ -817,25 +820,29 @@ contains
            do iEdge = 1, nEdgesAll
               cell1 = cellsOnEdge(1,iEdge)
               cell2 = cellsOnEdge(2,iEdge)
+              bathymetryMean = 0.5_RKIND * (bottomDepth(cell1) + bottomDepth(cell2))
               if (normalVelocity(1,iEdge) > 0.0_RKIND) then
-                 layerThickEdgeFlux(1,iEdge) = layerThickness(k,cell1)
                  call ocn_subgrid_layer_thickness_lookup(ssh(cell1), &
-                                                         subgridWetVolumeCellTable(cell1,:), &
-                                                         subgridSshCellTableRange(cell1,:), &
+                                                         subgridWetVolumeEdgeTable(iEdge,:), &
+                                                         subgridSshEdgeTableRange(iEdge,:), &
+                                                         bathymetryMean, &
                                                          layerThickEdgeFlux(1,iEdge))
               elseif (normalVelocity(1,iEdge) < 0.0_RKIND) then
                  call ocn_subgrid_layer_thickness_lookup(ssh(cell2), &
-                                                         subgridWetVolumeCellTable(cell2,:), &
-                                                         subgridSshCellTableRange(cell2,:), &
+                                                         subgridWetVolumeEdgeTable(iEdge,:), &
+                                                         subgridSshEdgeTableRange(iEdge,:), &
+                                                         bathymetryMean, &
                                                          layerThickEdgeFlux(1,iEdge))
               else
                  call ocn_subgrid_layer_thickness_lookup(ssh(cell1), &
-                                                         subgridWetVolumeCellTable(cell1,:), &
-                                                         subgridSshCellTableRange(cell1,:), &
+                                                         subgridWetVolumeEdgeTable(iEdge,:), &
+                                                         subgridSshEdgeTableRange(iEdge,:), &
+                                                         bathymetryMean, &
                                                          layerThicknessCell1)
                  call ocn_subgrid_layer_thickness_lookup(ssh(cell2), &
-                                                         subgridWetVolumeCellTable(cell2,:), &
-                                                         subgridSshCellTableRange(cell2,:), &
+                                                         subgridWetVolumeEdgeTable(iEdge,:), &
+                                                         subgridSshEdgeTableRange(iEdge,:), &
+                                                         bathymetryMean, &
                                                          layerThicknessCell2)
                  layerThickEdgeFlux(1,iEdge) = &
                                      max(layerThicknessCell1, &
@@ -1164,7 +1171,9 @@ contains
          invAreaCell1,         &! 1/cell area
          invLength,            &! 1/length
          layerThicknessVertex, &! layer thickness at vertex
-         apvm_scale_factor      ! scale factor for APVM form
+         apvm_scale_factor,    &! scale factor for APVM form
+         sshVertex,            &! sea surface height at vertex
+         bathymetryVertex,      ! bathymetry at vertex
 
       ! Local arrays
       ! normalizedPlanetaryVorticityVertex: earth's rotational rate
@@ -1212,22 +1221,27 @@ contains
       !$omp do schedule(runtime) &
       !$omp    private(i, k, iCell, invAreaTri1, layerThicknessVertex)
 #endif
-      if (config_use_subgrid_wetting_drying == .True.) then
+      if (config_use_subgrid_wetting_drying) then
         do iVertex = 1, nVertices
            invAreaTri1 = 1.0_RKIND / areaTriangle(iVertex)
            do k = 1, maxLevelVertexBot(iVertex)
               sshVertex = 0.0_RKIND
+              bathymetryVertex = 0.0_RKIND
               do i = 1, vertexDegree
                  sshVertex = sshVertex + ssh(cellsOnVertex(i,iVertex)) &
                                       * kiteAreasOnVertex(i,iVertex)
+                 bathymetryVertex = bathymetryVertex + bottomDepth(cellsOnVertex(i,iVertex)) &
+                                      * kiteAreasOnVertex(i,iVertex)
               end do
               sshVertex = sshVertex * invAreaTri1
-              if (sshVertex == 0) cycle
+              bathymetryVertex = bathymetryVertex * invAreaTri1
                
               call ocn_subgrid_layer_thickness_lookup(sshVertex, &
                                                       subgridWetVolumeVertexTable, &
                                                       subgridSshVertexTableRange, &
+                                                      bathymetryVertex, &
                                                       layerThicknessVertex) 
+              if (layerThicknessVertex == 0) cycle
 
               normalizedRelativeVorticityVertex(k,iVertex) = relativeVorticity(k,iVertex) / layerThicknessVertex
               normalizedPlanetaryVorticityVertex(k,iVertex) = fVertex(iVertex) / layerThicknessVertex
@@ -2524,6 +2538,7 @@ contains
            call ocn_subgrid_ssh_lookup(layerThickness(1,iCell), &
                                        subgridWetVolumeCellTable, &
                                        subgridSshCellTableRange, &
+                                       bottomDepth(iCell), &
                                        ssh(iCell))
          else
            ! copy zTop(1,iCell) into sea-surface height array

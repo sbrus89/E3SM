@@ -10,7 +10,7 @@
 !  ocn_subgrid
 !
 !> \brief   MPAS ocean subgrid wetting and drying 
-!> \authors Damrongsak Wirasaet, Steven Brus 
+!> \authors Steven Brus, Damrongsak Wirasaet
 !> \date    September 2022 
 !> \details
 !>  This module contains routines for subgrid wetting and drying 
@@ -71,17 +71,21 @@ contains
 
 !***********************************************************************
 !
-!  routine ecn_subgrid_layer_thickness_lookup
+!  routine ocn_subgrid_layer_thickness_lookup
 !
 !> \brief   
-!> \author  Damrongsak Wirasaet, Steven Brus
+!> \author  Steven Brus, Damrongsak Wirasaet
 !> \date    September 2022
 !> \details
 !>  
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_subgrid_layer_thickness_lookup(ssh, subgridTable, subgridTableRange, layerThickness)!{{{
+   subroutine ocn_subgrid_layer_thickness_lookup(ssh, &
+                                                 subgridTable, &
+                                                 subgridTableRange, &
+                                                 bathymetry, &
+                                                 layerThickness)!{{{
 
       !-----------------------------------------------------------------
       ! input variables
@@ -90,6 +94,7 @@ contains
       real (kind=RKIND), intent(in) :: ssh
       real (kind=RKIND), dimension(:), intent(in) :: subgridTable
       real (kind=RKIND), dimension(:), intent(in) :: subgridTableRange
+      real (kind=RKIND), intent(in) :: bathymetry
 
       !-----------------------------------------------------------------
       ! output variables
@@ -110,31 +115,45 @@ contains
       tableMax = subgridTableRange(2)
       deltaZ = (tableMax - tableMin)/(subgridTableLevels-1)
 
-      do lev = 1, subgridTableLevels-1
-        ssh0 = (real(lev,RKIND)-1.0_RKIND)*deltaZ + tableMin
-        ssh1 = ssh0 + deltaZ
+      if (ssh > tableMax) then
+        layerThickness = ssh + bathymetry
+        return 
 
-        if ((ssh <= ssh1) .and. (ssh >= ssh0)) then
-          layerThickness = ((ssh-ssh0)*subgridTable(lev+1) - (ssh-ssh1)*subgridTable(lev))/deltaZ
-          exit
-        end if
+      else if (ssh < tableMin) then
+        layerThickness = 0.0_RKIND
+        return
 
-      end do
+      else 
+        do lev = 1, subgridTableLevels-1
+          ssh0 = (real(lev,RKIND)-1.0_RKIND)*deltaZ + tableMin
+          ssh1 = ssh0 + deltaZ
+
+          if ((ssh <= ssh1) .and. (ssh >= ssh0)) then
+            layerThickness = ((ssh-ssh0)*subgridTable(lev+1) - (ssh-ssh1)*subgridTable(lev))/deltaZ
+            return
+          end if
+
+        end do
+      end if      
 
    end subroutine ocn_subgrid_layer_thickness_lookup!}}}
 
 !***********************************************************************
 !
-!  routine ecn_subgrid_ssh_lookup
+!  routine ocn_subgrid_ssh_lookup
 !> \brief   
-!> \author  Damrongsak Wirasaet, Steven Brus
+!> \author  Steven Brus, Damrongsak Wirasaet
 !> \date    September 2022
 !> \details
 !>  
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_subgrid_ssh_lookup(layerThickness, subgridTable, subgridTableRange, ssh)!{{{
+   subroutine ocn_subgrid_ssh_lookup(layerThickness, &
+                                     subgridTable, &
+                                     subgridTableRange, &
+                                     bathymetry, &
+                                     ssh)!{{{
 
       !-----------------------------------------------------------------
       ! input variables
@@ -143,6 +162,7 @@ contains
       real (kind=RKIND), intent(in) :: layerThickness
       real (kind=RKIND), dimension(:), intent(in) :: subgridTable
       real (kind=RKIND), dimension(:), intent(in) :: subgridTableRange
+      real (kind=RKIND), intent(in) :: bathymetry
 
       !-----------------------------------------------------------------
       ! output variables
@@ -156,6 +176,7 @@ contains
 
       real (kind=RKIND) :: tableMin
       real (kind=RKIND) :: tableMax
+      real (kind=RKIND) :: layerThicknessMax
       real (kind=RKIND) :: deltaZ
       real (kind=RKIND) :: ssh0, ssh1
 
@@ -163,21 +184,29 @@ contains
       tableMax = subgridTableRange(2)
       deltaZ = (tableMax - tableMin)/(subgridTableLevels-1)
 
-      do lev = 1, subgridTableLevels-1
-        ssh0 = (real(lev,RKIND)-1.0_RKIND)*deltaZ + tableMin
-        ssh1 = ssh0 + deltaZ
+      layerThicknessMax = subgridTable(subgridTableLevels)
+      if (layerThickness > layerThicknessMax) then
+        ssh = layerThckness - bathymetry
+        return 
 
-        layerThickness0 = subgridTable(lev)
-        layerThickness1 = subgridTable(lev+1)
+      else        
 
-        if ((layerThickness <= layerThickness1) .and. (layerThickness >= layerThickness0)) then
-          phi0 = (layerThickness-layerThickness1)/(layerThickness0-layerThickness1)
-          phi1 = (layerThickness-layerThickness0)/(layerThickness1-layerThickness0)
-          ssh = phi0*ssh0 + phi1*ssh1
-          exit
-        end if
-
-      end do
+        do lev = 1, subgridTableLevels-1
+          ssh0 = (real(lev,RKIND)-1.0_RKIND)*deltaZ + tableMin
+          ssh1 = ssh0 + deltaZ
+  
+          layerThickness0 = subgridTable(lev)
+          layerThickness1 = subgridTable(lev+1)
+  
+          if ((layerThickness <= layerThickness1) .and. (layerThickness >= layerThickness0)) then
+            phi0 = (layerThickness-layerThickness1)/(layerThickness0-layerThickness1)
+            phi1 = (layerThickness-layerThickness0)/(layerThickness1-layerThickness0)
+            ssh = phi0*ssh0 + phi1*ssh1
+            return
+          end if
+  
+        end do
+      end if
 
    end subroutine ocn_subgrid_layer_thickness_lookup!}}}
 
@@ -186,7 +215,7 @@ contains
 !  routine ocn_subgrid_init
 !
 !> \brief   Initializes subgrid wetting and drying module.
-!> \author  Damrongsak Wirasaet, Steven Brus
+!> \author  Steven Brus, Damrongsak Wirasaet
 !> \date    September 2022
 !> \details
 !>  This routine initializes the subgrid wetting and drying module
