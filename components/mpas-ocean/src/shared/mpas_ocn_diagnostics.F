@@ -238,6 +238,7 @@ contains
       ! inputs: layerThickness, normalVelocity
       ! output: layerThickEdgeMean, layerThickEdgeDrag, layerThickEdgeFlux
       call ocn_diagnostic_solve_layerThicknessEdge(normalVelocity, &
+                                                   ssh, &
                                                    layerThickness)
 
       ! inputs: normalVelocity
@@ -680,6 +681,7 @@ contains
 !-----------------------------------------------------------------------
 
    subroutine ocn_diagnostic_solve_layerThicknessEdge(normalVelocity, &
+                                                      ssh, &
                                                       layerThickness)!{{{
 
       !-----------------------------------------------------------------
@@ -689,6 +691,8 @@ contains
       real (kind=RKIND), dimension(:,:), intent(in) :: &
          normalVelocity,  &!< [in] transport
          layerThickness    !< [in] layer thickness at cell center
+      real (kind=RKIND), dimension(:), intent(in) :: &
+         ssh               !< [in] sea surface height at cell center
 
       !-----------------------------------------------------------------
       ! output variables
@@ -739,7 +743,7 @@ contains
                                                    subgridWetVolumeEdgeTable(iEdge,:), &
                                                    subgridSshEdgeTableRange(iEdge,:), &
                                                    bathymetryMean, &
-                                                   layerThicknessEdgeMean(1,iEdge))
+                                                   layerThickEdgeMean(1,iEdge))
         end do
 #ifndef MPAS_OPENACC
         !$omp end do
@@ -1237,8 +1241,8 @@ contains
               bathymetryVertex = bathymetryVertex * invAreaTri1
                
               call ocn_subgrid_layer_thickness_lookup(sshVertex, &
-                                                      subgridWetVolumeVertexTable, &
-                                                      subgridSshVertexTableRange, &
+                                                      subgridWetVolumeVertexTable(iVertex,:), &
+                                                      subgridSshVertexTableRange(iVertex,:), &
                                                       bathymetryVertex, &
                                                       layerThicknessVertex) 
               if (layerThicknessVertex == 0) cycle
@@ -2536,8 +2540,8 @@ contains
 
          if (config_use_subgrid_wetting_drying) then
            call ocn_subgrid_ssh_lookup(layerThickness(1,iCell), &
-                                       subgridWetVolumeCellTable, &
-                                       subgridSshCellTableRange, &
+                                       subgridWetVolumeCellTable(iCell,:), &
+                                       subgridSshCellTableRange(iCell,:), &
                                        bottomDepth(iCell), &
                                        ssh(iCell))
          else

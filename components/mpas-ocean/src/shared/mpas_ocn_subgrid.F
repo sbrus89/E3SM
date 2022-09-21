@@ -56,14 +56,17 @@ module ocn_subgrid
    !
    !--------------------------------------------------------------------
 
-   public :: ocn_compute_subgrid_forcing, &
-             ocn_subgrid_init, &
+   public :: ocn_subgrid_layer_thickness_lookup, &
+             ocn_subgrid_ssh_lookup, &
+             ocn_subgrid_init
 
    !--------------------------------------------------------------------
    !
    ! Private module variables
    !
    !--------------------------------------------------------------------
+
+   integer, pointer :: subgridTableLevels
 
 !***********************************************************************
 
@@ -81,17 +84,17 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_subgrid_layer_thickness_lookup(ssh, &
+   subroutine ocn_subgrid_layer_thickness_lookup(zeta, &
                                                  subgridTable, &
                                                  subgridTableRange, &
                                                  bathymetry, &
-                                                 layerThickness)!{{{
+                                                 layerThick)!{{{
 
       !-----------------------------------------------------------------
       ! input variables
       !-----------------------------------------------------------------
 
-      real (kind=RKIND), intent(in) :: ssh
+      real (kind=RKIND), intent(in) :: zeta
       real (kind=RKIND), dimension(:), intent(in) :: subgridTable
       real (kind=RKIND), dimension(:), intent(in) :: subgridTableRange
       real (kind=RKIND), intent(in) :: bathymetry
@@ -100,36 +103,38 @@ contains
       ! output variables
       !-----------------------------------------------------------------
 
-      real (kind=RKIND), intent(out) :: layerThickness
+      real (kind=RKIND), intent(out) :: layerThick
 
       !-----------------------------------------------------------------
       ! local variables
       !-----------------------------------------------------------------
 
+      integer :: lev
+
       real (kind=RKIND) :: tableMin
       real (kind=RKIND) :: tableMax
       real (kind=RKIND) :: deltaZ
-      real (kind=RKIND) :: ssh0, ssh1
+      real (kind=RKIND) :: zeta0, zeta1
 
       tableMin = subgridTableRange(1)
       tableMax = subgridTableRange(2)
       deltaZ = (tableMax - tableMin)/(subgridTableLevels-1)
 
-      if (ssh > tableMax) then
-        layerThickness = ssh + bathymetry
+      if (zeta > tableMax) then
+        layerThick = zeta + bathymetry
         return 
 
-      else if (ssh < tableMin) then
-        layerThickness = 0.0_RKIND
+      else if (zeta < tableMin) then
+        layerThick = 0.0_RKIND
         return
 
       else 
         do lev = 1, subgridTableLevels-1
-          ssh0 = (real(lev,RKIND)-1.0_RKIND)*deltaZ + tableMin
-          ssh1 = ssh0 + deltaZ
+          zeta0 = (real(lev,RKIND)-1.0_RKIND)*deltaZ + tableMin
+          zeta1 = zeta0 + deltaZ
 
-          if ((ssh <= ssh1) .and. (ssh >= ssh0)) then
-            layerThickness = ((ssh-ssh0)*subgridTable(lev+1) - (ssh-ssh1)*subgridTable(lev))/deltaZ
+          if ((zeta <= zeta1) .and. (zeta >= zeta0)) then
+            layerThick = ((zeta-zeta0)*subgridTable(lev+1) - (zeta-zeta1)*subgridTable(lev))/deltaZ
             return
           end if
 
@@ -149,17 +154,17 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_subgrid_ssh_lookup(layerThickness, &
+   subroutine ocn_subgrid_ssh_lookup(layerThick, &
                                      subgridTable, &
                                      subgridTableRange, &
                                      bathymetry, &
-                                     ssh)!{{{
+                                     zeta)!{{{
 
       !-----------------------------------------------------------------
       ! input variables
       !-----------------------------------------------------------------
 
-      real (kind=RKIND), intent(in) :: layerThickness
+      real (kind=RKIND), intent(in) :: layerThick
       real (kind=RKIND), dimension(:), intent(in) :: subgridTable
       real (kind=RKIND), dimension(:), intent(in) :: subgridTableRange
       real (kind=RKIND), intent(in) :: bathymetry
@@ -168,47 +173,51 @@ contains
       ! output variables
       !-----------------------------------------------------------------
 
-      real (kind=RKIND), intent(out) :: ssh
+      real (kind=RKIND), intent(out) :: zeta
 
       !-----------------------------------------------------------------
       ! local variables
       !-----------------------------------------------------------------
 
+      integer :: lev
+
       real (kind=RKIND) :: tableMin
       real (kind=RKIND) :: tableMax
-      real (kind=RKIND) :: layerThicknessMax
+      real (kind=RKIND) :: layerThickMax
       real (kind=RKIND) :: deltaZ
-      real (kind=RKIND) :: ssh0, ssh1
+      real (kind=RKIND) :: layerThick0, layerThick1
+      real (kind=RKIND) :: zeta0, zeta1
+      real (kind=RKIND) :: phi0, phi1
 
       tableMin = subgridTableRange(1)
       tableMax = subgridTableRange(2)
       deltaZ = (tableMax - tableMin)/(subgridTableLevels-1)
 
-      layerThicknessMax = subgridTable(subgridTableLevels)
-      if (layerThickness > layerThicknessMax) then
-        ssh = layerThckness - bathymetry
+      layerThickMax = subgridTable(subgridTableLevels)
+      if (layerThick > layerThickMax) then
+        zeta = layerThick - bathymetry
         return 
 
       else        
 
         do lev = 1, subgridTableLevels-1
-          ssh0 = (real(lev,RKIND)-1.0_RKIND)*deltaZ + tableMin
-          ssh1 = ssh0 + deltaZ
+          zeta0 = (real(lev,RKIND)-1.0_RKIND)*deltaZ + tableMin
+          zeta1 = zeta0 + deltaZ
   
-          layerThickness0 = subgridTable(lev)
-          layerThickness1 = subgridTable(lev+1)
+          layerThick0 = subgridTable(lev)
+          layerThick1 = subgridTable(lev+1)
   
-          if ((layerThickness <= layerThickness1) .and. (layerThickness >= layerThickness0)) then
-            phi0 = (layerThickness-layerThickness1)/(layerThickness0-layerThickness1)
-            phi1 = (layerThickness-layerThickness0)/(layerThickness1-layerThickness0)
-            ssh = phi0*ssh0 + phi1*ssh1
+          if ((layerThick <= layerThick1) .and. (layerThick >= layerThick0)) then
+            phi0 = (layerThick-layerThick1)/(layerThick0-layerThick1)
+            phi1 = (layerThick-layerThick0)/(layerThick1-layerThick0)
+            zeta = phi0*zeta0 + phi1*zeta1
             return
           end if
   
         end do
       end if
 
-   end subroutine ocn_subgrid_layer_thickness_lookup!}}}
+   end subroutine ocn_subgrid_ssh_lookup!}}}
 
 !***********************************************************************
 !
@@ -242,6 +251,7 @@ contains
 
       type(block_type), pointer :: block
       type(mpas_pool_type), pointer :: statePool
+      type(mpas_pool_type), pointer :: meshPool
 
       err = 0
 
@@ -264,6 +274,9 @@ contains
                                subgridSshEdgeTableRange)
       call mpas_pool_get_array(statePool, 'subgridSshVertexTableRange', &
                                subgridSshVertexTableRange)
+
+      call mpas_pool_get_dimension(meshPool, 'subgridTableLevels', &
+                                   subgridTableLevels)
 
    end subroutine ocn_subgrid_init!}}}
 
