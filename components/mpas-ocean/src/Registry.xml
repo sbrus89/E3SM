@@ -2310,15 +2310,15 @@
 			 packages="verticalRemapPKG"
 		/>
                 <!-- FIELDS FOR SUBGIRD WETTING AND DRYING-->
-		<var name="subgridWetVolumeCellTable" type="real" dimensions="subgridTableLevels nCells" units="m"
+		<var name="subgridWetVolumeCellTable" type="real" dimensions="nCells subgridTableLevels" units="m"
 			 description="Pre-computed wet volume per unit area for each cell at given ssh value"
 			 packages="subgridWetDry"
 		/>
-		<var name="subgridWetVolumeEdgeTable" type="real" dimensions="subgridTableLevels nEdges" units="m"
+		<var name="subgridWetVolumeEdgeTable" type="real" dimensions="nEdges subgridTableLevels" units="m"
 			 description="Pre-computed wet volume per unit area for each edge at given ssh value"
 			 packages="subgridWetDry"
 		/>
-		<var name="subgridWetVolumeVertexTable" type="real" dimensions="subgridTableLevels nVertices" units="m"
+		<var name="subgridWetVolumeVertexTable" type="real" dimensions="nVertices subgridTableLevels" units="m"
 			 description="Pre-computed wet volume per unit area for each edge at given ssh value"
 			 packages="subgridWetDry"
 		/>
