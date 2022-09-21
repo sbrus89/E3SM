@@ -49,6 +49,9 @@ module ocn_subgrid
       subgridSshCellTableRange, &
       subgridSshEdgeTableRange, &
       subgridSshVertexTableRange
+   real(kind=RKIND), public, dimension(:), pointer :: &
+      subgridEdgeBathymetry, &
+      subgridVertexBathymetry
 
    !--------------------------------------------------------------------
    !
@@ -181,10 +184,9 @@ contains
 
       integer :: lev
 
-      real (kind=RKIND) :: tableMin
-      real (kind=RKIND) :: tableMax
-      real (kind=RKIND) :: layerThickMax
       real (kind=RKIND) :: deltaZ
+      real (kind=RKIND) :: tableMin, tableMax
+      real (kind=RKIND) :: layerThickMin, layerThickMax
       real (kind=RKIND) :: layerThick0, layerThick1
       real (kind=RKIND) :: zeta0, zeta1
       real (kind=RKIND) :: phi0, phi1
@@ -193,10 +195,16 @@ contains
       tableMax = subgridTableRange(2)
       deltaZ = (tableMax - tableMin)/(subgridTableLevels-1)
 
+      layerThickMin = subgridTable(1)
       layerThickMax = subgridTable(subgridTableLevels)
+
       if (layerThick > layerThickMax) then
         zeta = layerThick - bathymetry
         return 
+
+      else if (layerThick < layerThickMin) then
+        zeta = -bathymetry
+        return
 
       else        
 
@@ -274,6 +282,10 @@ contains
                                subgridSshEdgeTableRange)
       call mpas_pool_get_array(statePool, 'subgridSshVertexTableRange', &
                                subgridSshVertexTableRange)
+      call mpas_pool_get_array(statePool, 'subgridEdgeBathymetry', &
+                               subgridEdgeBathymetry)
+      call mpas_pool_get_array(statePool, 'subgridVertexBathymetry', &
+                               subgridVertexBathymetry)
 
       call mpas_pool_get_dimension(meshPool, 'subgridTableLevels', &
                                    subgridTableLevels)

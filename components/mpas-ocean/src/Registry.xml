@@ -2334,6 +2334,14 @@
 			 description="Range of ssh vaules used for vertex lookup table"
 			 packages="subgridWetDry"
 		/>
+		<var name="subgridEdgeBathymetry" type="real" dimensions="nEdges" units="m"
+			 description="Bathymetry on edge from subgrid information"
+			 packages="subgridWetDry"
+		/>
+		<var name="subgridVertexBathymetry" type="real" dimensions="nVertices" units="m"
+			 description="Bathymetry on vertex from subgrid information"
+			 packages="subgridWetDry"
+		/>
 	</var_struct>
 	<var_struct name="mesh" time_levs="1">
 		<var name="latCell" type="real" dimensions="nCells" units="radians"
