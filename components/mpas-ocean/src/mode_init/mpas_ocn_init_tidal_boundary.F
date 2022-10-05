@@ -284,9 +284,9 @@ contains
         call mpas_log_write('Right boundary must be deeper than left boundary!', MPAS_LOG_CRIT)
       end if
 
-      ! Set refBottomDepth, bottomDepth, and maxLevelCell
-      do k = 1, nVertLevels
-        refBottomDepth(k) = config_tidal_boundary_right_bottom_depth * interfaceLocations(k+1)
+      ! set refbottomdepth, bottomdepth, and maxlevelcell
+      do k = 1, nvertlevels
+        refbottomdepth(k) = config_tidal_boundary_right_bottom_depth * interfacelocations(k+1)
       end do
 
       if (config_use_wetting_drying .and. config_tidal_start_dry .and. &
@@ -317,7 +317,8 @@ contains
         ! above bottomDepth was set with continuous analytical functions,
         ! and needs to be discrete
         do iCell = 1, nCellsSolve
-        maxLevelCell(iCell) = nVertLevels
+          maxLevelCell(iCell) = nVertLevels
+
           if (nVertLevels > 1) then
             do k = 1, nVertLevels
               if (bottomDepth(iCell) < refBottomDepth(k)) then
@@ -386,9 +387,9 @@ contains
                                                  ssh(iCell), bottomDepth(iCell), minLevelCell(iCell), &
                                                  maxLevelCell(iCell), nVertLevels, iErr)
 
-          ! compute zMid
-          call ocn_compute_zMid_from_layerThickness(zMid(:,iCell), layerThickness(:,iCell), ssh(iCell), &
-                                                    minLevelCell(iCell), maxLevelCell(iCell), nVertLevels, iErr)
+!          ! compute zMid
+!          call ocn_compute_zMid_from_layerThickness(zMid(:,iCell), layerThickness(:,iCell), ssh(iCell), &
+!                                                    minLevelCell(iCell), maxLevelCell(iCell), nVertLevels, iErr)
           do k = 1, maxLevelCell(iCell)
             restingThickness(k, iCell) = layerThickness(k, iCell)
           end do
@@ -497,7 +498,6 @@ contains
            // 'Not given a usable value for vertical levels.', MPAS_LOG_CRIT)
          iErr = 1
       end if
-
    !--------------------------------------------------------------------
 
    end subroutine ocn_init_validate_tidal_boundary!}}}
