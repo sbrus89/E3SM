@@ -262,7 +262,7 @@ contains
 
       err = 0
 
-      if (.not. config_config_use_subgrid_wetting_drying) then
+      if (.not. config_use_subgrid_wetting_drying) then
         return
       end if
 
