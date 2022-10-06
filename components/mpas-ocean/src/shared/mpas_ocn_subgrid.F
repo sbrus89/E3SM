@@ -258,33 +258,36 @@ contains
       !-----------------------------------------------------------------
 
       type(block_type), pointer :: block
-      type(mpas_pool_type), pointer :: statePool
       type(mpas_pool_type), pointer :: meshPool
 
       err = 0
+
+      if (.not. config_config_use_subgrid_wetting_drying) then
+        return
+      end if
 
       if (config_use_subgrid_wetting_drying .and. (nVertLevels .ne. 1)) then
         call mpas_log_write('config_config_use_subgrid_wetting_drying = .true. requires single layer' , MPAS_LOG_CRIT)
       end if 
 
       block => domain%blocklist
-      call mpas_pool_get_subpool(block%structs, 'state', statePool)
+      call mpas_pool_get_subpool(block%structs, 'mesh', meshPool)
 
-      call mpas_pool_get_array(statePool, 'subgridWetVolumeCellTable', &
+      call mpas_pool_get_array(meshPool, 'subgridWetVolumeCellTable', &
                                subgridWetVolumeCellTable)
-      call mpas_pool_get_array(statePool, 'subgridWetVolumeEdgeTable', &
+      call mpas_pool_get_array(meshPool, 'subgridWetVolumeEdgeTable', &
                                subgridWetVolumeEdgeTable)
-      call mpas_pool_get_array(statePool, 'subgridWetVolumeVertexTable', &
+      call mpas_pool_get_array(meshPool, 'subgridWetVolumeVertexTable', &
                                subgridWetVolumeVertexTable)
-      call mpas_pool_get_array(statePool, 'subgridSshCellTableRange', &
+      call mpas_pool_get_array(meshPool, 'subgridSshCellTableRange', &
                                subgridSshCellTableRange)
-      call mpas_pool_get_array(statePool, 'subgridSshEdgeTableRange', &
+      call mpas_pool_get_array(meshPool, 'subgridSshEdgeTableRange', &
                                subgridSshEdgeTableRange)
-      call mpas_pool_get_array(statePool, 'subgridSshVertexTableRange', &
+      call mpas_pool_get_array(meshPool, 'subgridSshVertexTableRange', &
                                subgridSshVertexTableRange)
-      call mpas_pool_get_array(statePool, 'subgridEdgeBathymetry', &
+      call mpas_pool_get_array(meshPool, 'subgridEdgeBathymetry', &
                                subgridEdgeBathymetry)
-      call mpas_pool_get_array(statePool, 'subgridVertexBathymetry', &
+      call mpas_pool_get_array(meshPool, 'subgridVertexBathymetry', &
                                subgridVertexBathymetry)
 
       call mpas_pool_get_dimension(meshPool, 'subgridTableLevels', &

@@ -2309,39 +2309,6 @@
 			 description="The layerThickness after the Lagrangian step, prior to remapping."
 			 packages="verticalRemapPKG"
 		/>
-                <!-- FIELDS FOR SUBGIRD WETTING AND DRYING-->
-		<var name="subgridWetVolumeCellTable" type="real" dimensions="nCells subgridTableLevels" units="m"
-			 description="Pre-computed wet volume per unit area for each cell at given ssh value"
-			 packages="subgridWetDry"
-		/>
-		<var name="subgridWetVolumeEdgeTable" type="real" dimensions="nEdges subgridTableLevels" units="m"
-			 description="Pre-computed wet volume per unit area for each edge at given ssh value"
-			 packages="subgridWetDry"
-		/>
-		<var name="subgridWetVolumeVertexTable" type="real" dimensions="nVertices subgridTableLevels" units="m"
-			 description="Pre-computed wet volume per unit area for each edge at given ssh value"
-			 packages="subgridWetDry"
-		/>
-		<var name="subgridSshCellTableRange" type="real" dimensions="nCells TWO" units="m"
-			 description="Range of ssh values used for cell lookup table"
-			 packages="subgridWetDry"
-		/>
-		<var name="subgridSshEdgeTableRange" type="real" dimensions="nEdges TWO" units="m"
-			 description="Range of ssh vaules used for edge lookup table"
-			 packages="subgridWetDry"
-		/>
-		<var name="subgridSshVertexTableRange" type="real" dimensions="nVertices TWO" units="m"
-			 description="Range of ssh vaules used for vertex lookup table"
-			 packages="subgridWetDry"
-		/>
-		<var name="subgridEdgeBathymetry" type="real" dimensions="nEdges" units="m"
-			 description="Bathymetry on edge from subgrid information"
-			 packages="subgridWetDry"
-		/>
-		<var name="subgridVertexBathymetry" type="real" dimensions="nVertices" units="m"
-			 description="Bathymetry on vertex from subgrid information"
-			 packages="subgridWetDry"
-		/>
 	</var_struct>
 	<var_struct name="mesh" time_levs="1">
 		<var name="latCell" type="real" dimensions="nCells" units="radians"
@@ -2576,6 +2543,39 @@
 		/>
 		<var name="distanceToCoast" type="real" dimensions="nCells" units="m"
 			 description="Distance of each cell to nearest coastline cell."
+		/>
+                <!-- FIELDS FOR SUBGIRD WETTING AND DRYING-->
+		<var name="subgridWetVolumeCellTable" type="real" dimensions="nCells subgridTableLevels" units="m"
+			 description="Pre-computed wet volume per unit area for each cell at given ssh value"
+			 packages="subgridWetDry"
+		/>
+		<var name="subgridWetVolumeEdgeTable" type="real" dimensions="nEdges subgridTableLevels" units="m"
+			 description="Pre-computed wet volume per unit area for each edge at given ssh value"
+			 packages="subgridWetDry"
+		/>
+		<var name="subgridWetVolumeVertexTable" type="real" dimensions="nVertices subgridTableLevels" units="m"
+			 description="Pre-computed wet volume per unit area for each edge at given ssh value"
+			 packages="subgridWetDry"
+		/>
+		<var name="subgridSshCellTableRange" type="real" dimensions="nCells TWO" units="m"
+			 description="Range of ssh values used for cell lookup table"
+			 packages="subgridWetDry"
+		/>
+		<var name="subgridSshEdgeTableRange" type="real" dimensions="nEdges TWO" units="m"
+			 description="Range of ssh vaules used for edge lookup table"
+			 packages="subgridWetDry"
+		/>
+		<var name="subgridSshVertexTableRange" type="real" dimensions="nVertices TWO" units="m"
+			 description="Range of ssh vaules used for vertex lookup table"
+			 packages="subgridWetDry"
+		/>
+		<var name="subgridEdgeBathymetry" type="real" dimensions="nEdges" units="m"
+			 description="Bathymetry on edge from subgrid information"
+			 packages="subgridWetDry"
+		/>
+		<var name="subgridVertexBathymetry" type="real" dimensions="nVertices" units="m"
+			 description="Bathymetry on vertex from subgrid information"
+			 packages="subgridWetDry"
 		/>
 	</var_struct>
 	<var_struct name="verticalMesh" time_levs="1">
