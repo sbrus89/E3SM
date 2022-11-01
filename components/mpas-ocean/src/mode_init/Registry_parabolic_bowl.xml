@@ -36,6 +36,10 @@
 			description="Text here"
 			possible_values="Any real number"
 		/>
+		<nml_option name="config_parabolic_bowl_subgrid_level" type="integer" default_value="3" units="unitless"
+			description="Level of refinement to evaluate subgrid bathymety"
+			possible_values="Any positive integer number"
+	        />
 	</nml_record>
 
   
