@@ -261,12 +261,11 @@ contains
       type(mpas_pool_type), pointer :: meshPool
 
       err = 0
-
       if (.not. config_use_subgrid_wetting_drying) then
         return
       end if
 
-      if (config_use_subgrid_wetting_drying .and. (nVertLevels .ne. 1)) then
+      if (nVertLevels .ne. 1) then
         call mpas_log_write('config_config_use_subgrid_wetting_drying = .true. requires single layer' , MPAS_LOG_CRIT)
       end if 
 
