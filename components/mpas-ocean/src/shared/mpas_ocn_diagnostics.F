@@ -1220,7 +1220,7 @@ contains
 #else
       !$omp parallel
       !$omp do schedule(runtime) &
-      !$omp    private(i, k, iCell, invAreaTri1, layerThicknessVertex)
+      !$omp    private(i, k, iCell, invAreaTri1, layerThicknessVertex, iVertex, sshVertex)
 #endif
       if (config_use_subgrid_wetting_drying) then
         do iVertex = 1, nVertices

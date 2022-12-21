@@ -211,7 +211,6 @@ contains
 
        call mpas_pool_get_dimension( meshPool, 'nCellsSolve', nCellsSolve )
        call mpas_pool_get_dimension( meshPool, 'nEdgesSolve', nEdgesSolve )
-       call mpas_pool_get_dimension( meshPool, 'nVerticesSolve', nVerticesSolve ) ;
 
        call mpas_pool_get_array(meshPool, 'xCell', xCell)
        call mpas_pool_get_array(meshPool, 'yCell', yCell)
@@ -236,16 +235,6 @@ contains
     xshift = 0.5*(xMin + xMax) ;
     yshift = 0.5*(YMin + yMax) ;  
     
-    block_ptr => domain % blocklist
-    do while(associated(block_ptr))
-       call mpas_pool_get_subpool(block_ptr % structs, 'mesh', meshPool)
-
-       call ocn_mark_north_boundary(meshPool, yMaxGlobal, dcEdgeMinGlobal, iErr)
-       call ocn_mark_south_boundary(meshPool, yMinGlobal, dcEdgeMinGlobal, iErr)
-
-       block_ptr => block_ptr % next
-    end do
-
     !--------------------------------------------------------------------
     ! Use this section to set initial values
     !--------------------------------------------------------------------
@@ -263,7 +252,7 @@ contains
     oneMC2 = 1.0 - CC**2.0 ;
     sqrtOneMC2 = sqrt(oneMC2) ; 
     oneMC = 1.0 - CC ;
-    !
+
 
     block_ptr => domain % blocklist
     do while(associated(block_ptr))
@@ -287,6 +276,7 @@ contains
        call mpas_pool_get_array(meshPool, 'bottomDepth', bottomDepth)
        call mpas_pool_get_array(meshPool, 'minLevelCell', minLevelCell)
        call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
+
        call mpas_pool_get_array(meshPool, 'fCell', fCell)
        call mpas_pool_get_array(meshPool, 'fEdge', fEdge)
        call mpas_pool_get_array(meshPool, 'fVertex', fVertex)
@@ -346,85 +336,27 @@ contains
        end if
 
 
-
-       ! print*,  "associated = ", associated( refBottomDepth ) ; 
-       ! print*, "dim refBottomDepth = ", ubound( refBottomDepth ) ; 
-       ! print*, "dim refZMid = ", ubound( refZMid ) ; 
-      
        ! Initlialze vector
        call mpas_initialize_vectors(meshPool) ; 
 
 
-       ! print*, "nVertLevels = ", nVertLevels ; 
-       ! print*, "nCellsSolve = ", nCellsSolve ;
-       ! print*, "nEdgesSolve = ", nEdgesSolve ;
-       ! print*, "nVerticesSolve = ", nVerticesSolve ; 
 
-       ! DW:
        ! Bathymetry    
        do iCell = 1, nCellsSolve
 
-          ! bottomDepth(iCell) = -1.0_RKIND*bottomDepthObserved(iCell)
           RR = sqrt(xCell(iCell)**2.0 + yCell(icell)**2.0) ;
           bottomDepth(iCell) = config_parabolic_bowl_b0*(1.0 - (RR**2.0)/(LL**2.0)) ;         
 
-          ! sea level rise adjustment
-          ! bottomDepth(iCell) = bottomDepth(iCell) + config_hurricane_sea_level_rise_adjustment
-          !
-          !! Enforce minimum and maximum bottom depth
-          ! bottomDepth(iCell) = max(bottomDepth(iCell), config_hurricane_min_depth)
-          ! bottomDepth(iCell) = min(bottomDepth(iCell), globalMaxBottomDepth)
        end do
 
        ! Find max bottom depth
-       ! 
        maxBottomDepth = maxval( bottomDepth ) ; 
-       minBottomDepth = maxval( bottomDepth ) ; 
+       minBottomDepth = minval( bottomDepth ) ; 
        call mpas_dmpar_max_real( domain % dminfo, maxBottomDepth, globalMaxBottomDepth ) ;
        call mpas_dmpar_min_real( domain % dminfo, minBottomDepth, globalMinBottomDepth ) ;
-       ! DW
-       !
-
-       !
-       ! Set refBottomDepth, bottomDepth, and maxLevelCell
-       ! if (min(config_tidal_boundary_left_bottom_depth, config_tidal_boundary_right_bottom_depth) < 0.0_RKIND) then
-       !   ! consider the case where there is wetting / drying and vertical mesh resolution is needed "on land"
-       !   do k = 1, nVertLevels
-       !    refBottomDepth(k) = config_tidal_boundary_left_bottom_depth + &
-       !      (config_tidal_boundary_right_bottom_depth - config_tidal_boundary_left_bottom_depth)* interfaceLocations(k+1)
-       !   end do
-       ! else
-       !  ! assumes we just need to build vertical mesh to deepest point (e.g., no "on land' vertical mesh)
-       !  do k = 1, nVertLevels
-       !    refBottomDepth(k) = &
-       !    max(config_tidal_boundary_left_bottom_depth, config_tidal_boundary_right_bottom_depth) * interfaceLocations(k+1)
-       !  end do
-       ! end if
-       !
-
-       ! print*, ubound( refBottomDepth ) ;
-       ! print*, ubound( refZMid ) ;
 
        ! Set refBottomDepth and refZMid
        do k = 1, nVertLevels
-          ! refBottomDepth(k) = config_para_bowl_bottom_depth * interfaceLocations(k+1)
-          ! refZMid(k) = - 0.5_RKIND * (interfaceLocations(k+1) + interfaceLocations(k)) * config_para_bowl_bottom_depth
-
-          ! refBottomDepth(k) = globalMaxBottomDepth * interfaceLocations(k+1)
-          ! refZMid(k) = - 0.5_RKIND * (interfaceLocations(k+1) + interfaceLocations(k)) * globalMaxBottomDepth
- !         refBottomDepth(k) = -2.0*config_parabolic_bowl_eta0 + &
- !    &         (globalMaxBottomDepth + 2.0*config_parabolic_bowl_eta0 )*interfaceLocations(k+1) ;
-
-
-!! DW
-!!          refBottomDepth(k) =  globalMinBottomDepth + &
-!!     &         (globalMaxBottomDepth - globalMinBottomDepth )*interfaceLocations(k+1) ;
-!!
-!!          refZMid(k) =  globalMinBottomDepth + 0.5*( interfraceLocations(k+1) + interFaceLocations(k) )* &
-!!                   (globalMaxBottomDepth - globalMinBottomDepth) ;
-!!
-!!          refZMid(k) = -refZMid(k)
-!! DW
          refBottomDepth(k) = globalMaxBottomDepth*interfaceLocations(k+1) ; 
          refZMid(k) = -0.5*( interfaceLocations(k+1) + interfaceLocations(k))*globalMaxBottomDepth ; 
        end do
@@ -434,50 +366,25 @@ contains
 
        ! Set ssh
        do iCell = 1, nCellsSolve
-         !  dlat = latCell(iCell) - config_hurricane_gaussian_lat_center*pii/180.0_RKIND
-         !  dlon = abs(lonCell(iCell) - config_hurricane_gaussian_lon_center*pii/180.0_RKIND)
-         !  dw = config_hurricane_gaussian_width*pii/180.0_RKIND
-         !  if (dlon > pii) dlon = dlon - 2.0_RKIND**pii
-         !  ssh(iCell) = config_hurricane_gaussian_slr_amp + &
-         !  config_hurricane_gaussian_hump_amplitude * exp(-(dlat**2.0_RKIND + dlon**2.0_RKIND) / &
-         !  (2.0_RKIND*dw**2.0_RKIND))
 
          RR = sqrt(xCell(iCell)**2.0 + yCell(icell)**2.0) ;
  
          ssh(iCell) = (sqrtOneMC2/oneMC) - 1.0 - ((RR**2.0)/(LL**2.0))*( (oneMC2/(oneMC**2.0)) - 1.0 ) ;
          ssh(iCell) = config_parabolic_bowl_b0*ssh(iCell) ; 
         
-         HH = ssh(iCell) + bottomDepth(iCell) ; 
+         !HH = ssh(iCell) + bottomDepth(iCell) ; 
     
-         IF ( HH < eps ) ssh(iCell) = -bottomDepth(iCell) - eps ; 
-         !
+         !IF ( HH < eps ) ssh(iCell) = -bottomDepth(iCell) - eps ; 
        end do
 
-       !
        minLevelCell(:) = 1
 
        if (config_use_wetting_drying) then
-          !
+
          do iCell = 1, nCellsSolve
            ! Set up vertical grid
            maxLevelCell(iCell) = nVertLevels ; ! sigma coordinates 
- 
-           ! ensures only 3 layers can be obtained on mesh
- !           if ( bottomDepth(iCell) < 0 .or. bottomDepth(iCell) < refBottomDepth(3)) then
- !             maxLevelCell(iCell) = 3
- !           else
- !             ! snap to zstar coordinate
- !             do k = 1, nVertLevels
- !               if ( bottomDepth(iCell) < refBottomDepth(k) ) then
- !                 maxLevelCell(iCell) = k-1
- !                 bottomDepth(iCell) = refBottomDepth(k-1)
- !                 exit
- !               end if
- !             end do
- !             !
- !           end if
           end do
-          !
 
           do iCell = 1, nCellsSolve
             !
@@ -490,7 +397,7 @@ contains
           
             do k = 1, maxLevelCell(iCell)
               layerThickness(k,iCell) = max(config_drying_min_cell_height + eps, &
-                (ssh(iCell) + bottomDepth(iCell))/maxLevelCell(iCell))
+                (ssh(iCell) + bottomDepth(iCell))/real(maxLevelCell(iCell),RKIND))
              
               if (layerThickness(k,iCell) < config_drying_min_cell_height) then
                 call mpas_log_write('layerThickness($i,$i)=$r', MPAS_LOG_CRIT, &
@@ -550,8 +457,8 @@ contains
          uu =  - config_parabolic_bowl_Coriolis_parameter*yEdge(iEdge)*( sqrtOneMC2 + CC - 1.0  ) ;
          vv =    config_parabolic_bowl_Coriolis_parameter*xEdge(iEdge)*( sqrtOneMc2 + CC - 1.0  ) ; 
 
-         uu = 0.5*uu/OneMC ; 
-         vv = 0.5*vv/OneMC ; 
+         uu = 0.5*uu/oneMC ; 
+         vv = 0.5*vv/oneMC ; 
          IF ( HH < eps ) THEN
              uu = 0.0 ;
              vv = 0.0 ;
@@ -566,31 +473,12 @@ contains
        !!
 
        do iCell = 1, nCellsSolve
-         !
-         ! Set temperature
-         ! idx = index_temperature
-         ! do k = 1, nVertLevels
-         !   ! activeTracers(idx, k, iCell) =
-         ! end do
-         !
+         
+          ! Set temperature
+          activeTracers(index_temperature, :, iCell) = 10.0_RKIND
 
-         ! Set salinity
-         ! idx = index_salinity
-         ! do k = 1, nVertLevels
-         !   ! activeTracers(idx, k, iCell) =
-         ! end do
-
-         ! Set layerThickness and restingThickness
-         ! do k = 1, nVertLevels
-         !   ! layerThickness(k, iCell) =
-         !   ! restingThickness(k, iCell) =
-         ! end do
-
-         ! Set bottomDepth
-         ! bottomDepth(iCell) =
-
-         ! Set maxLevelCell
-         ! maxLevelCell(iCell) =
+          ! Set salinity
+          activeTracers(index_salinity, :, iCell) = 30.0_RKIND
 
          ! Set Coriolis parameters, if other than zero
          fCell(iCell) = config_parabolic_bowl_coriolis_parameter ; 
@@ -605,14 +493,19 @@ contains
       end do
 
 
+      if (.not. config_use_subgrid_wetting_drying) then
+        block_ptr => block_ptr % next
+        cycle
+      endif
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Cells
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+      nSubgridTriPerSlice = config_parabolic_bowl_subgrid_level**2
+      allocate(rSubgridPoints(3,maxEdges*nSubgridTriPerSlice), sSubgridPoints(3,maxEdges*nSubgridTriPerSlice))
       call ocn_init_define_subgrid_points(config_parabolic_bowl_subgrid_level, nSubgridTriPerSlice, rSubgridPoints, sSubgridPoints)
       allocate(subgridValues(maxEdges*nSubgridTriPerSlice), subgridAreas(maxEdges*nSubgridTriPerSlice))
-      allocate(rSubgridPoints(3,maxEdges*nSubgridTriPerSlice), sSubgridPoints(3,maxEdges*nSubgridTriPerSlice))
 
       do iCell = 1,nCellsSolve
 
