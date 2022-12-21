@@ -234,11 +234,9 @@ mpas_ocn_vertical_regrid.o: mpas_ocn_config.o mpas_ocn_constants.o mpas_ocn_mesh
 
 mpas_ocn_vertical_remap.o: mpas_ocn_config.o mpas_ocn_constants.o mpas_ocn_diagnostics_variables.o mpas_ocn_mesh.o mpas_ocn_vertical_regrid.o
 
-<<<<<<< HEAD
 mpas_ocn_stokes_drift.o: mpas_ocn_constants.o mpas_ocn_config.o mpas_ocn_diagnostics_variables.o mpas_ocn_mesh.o
-=======
+
 mpas_ocn_subgrid.o: mpas_ocn_diagnostics_variables.o mpas_ocn_config.o mpas_ocn_constants.o
->>>>>>> 4f2d383993 (Add mpas_ocn_subgrid to Makefile)
 
 clean:
 	$(RM) *.o *.i *.mod *.f90
