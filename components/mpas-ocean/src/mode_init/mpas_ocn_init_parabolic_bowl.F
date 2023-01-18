@@ -232,8 +232,8 @@ contains
     call mpas_dmpar_max_real(domain % dminfo, xMax, xMaxGlobal)
     call mpas_dmpar_min_real(domain % dminfo, dcEdgeMin, dcEdgeMinGlobal)
 
-    xshift = 0.5*(xMin + xMax) ;
-    yshift = 0.5*(YMin + yMax) ;  
+    xshift = 0.5_RKIND*(xMin + xMax) ;
+    yshift = 0.5_RKIND*(YMin + yMax) ;  
     
     !--------------------------------------------------------------------
     ! Use this section to set initial values
@@ -241,7 +241,7 @@ contains
 
     !
     den = ((config_parabolic_bowl_omega**2.0) - (config_parabolic_bowl_Coriolis_parameter**2.0)) ; 
-    num = (8.0*config_parabolic_bowl_gravity*config_parabolic_bowl_b0) ;
+    num = (8.0_RKIND*config_parabolic_bowl_gravity*config_parabolic_bowl_b0) ;
     LL  = sqrt(num/den) ; 
 
     den = (config_parabolic_bowl_b0 + config_parabolic_bowl_eta0)**2.0 + config_parabolic_bowl_b0**2.0 ;
@@ -249,9 +249,9 @@ contains
 
     CC = num/den ;
 
-    oneMC2 = 1.0 - CC**2.0 ;
+    oneMC2 = 1.0_RKIND - CC**2.0 ;
     sqrtOneMC2 = sqrt(oneMC2) ; 
-    oneMC = 1.0 - CC ;
+    oneMC = 1.0_RKIND - CC ;
 
 
     block_ptr => domain % blocklist
@@ -345,7 +345,7 @@ contains
        do iCell = 1, nCellsSolve
 
           RR = sqrt(xCell(iCell)**2.0 + yCell(icell)**2.0) ;
-          bottomDepth(iCell) = config_parabolic_bowl_b0*(1.0 - (RR**2.0)/(LL**2.0)) ;         
+          bottomDepth(iCell) = config_parabolic_bowl_b0*(1.0_RKIND - (RR**2.0)/(LL**2.0)) ;         
 
        end do
 
@@ -358,7 +358,7 @@ contains
        ! Set refBottomDepth and refZMid
        do k = 1, nVertLevels
          refBottomDepth(k) = globalMaxBottomDepth*interfaceLocations(k+1) ; 
-         refZMid(k) = -0.5*( interfaceLocations(k+1) + interfaceLocations(k))*globalMaxBottomDepth ; 
+         refZMid(k) = -0.5_RKIND*( interfaceLocations(k+1) + interfaceLocations(k))*globalMaxBottomDepth ; 
        end do
 
        ! Set vertCoordMovementWeights
@@ -369,7 +369,7 @@ contains
 
          RR = sqrt(xCell(iCell)**2.0 + yCell(icell)**2.0) ;
  
-         ssh(iCell) = (sqrtOneMC2/oneMC) - 1.0 - ((RR**2.0)/(LL**2.0))*( (oneMC2/(oneMC**2.0)) - 1.0 ) ;
+         ssh(iCell) = (sqrtOneMC2/oneMC) - 1.0_RKIND - ((RR**2.0)/(LL**2.0))*( (oneMC2/(oneMC**2.0)) - 1.0_RKIND ) ;
          ssh(iCell) = config_parabolic_bowl_b0*ssh(iCell) ; 
         
          !HH = ssh(iCell) + bottomDepth(iCell) ; 
@@ -454,14 +454,14 @@ contains
          HH = config_parabolic_bowl_b0*HH  ;
     
           
-         uu =  - config_parabolic_bowl_Coriolis_parameter*yEdge(iEdge)*( sqrtOneMC2 + CC - 1.0  ) ;
-         vv =    config_parabolic_bowl_Coriolis_parameter*xEdge(iEdge)*( sqrtOneMc2 + CC - 1.0  ) ; 
+         uu =  - config_parabolic_bowl_Coriolis_parameter*yEdge(iEdge)*( sqrtOneMC2 + CC - 1.0_RKIND  ) ;
+         vv =    config_parabolic_bowl_Coriolis_parameter*xEdge(iEdge)*( sqrtOneMc2 + CC - 1.0_RKIND  ) ; 
 
-         uu = 0.5*uu/oneMC ; 
-         vv = 0.5*vv/oneMC ; 
+         uu = 0.5_RKIND*uu/oneMC ; 
+         vv = 0.5_RKIND*vv/oneMC ; 
          IF ( HH < eps ) THEN
-             uu = 0.0 ;
-             vv = 0.0 ;
+             uu = 0.0_RKIND ;
+             vv = 0.0_RKIND ;
          end if
 
                                   
