@@ -134,29 +134,28 @@ contains
     ! Define dimension pointers
     integer, pointer :: nCellsSolve, nEdgesSolve, nVerticesSolve, nVertLevels, nVertLevelsP1
     integer, pointer :: index_temperature, index_salinity
+    integer, pointer :: maxEdges
 
     ! Define variable pointers
     logical, pointer :: on_a_sphere
     integer, dimension(:), pointer :: minLevelCell, maxLevelCell
+    integer, dimension(:), pointer :: nEdgesOnCell
+    integer, dimension(:,:), pointer :: verticesOnCell, verticesOnEdge
+    integer, dimension(:,:), pointer :: cellsOnEdge, cellsOnVertex
     real (kind=RKIND), dimension(:), pointer :: xCell, yCell, refBottomDepth, refZMid, &
          vertCoordMovementWeights, bottomDepth, fCell, fEdge, fVertex, dcEdge
     real (kind=RKIND), dimension(:,:), pointer:: zMid
 
     real (kind=RKIND), dimension(:), pointer:: xEdge, yEdge, xVertex, yVertex
-    ! DW
     real (kind=RKIND) :: minBottomDepth, maxBottomDepth, globalMaxBottomDepth, globalMinBottomDepth
-    ! DW
     real (kind=RKIND), dimension(:,:), pointer :: layerThickness, restingThickness
     real (kind=RKIND), dimension(:,:,:), pointer :: activeTracers
     
-    ! DW:
-    !   Define variable pointers
     real (kind=RKIND), dimension(:), pointer :: ssh
     real (kind=RKIND), dimension(:,:), pointer :: edgeNormalVectors
     real (kind=RKIND), dimension(:,:), pointer :: normalVelocity
 
   
-    ! DW:
     real (kind=RKIND):: HH, uu, vv
     real (kind=RKIND):: CC, RR, num, den
     real (kind=RKIND):: oneMC2, sqrtOneMC2, oneMC
@@ -265,6 +264,7 @@ contains
        call mpas_pool_get_dimension(meshPool, 'nCellsSolve', nCellsSolve) ;
        call mpas_pool_get_dimension(meshPool, 'nEdgesSolve', nEdgesSolve) ; 
        call mpas_pool_get_dimension(meshPool, 'nVerticesSolve', nVerticesSolve) ; 
+       call mpas_pool_get_dimension(meshPool, 'maxEdges', maxEdges)
       
        call mpas_pool_get_dimension(tracersPool, 'index_temperature', index_temperature)
        call mpas_pool_get_dimension(tracersPool, 'index_salinity', index_salinity)
@@ -276,21 +276,24 @@ contains
        call mpas_pool_get_array(meshPool, 'bottomDepth', bottomDepth)
        call mpas_pool_get_array(meshPool, 'minLevelCell', minLevelCell)
        call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
+       call mpas_pool_get_array(meshPool, 'nEdgesOnCell', nEdgesOnCell)
+
+       call mpas_pool_get_array(meshPool, 'verticesOnCell', verticesOnCell)
+       call mpas_pool_get_array(meshPool, 'verticesOnEdge', verticesOnEdge)
+       call mpas_pool_get_array(meshPool, 'cellsOnEdge', cellsOnEdge)
+       call mpas_pool_get_array(meshPool, 'cellsOnVertex', cellsOnVertex)
 
        call mpas_pool_get_array(meshPool, 'fCell', fCell)
        call mpas_pool_get_array(meshPool, 'fEdge', fEdge)
        call mpas_pool_get_array(meshPool, 'fVertex', fVertex)
        
-       ! DW
        call mpas_pool_get_array(meshPool, 'xEdge', xEdge ) 
        call mpas_pool_get_array(meshPool, 'yEdge', yEdge ) 
        call mpas_pool_get_array(meshPool, 'xVertex', xVertex ) 
        call mpas_pool_get_array(meshPool, 'yVertex', yVertex ) 
 
-       ! DW
        call mpas_pool_get_array(statePool, 'zMid', zMid, 1) ;
 
-       ! DW, for initial conditions
        call mpas_pool_get_array(statePool, 'ssh', ssh, 1)
        call mpas_pool_get_array(meshPool, 'edgeNormalVectors', edgeNormalVectors ) ;
        call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity ) ;
@@ -673,7 +676,7 @@ contains
       ! Equi-spaced nodes on -1,+1
       allocate(xPoints(nSubgridLevel+1))
       dx = 2.0/real(nSubgridLevel,RKIND)
-      xPoints(1) = 1.0_RKIND
+      xPoints(1) = -1.0_RKIND
       do i = 2,nSubgridLevel+1
         xPoints(i) = xPoints(i-1)+dx   
       enddo      
