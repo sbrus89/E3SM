@@ -166,6 +166,7 @@ contains
     integer :: nSubgridCell, nSubgridEdge, nSubgridVertex
     integer :: nSubgridTriPerSlice
     integer :: v1, v2
+    integer :: c1, c2
     real (kind=RKIND) :: x(3), y(3)
     integer :: slice
 
@@ -610,18 +611,27 @@ contains
         !---------------------------------------------------------------
 
         nSubgridVertex = 0  ! Counter for all subgrid triangles over edge slices
+        do slice = 1,3
 
-        ! Vertex triangle coordinates
-        x(1) = xCell(cellsOnVertex(1,iVertex))
-        y(1) = yCell(cellsOnVertex(1,iVertex))
+          c1 = cellsOnVertex(slice,iVertex)
+          if (slice < 3) then
+            c2 = cellsOnVertex(slice+1,iVertex)  
+          else
+            c2 = cellsOnVertex(1,iVertex)
+          endif
 
-        x(2) = xCell(cellsOnVertex(2,iVertex))
-        y(2) = yCell(cellsOnVertex(2,iVertex))
+          ! Vertex triangle coordinates
+          x(1) = xCell(c1)
+          y(1) = yCell(c1)
 
-        x(3) = xCell(cellsOnVertex(3,iVertex)) 
-        y(3) = yCell(cellsOnVertex(3,iVertex))
+          x(2) = xCell(c2)
+          y(2) = yCell(c2)
 
-        call ocn_init_evaluate_subgrid_data(x, y, nSubgridTriPerSlice, nSubgridVertex, rSubgridPoints, sSubgridPoints, subgridValues, subgridAreas)
+          x(3) = xVertex(iVertex)
+          y(3) = yVertex(iVertex)
+
+          call ocn_init_evaluate_subgrid_data(x, y, nSubgridTriPerSlice, nSubgridVertex, rSubgridPoints, sSubgridPoints, subgridValues, subgridAreas)
+        enddo
 
         ! Evaluate bounds of look-up table range
         !---------------------------------------------------------------
