@@ -107,7 +107,7 @@
 			description="Number of wavenumbers used to reconstruct Stokes drift depth profile"
 			definition="6"
 		/>
-		<dim name="subgridTableLevels" units="unitless"
+		<dim name="nSubgridTableLevels" definition="namelist:config_subgrid_table_levels_init"
 			description="Number of subgrid look-up table levels"
 		/>
 	</dims>
@@ -1161,6 +1161,10 @@
 					description="If true, use subgrid wetting and drying algorithm"
 					possible_values=".true. or .false."
 		/>
+		<nml_option name="config_subgrid_table_levels_init" type="integer" default_value="10" units="unitless"
+					description="Number of ssh increments used in pre-computed subgrid lookup tables"
+					possible_values="Any positive integer"
+		/>
 	</nml_record>
 	<nml_record name="ocean_constants">
 		<nml_option name="config_density0" type="real" default_value="1026.0" units="kg m^-3"
@@ -1571,7 +1575,7 @@
 		<package name="gotmPKG" description="This package is for GOTM variables, which are only needed when using GOTM for the vertical turbulence closure."/>
 		<package name="verticalRemapPKG" description="This package is for variables required for vertical Lagrangian remapping."/>
 		<package name="activeWavePKG" description="This package controls variables required for wave coupling"/>
-		<package name="subgridWetDry" description="This package includes variables required for subgrid wetting and drying."/>
+		<package name="subgridWetDryPKG" description="This package includes variables required for subgrid wetting and drying."/>
 	</packages>
 
 	<streams>
@@ -2545,37 +2549,37 @@
 			 description="Distance of each cell to nearest coastline cell."
 		/>
                 <!-- FIELDS FOR SUBGIRD WETTING AND DRYING-->
-		<var name="subgridWetVolumeCellTable" type="real" dimensions="nCells subgridTableLevels" units="m"
+		<var name="subgridWetVolumeCellTable" type="real" dimensions="nSubgridTableLevels nCells" units="m"
 			 description="Pre-computed wet volume per unit area for each cell at given ssh value"
-			 packages="subgridWetDry"
+			 packages="subgridWetDryPKG"
 		/>
-		<var name="subgridWetVolumeEdgeTable" type="real" dimensions="nEdges subgridTableLevels" units="m"
+		<var name="subgridWetVolumeEdgeTable" type="real" dimensions="nSubgridTableLevels nEdges" units="m"
 			 description="Pre-computed wet volume per unit area for each edge at given ssh value"
-			 packages="subgridWetDry"
+			 packages="subgridWetDryPKG"
 		/>
-		<var name="subgridWetVolumeVertexTable" type="real" dimensions="nVertices subgridTableLevels" units="m"
+		<var name="subgridWetVolumeVertexTable" type="real" dimensions="nSubgridTableLevels nVertices" units="m"
 			 description="Pre-computed wet volume per unit area for each edge at given ssh value"
-			 packages="subgridWetDry"
+			 packages="subgridWetDryPKG"
 		/>
-		<var name="subgridSshCellTableRange" type="real" dimensions="nCells TWO" units="m"
+		<var name="subgridSshCellTableRange" type="real" dimensions="TWO nCells" units="m"
 			 description="Range of ssh values used for cell lookup table"
-			 packages="subgridWetDry"
+			 packages="subgridWetDryPKG"
 		/>
-		<var name="subgridSshEdgeTableRange" type="real" dimensions="nEdges TWO" units="m"
+		<var name="subgridSshEdgeTableRange" type="real" dimensions="TWO nEdges" units="m"
 			 description="Range of ssh vaules used for edge lookup table"
-			 packages="subgridWetDry"
+			 packages="subgridWetDryPKG"
 		/>
-		<var name="subgridSshVertexTableRange" type="real" dimensions="nVertices TWO" units="m"
+		<var name="subgridSshVertexTableRange" type="real" dimensions="TWO nVertices" units="m"
 			 description="Range of ssh vaules used for vertex lookup table"
-			 packages="subgridWetDry"
+			 packages="subgridWetDryPKG"
 		/>
 		<var name="subgridEdgeBathymetry" type="real" dimensions="nEdges" units="m"
 			 description="Bathymetry on edge from subgrid information"
-			 packages="subgridWetDry"
+			 packages="subgridWetDryPKG"
 		/>
 		<var name="subgridVertexBathymetry" type="real" dimensions="nVertices" units="m"
 			 description="Bathymetry on vertex from subgrid information"
-			 packages="subgridWetDry"
+			 packages="subgridWetDryPKG"
 		/>
 	</var_struct>
 	<var_struct name="verticalMesh" time_levs="1">

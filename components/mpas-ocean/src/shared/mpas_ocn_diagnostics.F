@@ -738,8 +738,8 @@ contains
            cell2 = cellsOnEdge(2,iEdge)
            sshMean = 0.5_RKIND * (ssh(cell1) + ssh(cell2))
            call ocn_subgrid_layer_thickness_lookup(sshMean, &
-                                                   subgridWetVolumeEdgeTable(iEdge,:), &
-                                                   subgridSshEdgeTableRange(iEdge,:), &
+                                                   subgridWetVolumeEdgeTable(:,iEdge), &
+                                                   subgridSshEdgeTableRange(:,iEdge), &
                                                    subgridEdgeBathymetry(iEdge), &
                                                    layerThickEdgeMean(1,iEdge))
         end do
@@ -824,25 +824,25 @@ contains
               cell2 = cellsOnEdge(2,iEdge)
               if (normalVelocity(1,iEdge) > 0.0_RKIND) then
                  call ocn_subgrid_layer_thickness_lookup(ssh(cell1), &
-                                                         subgridWetVolumeEdgeTable(iEdge,:), &
-                                                         subgridSshEdgeTableRange(iEdge,:), &
+                                                         subgridWetVolumeEdgeTable(:,iEdge), &
+                                                         subgridSshEdgeTableRange(:,iEdge), &
                                                          subgridEdgeBathymetry(iEdge), &
                                                          layerThickEdgeFlux(1,iEdge))
               elseif (normalVelocity(1,iEdge) < 0.0_RKIND) then
                  call ocn_subgrid_layer_thickness_lookup(ssh(cell2), &
-                                                         subgridWetVolumeEdgeTable(iEdge,:), &
-                                                         subgridSshEdgeTableRange(iEdge,:), &
+                                                         subgridWetVolumeEdgeTable(:,iEdge), &
+                                                         subgridSshEdgeTableRange(:,iEdge), &
                                                          subgridEdgeBathymetry(iEdge), &
                                                          layerThickEdgeFlux(1,iEdge))
               else
                  call ocn_subgrid_layer_thickness_lookup(ssh(cell1), &
-                                                         subgridWetVolumeEdgeTable(iEdge,:), &
-                                                         subgridSshEdgeTableRange(iEdge,:), &
+                                                         subgridWetVolumeEdgeTable(:,iEdge), &
+                                                         subgridSshEdgeTableRange(:,iEdge), &
                                                          subgridEdgeBathymetry(iEdge), &
                                                          layerThicknessCell1)
                  call ocn_subgrid_layer_thickness_lookup(ssh(cell2), &
-                                                         subgridWetVolumeEdgeTable(iEdge,:), &
-                                                         subgridSshEdgeTableRange(iEdge,:), &
+                                                         subgridWetVolumeEdgeTable(:,iEdge), &
+                                                         subgridSshEdgeTableRange(:,iEdge), &
                                                          subgridEdgeBathymetry(iEdge), &
                                                          layerThicknessCell2)
                  layerThickEdgeFlux(1,iEdge) = &
@@ -1234,8 +1234,8 @@ contains
               sshVertex = sshVertex * invAreaTri1
                
               call ocn_subgrid_layer_thickness_lookup(sshVertex, &
-                                                      subgridWetVolumeVertexTable(iVertex,:), &
-                                                      subgridSshVertexTableRange(iVertex,:), &
+                                                      subgridWetVolumeVertexTable(:,iVertex), &
+                                                      subgridSshVertexTableRange(:,iVertex), &
                                                       subgridVertexBathymetry(iVertex), &
                                                       layerThicknessVertex) 
               if (layerThicknessVertex == 0) cycle
@@ -2533,8 +2533,8 @@ contains
 
          if (config_use_subgrid_wetting_drying) then
            call ocn_subgrid_ssh_lookup(layerThickness(1,iCell), &
-                                       subgridWetVolumeCellTable(iCell,:), &
-                                       subgridSshCellTableRange(iCell,:), &
+                                       subgridWetVolumeCellTable(:,iCell), &
+                                       subgridSshCellTableRange(:,iCell), &
                                        bottomDepth(iCell), &
                                        ssh(iCell))
          else

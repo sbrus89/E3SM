@@ -90,7 +90,7 @@ module ocn_init_parabolic_bowl
    real(kind=RKIND), dimension(:), pointer :: &
       subgridEdgeBathymetry, &
       subgridVertexBathymetry
-   integer, pointer :: subgridTableLevels
+   integer, pointer :: nSubgridTableLevels
 
 !***********************************************************************
 
@@ -320,8 +320,8 @@ contains
                                 subgridEdgeBathymetry)
        call mpas_pool_get_array(meshPool, 'subgridVertexBathymetry', &
                                 subgridVertexBathymetry)
-       call mpas_pool_get_dimension(meshPool, 'subgridTableLevels', &
-                                    subgridTableLevels)
+       call mpas_pool_get_dimension(meshPool, 'nSubgridTableLevels', &
+                                    nSubgridTableLevels)
 
 
 
@@ -544,13 +544,14 @@ contains
         ! Evaluate bounds of look-up table range
         !---------------------------------------------------------------
 
-        subgridSshCellTableRange(iCell,1) = minval(subgridValues(1:nSubgridCell))
-        subgridSshCellTableRange(iCell,2) = maxval(subgridValues(1:nSubgridCell))
+        subgridSshCellTableRange(1,iCell) = minval(subgridValues(1:nSubgridCell))
+        subgridSshCellTableRange(2,iCell) = maxval(subgridValues(1:nSubgridCell))
 
         ! Vertical integration of wet fraction
         !---------------------------------------------------------------
 
         call ocn_init_vertical_integration(iCell,subgridSshCellTableRange, nSubgridCell, subgridValues, subgridAreas, subgridWetVolumeCellTable)
+        print*, iCell
 
       enddo
 
@@ -587,8 +588,8 @@ contains
         ! Evaluate bounds of look-up table range
         !---------------------------------------------------------------
 
-        subgridSshEdgeTableRange(iEdge,1) = minval(subgridValues(1:nSubgridEdge))
-        subgridSshEdgeTableRange(iEdge,2) = maxval(subgridValues(1:nSubgridEdge))
+        subgridSshEdgeTableRange(1,iEdge) = minval(subgridValues(1:nSubgridEdge))
+        subgridSshEdgeTableRange(2,iEdge) = maxval(subgridValues(1:nSubgridEdge))
 
         ! Vertical integration of wet fraction
         !---------------------------------------------------------------
@@ -625,8 +626,8 @@ contains
         ! Evaluate bounds of look-up table range
         !---------------------------------------------------------------
 
-        subgridSshVertexTableRange(iVertex,1) = minval(subgridValues(1:nSubgridVertex))
-        subgridSshVertexTableRange(iVertex,2) = maxval(subgridValues(1:nSubgridVertex))
+        subgridSshVertexTableRange(1,iVertex) = minval(subgridValues(1:nSubgridVertex))
+        subgridSshVertexTableRange(2,iVertex) = maxval(subgridValues(1:nSubgridVertex))
 
         ! Vertical integration of wet fraction
         !---------------------------------------------------------------
@@ -642,7 +643,7 @@ contains
     deallocate(interfaceLocations)
     !--------------------------------------------------------------------
 
-    print*, "****** Exit gracefully *****" ;
+    print*, "****** End parabolic bowl init *****" ;
 
     return ;  
   end subroutine ocn_init_setup_parabolic_bowl!}}}
@@ -886,11 +887,11 @@ contains
 
    !--------------------------------------------------------------------
    
-      deltaZ = (subgridSshTableRange(iCV,2)-subgridSshTableRange(iCV,1))/(subgridTableLevels-1);
-      ssh = -subgridSshTableRange(iCV,2) + deltaZ
+      deltaZ = (subgridSshTableRange(2,iCV)-subgridSshTableRange(1,iCV))/(nSubgridTableLevels-1);
+      ssh = -subgridSshTableRange(2,iCV) + deltaZ
 
-      subgridWetVolumeTable(iCV,1) = 0.0_RKIND
-      do lev = 1,subgridTableLevels
+      subgridWetVolumeTable(1,iCV) = 0.0_RKIND
+      do lev = 1,nSubgridTableLevels
         do tri = 1,nSubgridCV
 
           if (subgridValues(tri) + ssh >= 0.0_RKIND) then
@@ -899,15 +900,15 @@ contains
             pVal = 0.0_RKIND
           endif
 
-          subgridWetVolumeTable(iCV,lev) = subgridWetVolumeTable(iCV,lev) + pVal*deltaZ*subgridAreas(tri)
+          subgridWetVolumeTable(lev,iCV) = subgridWetVolumeTable(lev,iCV) + pVal*deltaZ*subgridAreas(tri)
 
-          if (lev < subgridTableLevels) then
-            subgridWetVolumeTable(iCV,lev+1) = subgridWetVolumeTable(iCV,lev)
+          if (lev < nSubgridTableLevels) then
+            subgridWetVolumeTable(lev+1,iCV) = subgridWetVolumeTable(lev,iCV)
           endif
   
         enddo
 
-        subgridWetVolumeTable(iCV,lev) = subgridWetVolumeTable(iCV,lev)/sum(subgridAreas(1:nSubgridCV))
+        subgridWetVolumeTable(lev,iCV) = subgridWetVolumeTable(lev,iCV)/sum(subgridAreas(1:nSubgridCV))
 
         ssh = ssh + deltaZ
       enddo
