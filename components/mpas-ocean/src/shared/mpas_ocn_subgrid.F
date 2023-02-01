@@ -42,16 +42,6 @@ module ocn_subgrid
    !
    !--------------------------------------------------------------------
 
-   real(kind=RKIND), public, dimension(:,:), pointer :: &
-      subgridWetVolumeCellTable, &
-      subgridWetVolumeEdgeTable, &
-      subgridWetVolumeVertexTable, &
-      subgridSshCellTableRange, &
-      subgridSshEdgeTableRange, &
-      subgridSshVertexTableRange
-   real(kind=RKIND), public, dimension(:), pointer :: &
-      subgridEdgeBathymetry, &
-      subgridVertexBathymetry
 
    !--------------------------------------------------------------------
    !
@@ -69,9 +59,19 @@ module ocn_subgrid
    !
    !--------------------------------------------------------------------
 
-   integer, pointer :: subgridTableLevels
+   !real(kind=RKIND), public, dimension(:,:), pointer :: &
+   !   subgridWetVolumeCellTable, &
+   !   subgridWetVolumeEdgeTable, &
+   !   subgridWetVolumeVertexTable, &
+   !   subgridSshCellTableRange, &
+   !   subgridSshEdgeTableRange, &
+   !   subgridSshVertexTableRange
+   !real(kind=RKIND), public, dimension(:), pointer :: &
+   !   subgridEdgeBathymetry, &
+   !   subgridVertexBathymetry
 
-!***********************************************************************
+   !integer, pointer :: nSubgridTableLevels
+
 
 contains
 
@@ -121,28 +121,29 @@ contains
 
       tableMin = subgridTableRange(1)
       tableMax = subgridTableRange(2)
-      deltaZ = (tableMax - tableMin)/(subgridTableLevels-1)
+      deltaZ = (tableMax - tableMin)/(nSubgridTableLevels-1)
 
       if (zeta > tableMax) then
         layerThick = zeta + bathymetry
-        return 
-
+        !call mpas_log_write('thickness lookup, above table: $r $r $r',realArgs=(/layerThick,zeta,bathymetry/))
       else if (zeta < tableMin) then
-        layerThick = 0.0_RKIND
-        return
-
+        !layerThick = 0.0_RKIND
+        layerThick = config_drying_min_cell_height
+        !call mpas_log_write('thickness lookup, below table: $r $r $r',realArgs=(/layerThick,zeta,bathymetry/))
       else 
-        do lev = 1, subgridTableLevels-1
+        do lev = 1, nSubgridTableLevels-1
           zeta0 = (real(lev,RKIND)-1.0_RKIND)*deltaZ + tableMin
           zeta1 = zeta0 + deltaZ
 
           if ((zeta <= zeta1) .and. (zeta >= zeta0)) then
             layerThick = ((zeta-zeta0)*subgridTable(lev+1) - (zeta-zeta1)*subgridTable(lev))/deltaZ
+            !call mpas_log_write('thickness lookup, in table: $r $r $r',realArgs=(/layerThick,zeta,bathymetry/))
             return
           end if
 
         end do
       end if      
+
 
    end subroutine ocn_subgrid_layer_thickness_lookup!}}}
 
@@ -193,37 +194,43 @@ contains
 
       tableMin = subgridTableRange(1)
       tableMax = subgridTableRange(2)
-      deltaZ = (tableMax - tableMin)/(subgridTableLevels-1)
+      deltaZ = (tableMax - tableMin)/(nSubgridTableLevels-1)
 
       layerThickMin = subgridTable(1)
-      layerThickMax = subgridTable(subgridTableLevels)
+      layerThickMax = subgridTable(nSubgridTableLevels)
 
       if (layerThick > layerThickMax) then
         zeta = layerThick - bathymetry
-        return 
+        !call mpas_log_write('ssh lookup, above table: $r $r $r',realArgs=(/layerThick,zeta,bathymetry/))
 
       else if (layerThick < layerThickMin) then
-        zeta = -bathymetry
-        return
+        zeta = config_drying_min_cell_height - bathymetry
+        !call mpas_log_write('ssh lookup, below table: $r $r $r',realArgs=(/layerThick,zeta,bathymetry/))
 
       else        
 
-        do lev = 1, subgridTableLevels-1
+        do lev = 1, nSubgridTableLevels-1
           zeta0 = (real(lev,RKIND)-1.0_RKIND)*deltaZ + tableMin
           zeta1 = zeta0 + deltaZ
   
           layerThick0 = subgridTable(lev)
           layerThick1 = subgridTable(lev+1)
+
+          !call mpas_log_write('ssh lookup, in table level $i: $r $r $r $r',intArgs=(/lev/),realArgs=(/zeta0,zeta1,layerThick0,layerThick1/))
   
           if ((layerThick <= layerThick1) .and. (layerThick >= layerThick0)) then
             phi0 = (layerThick-layerThick1)/(layerThick0-layerThick1)
             phi1 = (layerThick-layerThick0)/(layerThick1-layerThick0)
             zeta = phi0*zeta0 + phi1*zeta1
+
+            !call mpas_log_write('ssh lookup, in table: $r $r $r',realArgs=(/layerThick,zeta,bathymetry/))
             return
           end if
   
         end do
       end if
+
+      !call mpas_log_write('$r',realArgs=(/zeta/))
 
    end subroutine ocn_subgrid_ssh_lookup!}}}
 
@@ -265,32 +272,33 @@ contains
         return
       end if
 
-      if (nVertLevels .ne. 1) then
-        call mpas_log_write('config_config_use_subgrid_wetting_drying = .true. requires single layer' , MPAS_LOG_CRIT)
-      end if 
+      !if (nVertLevels .ne. 1) then
+      !  call mpas_log_write('config_config_use_subgrid_wetting_drying = .true. requires single layer' , MPAS_LOG_CRIT)
+      !end if 
 
       block => domain%blocklist
       call mpas_pool_get_subpool(block%structs, 'mesh', meshPool)
 
-      call mpas_pool_get_array(meshPool, 'subgridWetVolumeCellTable', &
-                               subgridWetVolumeCellTable)
-      call mpas_pool_get_array(meshPool, 'subgridWetVolumeEdgeTable', &
-                               subgridWetVolumeEdgeTable)
-      call mpas_pool_get_array(meshPool, 'subgridWetVolumeVertexTable', &
-                               subgridWetVolumeVertexTable)
-      call mpas_pool_get_array(meshPool, 'subgridSshCellTableRange', &
-                               subgridSshCellTableRange)
-      call mpas_pool_get_array(meshPool, 'subgridSshEdgeTableRange', &
-                               subgridSshEdgeTableRange)
-      call mpas_pool_get_array(meshPool, 'subgridSshVertexTableRange', &
-                               subgridSshVertexTableRange)
-      call mpas_pool_get_array(meshPool, 'subgridEdgeBathymetry', &
-                               subgridEdgeBathymetry)
-      call mpas_pool_get_array(meshPool, 'subgridVertexBathymetry', &
-                               subgridVertexBathymetry)
+      !call mpas_pool_get_array(meshPool, 'subgridWetVolumeCellTable', &
+      !                         subgridWetVolumeCellTable)
+      !call mpas_pool_get_array(meshPool, 'subgridWetVolumeEdgeTable', &
+      !                         subgridWetVolumeEdgeTable)
+      !call mpas_pool_get_array(meshPool, 'subgridWetVolumeVertexTable', &
+      !                         subgridWetVolumeVertexTable)
+      !call mpas_pool_get_array(meshPool, 'subgridSshCellTableRange', &
+      !                         subgridSshCellTableRange)
+      !call mpas_pool_get_array(meshPool, 'subgridSshEdgeTableRange', &
+      !                         subgridSshEdgeTableRange)
+      !call mpas_pool_get_array(meshPool, 'subgridSshVertexTableRange', &
+      !                         subgridSshVertexTableRange)
+      !call mpas_pool_get_array(meshPool, 'subgridEdgeBathymetry', &
+      !                         subgridEdgeBathymetry)
+      !call mpas_pool_get_array(meshPool, 'subgridVertexBathymetry', &
+      !                         subgridVertexBathymetry)
 
-      call mpas_pool_get_dimension(meshPool, 'subgridTableLevels', &
-                                   subgridTableLevels)
+      !call mpas_pool_get_dimension(meshPool, 'nSubgridTableLevels', &
+      !                             nSubgridTableLevels)
+
 
    end subroutine ocn_subgrid_init!}}}
 

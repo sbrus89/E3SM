@@ -154,6 +154,21 @@ module ocn_mesh
       cellTangentPlane, &! two vectors defining tangent plane at cell center
       coeffs_reconstruct  ! coeffs for reconstructing vectors at cell centers
 
+   real(kind=RKIND), public, dimension(:,:), pointer :: &
+      subgridWetVolumeCellTable, &
+      subgridWetVolumeEdgeTable, &
+      subgridWetVolumeVertexTable, &
+      subgridSshCellTableRange, &
+      subgridSshEdgeTableRange, &
+      subgridSshVertexTableRange
+   real(kind=RKIND), public, dimension(:), pointer :: &
+      subgridEdgeBathymetry, &
+      subgridVertexBathymetry
+
+   integer, public, pointer :: nSubgridTableLevels
+
+
+
    ! Derived mesh values needed
    real(kind=RKIND), public, dimension(:, :), allocatable :: &
       edgeAreaFractionOfCell
@@ -490,6 +505,28 @@ contains
                                boundaryVertexTmp)
       call mpas_pool_get_array(meshPool, 'boundaryCell', &
                                boundaryCellTmp)
+
+      if (config_use_subgrid_wetting_drying) then
+        call mpas_pool_get_array(meshPool, 'subgridWetVolumeCellTable', &
+                                 subgridWetVolumeCellTable)
+        call mpas_pool_get_array(meshPool, 'subgridWetVolumeEdgeTable', &
+                                 subgridWetVolumeEdgeTable)
+        call mpas_pool_get_array(meshPool, 'subgridWetVolumeVertexTable', &
+                                 subgridWetVolumeVertexTable)
+        call mpas_pool_get_array(meshPool, 'subgridSshCellTableRange', &
+                                 subgridSshCellTableRange)
+        call mpas_pool_get_array(meshPool, 'subgridSshEdgeTableRange', &
+                                 subgridSshEdgeTableRange)
+        call mpas_pool_get_array(meshPool, 'subgridSshVertexTableRange', &
+                                 subgridSshVertexTableRange)
+        call mpas_pool_get_array(meshPool, 'subgridEdgeBathymetry', &
+                                 subgridEdgeBathymetry)
+        call mpas_pool_get_array(meshPool, 'subgridVertexBathymetry', &
+                                 subgridVertexBathymetry)
+ 
+        call mpas_pool_get_dimension(meshPool, 'nSubgridTableLevels', &
+                                     nSubgridTableLevels)
+      endif
 
       allocate ( &
             edgeMask(nVertLevels, nEdgesAll+1), &

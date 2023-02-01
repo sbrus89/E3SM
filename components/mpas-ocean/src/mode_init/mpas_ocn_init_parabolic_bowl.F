@@ -53,6 +53,7 @@ module ocn_init_parabolic_bowl
    use ocn_config
    use ocn_init_vertical_grids
    use ocn_init_cell_markers
+   use ocn_subgrid
 
    implicit none
    private
@@ -168,9 +169,12 @@ contains
     integer :: v1, v2
     integer :: c1, c2
     real (kind=RKIND) :: x(3), y(3)
-    integer :: slice
+    integer :: slice, nSlice
+    integer :: i,j
 
     iErr = 0
+
+    call ocn_subgrid_init(domain,iErr)
 
     if(config_init_configuration .ne. trim('parabolic_bowl')) return
 
@@ -505,13 +509,15 @@ contains
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Cells
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      print*, "Begin cells", nCellsSolve
 
       nSubgridTriPerSlice = config_parabolic_bowl_subgrid_level**2
       allocate(rSubgridPoints(3,maxEdges*nSubgridTriPerSlice), sSubgridPoints(3,maxEdges*nSubgridTriPerSlice))
-      call ocn_init_define_subgrid_points(config_parabolic_bowl_subgrid_level, nSubgridTriPerSlice, rSubgridPoints, sSubgridPoints)
+      call ocn_init_define_subgrid_points(config_parabolic_bowl_subgrid_level, rSubgridPoints, sSubgridPoints)
       allocate(subgridValues(maxEdges*nSubgridTriPerSlice), subgridAreas(maxEdges*nSubgridTriPerSlice))
 
       do iCell = 1,nCellsSolve
+        !print*, "iCell: ", iCell
 
         ! Evaluate subgrid bathymetry at centers of sub-triangles for cell slices 
         ! (all subdivided triangles for each cell slice are gathered into 
@@ -521,11 +527,11 @@ contains
         nSubgridCell = 0  ! Counter for all subgrid triangles over cell slices
         do slice = 1,nEdgesOnCell(iCell) ! Loop over cell slices
 
-          v1 = verticesOnCell(slice, iCell)
+          v1 = verticesOnCell(slice,iCell)
           if (slice+1 <= nEdgesOnCell(iCell)) then
-            v2 = verticesOnCell(slice+1, iCell)
+            v2 = verticesOnCell(slice+1,iCell)
           else
-            v2 = verticesOnCell(1, iCell)
+            v2 = verticesOnCell(1,iCell)
           endif
 
           ! Cell slice coordinates
@@ -541,18 +547,18 @@ contains
           call ocn_init_evaluate_subgrid_data(x, y, nSubgridTriPerSlice, nSubgridCell, rSubgridPoints, sSubgridPoints, subgridValues, subgridAreas)
 
         enddo
+        
 
         ! Evaluate bounds of look-up table range
         !---------------------------------------------------------------
 
-        subgridSshCellTableRange(1,iCell) = minval(subgridValues(1:nSubgridCell))
-        subgridSshCellTableRange(2,iCell) = maxval(subgridValues(1:nSubgridCell))
+        subgridSshCellTableRange(1,iCell) = -maxval(subgridValues(1:nSubgridCell))
+        subgridSshCellTableRange(2,iCell) = -minval(subgridValues(1:nSubgridCell))
 
         ! Vertical integration of wet fraction
         !---------------------------------------------------------------
 
         call ocn_init_vertical_integration(iCell,subgridSshCellTableRange, nSubgridCell, subgridValues, subgridAreas, subgridWetVolumeCellTable)
-        print*, iCell
 
       enddo
 
@@ -561,16 +567,25 @@ contains
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Edges
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      print*, "Begin edges", nEdgesSolve
 
       do iEdge = 1,nEdgesSolve
-
         ! Evaluate subgrid bathymetry at centers of sub-triangles for edge slices
         ! (all subdivided triangles for each edge slice are gathered into 
         !  subgridValues and subgridAreas)
         !---------------------------------------------------------------
 
+        nSlice = 0
+        do slice = 1,2
+          if (cellsOnEdge(slice,iEdge) <= nCellsSolve) then
+            nSlice = nSlice + 1
+          endif
+        enddo
+
+        !print*, cellsOnEdge(1,iEdge), cellsOnEdge(2,iEdge), nSlice
+
         nSubgridEdge = 0  ! Counter for all subgrid triangles over edge slices
-        do slice = 1,2 ! Loop over edge slices
+        do slice = 1,nSlice ! Loop over edge slices
 
           ! Edge slice coordinates
           x(1) = xVertex(verticesOnEdge(1,iEdge))
@@ -589,8 +604,9 @@ contains
         ! Evaluate bounds of look-up table range
         !---------------------------------------------------------------
 
-        subgridSshEdgeTableRange(1,iEdge) = minval(subgridValues(1:nSubgridEdge))
-        subgridSshEdgeTableRange(2,iEdge) = maxval(subgridValues(1:nSubgridEdge))
+        subgridSshEdgeTableRange(1,iEdge) = -maxval(subgridValues(1:nSubgridEdge))
+        subgridSshEdgeTableRange(2,iEdge) = -minval(subgridValues(1:nSubgridEdge))
+        subgridEdgeBathymetry(iEdge) = sum(subgridValues(1:nSubgridEdge))/real(nSubgridEdge,RKIND) 
 
         ! Vertical integration of wet fraction
         !---------------------------------------------------------------
@@ -604,14 +620,23 @@ contains
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Vertex
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      print*, "Begin vertex", nVerticesSolve
 
       do iVertex = 1,nVerticesSolve
 
         ! Evaluate subgrid bathymetry at centers of sub-triangles for vertex triangle
         !---------------------------------------------------------------
 
-        nSubgridVertex = 0  ! Counter for all subgrid triangles over edge slices
+        nSlice = 0
         do slice = 1,3
+          if (cellsOnVertex(slice,iVertex) > 0) then
+            nSlice = nSlice + 1
+          endif
+        enddo
+        print*, cellsOnVertex(1,iVertex), cellsOnVertex(2,iVertex), nSlice
+
+        nSubgridVertex = 0  ! Counter for all subgrid triangles over edge slices
+        do slice = 1,nSlice
 
           c1 = cellsOnVertex(slice,iVertex)
           if (slice < 3) then
@@ -636,8 +661,9 @@ contains
         ! Evaluate bounds of look-up table range
         !---------------------------------------------------------------
 
-        subgridSshVertexTableRange(1,iVertex) = minval(subgridValues(1:nSubgridVertex))
-        subgridSshVertexTableRange(2,iVertex) = maxval(subgridValues(1:nSubgridVertex))
+        subgridSshVertexTableRange(1,iVertex) = -maxval(subgridValues(1:nSubgridVertex))
+        subgridSshVertexTableRange(2,iVertex) = -minval(subgridValues(1:nSubgridVertex))
+        subgridVertexBathymetry(iVertex) = sum(subgridValues(1:nSubgridVertex))/real(nSubgridVertex,RKIND)
 
         ! Vertical integration of wet fraction
         !---------------------------------------------------------------
@@ -645,6 +671,21 @@ contains
         call ocn_init_vertical_integration(iVertex,subgridSshVertexTableRange, nSubgridVertex, subgridValues, subgridAreas, subgridWetVolumeVertexTable)
 
       enddo
+
+      !do iCell = 1,nCellsSolve
+      !  call ocn_subgrid_layer_thickness_lookup(ssh(iCell), & 
+      !                                          subgridWetVolumeCellTable(:,iCell), &
+      !                                          subgridSshCellTableRange(:,iCell),&
+      !                                          bottomDepth(iCell),&
+      !                                          layerThickness(1,iCell))
+      !enddo
+      !do iCell = 1,nCellsSolve
+      !  call ocn_subgrid_ssh_lookup(layerThickness(1,iCell),&
+      !                              subgridWetVolumeCellTable(:,iCell),&
+      !                              subgridSshCellTableRange(:,iCell),&
+      !                              bottomDepth(iCell),&
+      !                              ssh(iCell))
+      !enddo
 
 
        block_ptr => block_ptr % next
@@ -670,15 +711,15 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_init_define_subgrid_points(nSubgridLevel, nSubgridTri, rSubgridPoints, sSubgridPoints)!{{{
+   subroutine ocn_init_define_subgrid_points(nSubgridLevel, rSubgridPoints, sSubgridPoints)!{{{
            
       implicit none 
 
       integer, intent(in) :: nSubgridLevel
-      integer, intent(inout) :: nSubgridTri
       real (kind=RKIND), dimension(:,:), intent(inout) :: rSubgridPoints, sSubgridPoints
 
-      integer :: i,j
+      integer :: i,j,k
+      integer :: nSubgridTri
       real (kind=RKIND) :: dx
       real (kind=RKIND), dimension(:), allocatable :: xPoints
 
@@ -721,6 +762,8 @@ contains
           rSubgridPoints(3,nSubgridTri) = xPoints(i)
           sSubgridPoints(3,nSubgridTri) = xPoints(j+1)
 
+          !print("(i5,1x,3(e10.3,1x))"), nSubgridTri, (rSubgridPoints(k,nSubgridTri), k=1,3)
+          !print("(i5,1x,3(e10.3,1x))"), nSubgridTri, (sSubgridPoints(k,nSubgridTri), k=1,3)
           nSubgridTri = nSubgridTri+1 
 
           ! upper triangle in pair (see u in triangle above, doesn't occur next to hypotenuse)          
@@ -735,11 +778,16 @@ contains
             rSubgridPoints(3,nSubgridTri) = xPoints(i)
             sSubgridPoints(3,nSubgridTri) = xPoints(j+1)
 
+            !print("(i5,1x,3(e10.3,1x))"), nSubgridTri, (rSubgridPoints(k,nSubgridTri), k=1,3)
+            !print("(i5,1x,3(e10.3,1x))"), nSubgridTri, (sSubgridPoints(k,nSubgridTri), k=1,3)
             nSubgridTri = nSubgridTri + 1
             
           endif
+
         enddo
       enddo
+
+      print*, "exit ocn_init_define_subgrid_points"
 
    
    !--------------------------------------------------------------------
@@ -771,9 +819,25 @@ contains
       real (kind=RKIND) :: x, y
       real (kind=RKIND) :: area
 
-      integer :: iPt
+      integer :: iPt,i
 
    !--------------------------------------------------------------------
+
+     ! Coordinates of physical triangle
+     ! (ensure counter-clockwise numering)
+     call ocn_init_tri_area(xTri(:), yTri(:), area)
+     if (area < 0.0_RKIND) then
+       x = xTri(2)
+       y = yTri(2)
+       xTri(2) = xTri(3)
+       yTri(2) = yTri(3)
+       xTri(3) = x
+       yTri(3) = y
+       area = abs(area)
+     endif
+
+     !print("(3(f10.3,1x))"), (xTri(i)/1000, i=1,3)
+     !print("(3(f10.3,1x))"), (yTri(i)/1000, i=1,3)
 
       do iPt = 1,nSubgridTri
 
@@ -784,27 +848,17 @@ contains
         r = sum(rSubgridPoints(:,iPt))/3.0_RKIND
         s = sum(sSubgridPoints(:,iPt))/3.0_RKIND
 
-        ! Coordinates of physical triangle
-        ! (ensure counter-clockwise numering)
-        call ocn_init_tri_area(xTri(:), yTri(:), area)
-        if (area < 0.0_RKIND) then
-          x = xTri(2)
-          y = yTri(2)
-          xTri(2) = xTri(3)
-          yTri(2) = yTri(3)
-          xTri(3) = x
-          yTri(3) = y
-          area = abs(area)
-        endif
 
         ! Transformation of sub-triangle center to physical coordinates
-        x = -0.5_RKIND*((r+s)*xTri(1) + (1.0_RKIND + r)*xTri(2) + (1.0_RKIND +s)*xTri(3))
-        y = -0.5_RKIND*((r+s)*yTri(1) + (1.0_RKIND + r)*yTri(2) + (1.0_RKIND +s)*yTri(3))
+        x = 0.5_RKIND*(-(r+s)*xTri(1) + (1.0_RKIND+r)*xTri(2) + (1.0_RKIND+s)*xTri(3))
+        y = 0.5_RKIND*(-(r+s)*yTri(1) + (1.0_RKIND+r)*yTri(2) + (1.0_RKIND+s)*yTri(3))
+
 
         ! Evaluate bathymetry and calculate area         
         call ocn_init_parabolic_bowl_bathymetry(x, y, subgridValues(nSubgridCV))
         call ocn_init_tri_area(rSubgridPoints(:,iPt), sSubgridPoints(:,iPt), subgridAreas(nSubgridCV))
 
+        !print("(I5,I5,1x,5(f10.3,1x))"), nSubgridCV, iPt, x/1000, y/1000, subgridValues(nSubgridCV), subgridAreas(nSubgridCV)
 
       enddo
 
@@ -863,7 +917,7 @@ contains
    !--------------------------------------------------------------------
 
       area = 0.5_RKIND*((x(2)-x(1))*(y(3)-y(1)) - (x(3)-x(1))*(y(2)-y(1)))
-      area = abs(area)
+      !area = abs(area)
 
    !--------------------------------------------------------------------
 
@@ -898,7 +952,7 @@ contains
    !--------------------------------------------------------------------
    
       deltaZ = (subgridSshTableRange(2,iCV)-subgridSshTableRange(1,iCV))/(nSubgridTableLevels-1);
-      ssh = -subgridSshTableRange(2,iCV) + deltaZ
+      ssh = subgridSshTableRange(1,iCV) + deltaZ
 
       subgridWetVolumeTable(1,iCV) = 0.0_RKIND
       do lev = 1,nSubgridTableLevels
