@@ -723,6 +723,7 @@ contains
 
       ! Compute mean layer thickness at edge
 
+      !if (.false.) then
       if (config_use_subgrid_wetting_drying) then
 #ifdef MPAS_OPENACC
         !$acc parallel loop &
@@ -740,7 +741,7 @@ contains
            call ocn_subgrid_layer_thickness_lookup(sshMean, &
                                                    subgridWetVolumeEdgeTable(:,iEdge), &
                                                    subgridSshEdgeTableRange(:,iEdge), &
-                                                   subgridEdgeBathymetry(iEdge), &
+                                                   subgridEdgeBathymetryMean(iEdge), &
                                                    layerThickEdgeMean(1,iEdge))
         end do
 #ifndef MPAS_OPENACC
@@ -808,6 +809,7 @@ contains
       case (thickEdgeFluxUpwind)
          ! Use upwind thickness as the edge flux value
 
+        !if (.false.) then
         if (config_use_subgrid_wetting_drying) then
 #ifdef MPAS_OPENACC
            !$acc parallel loop &
@@ -826,24 +828,24 @@ contains
                  call ocn_subgrid_layer_thickness_lookup(ssh(cell1), &
                                                          subgridWetVolumeEdgeTable(:,iEdge), &
                                                          subgridSshEdgeTableRange(:,iEdge), &
-                                                         subgridEdgeBathymetry(iEdge), &
+                                                         subgridEdgeBathymetryMean(iEdge), &
                                                          layerThickEdgeFlux(1,iEdge))
               elseif (normalVelocity(1,iEdge) < 0.0_RKIND) then
                  call ocn_subgrid_layer_thickness_lookup(ssh(cell2), &
                                                          subgridWetVolumeEdgeTable(:,iEdge), &
                                                          subgridSshEdgeTableRange(:,iEdge), &
-                                                         subgridEdgeBathymetry(iEdge), &
+                                                         subgridEdgeBathymetryMean(iEdge), &
                                                          layerThickEdgeFlux(1,iEdge))
               else
                  call ocn_subgrid_layer_thickness_lookup(ssh(cell1), &
                                                          subgridWetVolumeEdgeTable(:,iEdge), &
                                                          subgridSshEdgeTableRange(:,iEdge), &
-                                                         subgridEdgeBathymetry(iEdge), &
+                                                         subgridEdgeBathymetryMean(iEdge), &
                                                          layerThicknessCell1)
                  call ocn_subgrid_layer_thickness_lookup(ssh(cell2), &
                                                          subgridWetVolumeEdgeTable(:,iEdge), &
                                                          subgridSshEdgeTableRange(:,iEdge), &
-                                                         subgridEdgeBathymetry(iEdge), &
+                                                         subgridEdgeBathymetryMean(iEdge), &
                                                          layerThicknessCell2)
                  layerThickEdgeFlux(1,iEdge) = &
                                      max(layerThicknessCell1, &
@@ -1222,7 +1224,8 @@ contains
       !$omp do schedule(runtime) &
       !$omp    private(i, k, iCell, invAreaTri1, layerThicknessVertex, iVertex, sshVertex)
 #endif
-      if (config_use_subgrid_wetting_drying) then
+      if (.false.) then
+      !if (config_use_subgrid_wetting_drying) then
         do iVertex = 1, nVertices
            invAreaTri1 = 1.0_RKIND / areaTriangle(iVertex)
            do k = 1, maxLevelVertexBot(iVertex)
@@ -1236,7 +1239,7 @@ contains
               call ocn_subgrid_layer_thickness_lookup(sshVertex, &
                                                       subgridWetVolumeVertexTable(:,iVertex), &
                                                       subgridSshVertexTableRange(:,iVertex), &
-                                                      subgridVertexBathymetry(iVertex), &
+                                                      subgridVertexBathymetryMean(iVertex), &
                                                       layerThicknessVertex) 
               if (layerThicknessVertex == 0) cycle
 
@@ -2531,11 +2534,13 @@ contains
          end do
 
 
-         if (config_use_subgrid_wetting_drying) then
+         !if (config_use_subgrid_wetting_drying) then
+         if (.false.) then
            call ocn_subgrid_ssh_lookup(layerThickness(1,iCell), &
                                        subgridWetVolumeCellTable(:,iCell), &
                                        subgridSshCellTableRange(:,iCell), &
                                        bottomDepth(iCell), &
+                                       subgridCellBathymetryMin(iCell), & 
                                        ssh(iCell))
          else
            ! copy zTop(1,iCell) into sea-surface height array

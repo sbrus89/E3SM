@@ -162,8 +162,11 @@ module ocn_mesh
       subgridSshEdgeTableRange, &
       subgridSshVertexTableRange
    real(kind=RKIND), public, dimension(:), pointer :: &
-      subgridEdgeBathymetry, &
-      subgridVertexBathymetry
+      subgridEdgeBathymetryMean, &
+      subgridVertexBathymetryMean, &
+      subgridCellBathymetryMin, &
+      subgridEdgeBathymetryMin, &
+      subgridVertexBathymetryMin
 
    integer, public, pointer :: nSubgridTableLevels
 
@@ -519,10 +522,16 @@ contains
                                  subgridSshEdgeTableRange)
         call mpas_pool_get_array(meshPool, 'subgridSshVertexTableRange', &
                                  subgridSshVertexTableRange)
-        call mpas_pool_get_array(meshPool, 'subgridEdgeBathymetry', &
-                                 subgridEdgeBathymetry)
-        call mpas_pool_get_array(meshPool, 'subgridVertexBathymetry', &
-                                 subgridVertexBathymetry)
+        call mpas_pool_get_array(meshPool, 'subgridEdgeBathymetryMean', &
+                                 subgridEdgeBathymetryMean)
+        call mpas_pool_get_array(meshPool, 'subgridVertexBathymetryMean', &
+                                 subgridVertexBathymetryMean)
+        call mpas_pool_get_array(meshPool, 'subgridCellBathymetryMin', &
+                                 subgridCellBathymetryMin)
+        call mpas_pool_get_array(meshPool, 'subgridEdgeBathymetryMin', &
+                                 subgridEdgeBathymetryMin)
+        call mpas_pool_get_array(meshPool, 'subgridVertexBathymetryMin', &
+                                 subgridVertexBathymetryMin)
  
         call mpas_pool_get_dimension(meshPool, 'nSubgridTableLevels', &
                                      nSubgridTableLevels)

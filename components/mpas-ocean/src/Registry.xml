@@ -2573,12 +2573,24 @@
 			 description="Range of ssh vaules used for vertex lookup table"
 			 packages="subgridWetDryPKG"
 		/>
-		<var name="subgridEdgeBathymetry" type="real" dimensions="nEdges" units="m"
-			 description="Bathymetry on edge from subgrid information"
+		<var name="subgridEdgeBathymetryMean" type="real" dimensions="nEdges" units="m"
+			 description="Mean bathymetry on edge from subgrid information"
 			 packages="subgridWetDryPKG"
 		/>
-		<var name="subgridVertexBathymetry" type="real" dimensions="nVertices" units="m"
-			 description="Bathymetry on vertex from subgrid information"
+		<var name="subgridVertexBathymetryMean" type="real" dimensions="nVertices" units="m"
+			 description="Mean bathymetry on vertex from subgrid information"
+			 packages="subgridWetDryPKG"
+		/>
+		<var name="subgridCellBathymetryMin" type="real" dimensions="nCells" units="m"
+			 description="Minimum bathymetry on cell from subgrid information"
+			 packages="subgridWetDryPKG"
+		/>
+		<var name="subgridEdgeBathymetryMin" type="real" dimensions="nEdges" units="m"
+			 description="Minimum bathymetry on edge from subgrid information"
+			 packages="subgridWetDryPKG"
+		/>
+		<var name="subgridVertexBathymetryMin" type="real" dimensions="nVertices" units="m"
+			 description="Minimum bathymetry on vertex from subgrid information"
 			 packages="subgridWetDryPKG"
 		/>
 	</var_struct>

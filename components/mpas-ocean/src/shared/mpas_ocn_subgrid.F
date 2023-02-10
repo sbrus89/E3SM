@@ -71,6 +71,7 @@ module ocn_subgrid
    !   subgridVertexBathymetry
 
    !integer, pointer :: nSubgridTableLevels
+   real(kind=RKIND) :: eps = 1e-10
 
 
 contains
@@ -113,6 +114,7 @@ contains
       !-----------------------------------------------------------------
 
       integer :: lev
+      integer :: nSubgridTableLevels
 
       real (kind=RKIND) :: tableMin
       real (kind=RKIND) :: tableMax
@@ -121,14 +123,15 @@ contains
 
       tableMin = subgridTableRange(1)
       tableMax = subgridTableRange(2)
+      nSubgridTableLevels = config_subgrid_table_levels_init
       deltaZ = (tableMax - tableMin)/(nSubgridTableLevels-1)
 
-      if (zeta > tableMax) then
+      if (zeta >= tableMax) then
         layerThick = zeta + bathymetry
         !call mpas_log_write('thickness lookup, above table: $r $r $r',realArgs=(/layerThick,zeta,bathymetry/))
-      else if (zeta < tableMin) then
+      else if (zeta <= tableMin) then
         !layerThick = 0.0_RKIND
-        layerThick = config_drying_min_cell_height
+        layerThick = config_drying_min_cell_height + eps
         !call mpas_log_write('thickness lookup, below table: $r $r $r',realArgs=(/layerThick,zeta,bathymetry/))
       else 
         do lev = 1, nSubgridTableLevels-1
@@ -137,7 +140,7 @@ contains
 
           if ((zeta <= zeta1) .and. (zeta >= zeta0)) then
             layerThick = ((zeta-zeta0)*subgridTable(lev+1) - (zeta-zeta1)*subgridTable(lev))/deltaZ
-            !call mpas_log_write('thickness lookup, in table: $r $r $r',realArgs=(/layerThick,zeta,bathymetry/))
+            !call mpas_log_write('thickness lookup, in table: $r $r $r $r',realArgs=(/layerThick,zeta,bathymetry,zeta+bathymetry/))
             return
           end if
 
@@ -161,7 +164,8 @@ contains
    subroutine ocn_subgrid_ssh_lookup(layerThick, &
                                      subgridTable, &
                                      subgridTableRange, &
-                                     bathymetry, &
+                                     bathymetryMean, &
+                                     bathymetryMin, &
                                      zeta)!{{{
 
       !-----------------------------------------------------------------
@@ -171,19 +175,21 @@ contains
       real (kind=RKIND), intent(in) :: layerThick
       real (kind=RKIND), dimension(:), intent(in) :: subgridTable
       real (kind=RKIND), dimension(:), intent(in) :: subgridTableRange
-      real (kind=RKIND), intent(in) :: bathymetry
+      real (kind=RKIND), intent(in) :: bathymetryMean
+      real (kind=RKIND), intent(in) :: bathymetryMin
 
       !-----------------------------------------------------------------
       ! output variables
       !-----------------------------------------------------------------
 
-      real (kind=RKIND), intent(out) :: zeta
+      real (kind=RKIND), intent(inout) :: zeta
 
       !-----------------------------------------------------------------
       ! local variables
       !-----------------------------------------------------------------
 
       integer :: lev
+      integer :: nSubgridTableLevels
 
       real (kind=RKIND) :: deltaZ
       real (kind=RKIND) :: tableMin, tableMax
@@ -194,18 +200,26 @@ contains
 
       tableMin = subgridTableRange(1)
       tableMax = subgridTableRange(2)
+      nSubgridTableLevels = config_subgrid_table_levels_init
       deltaZ = (tableMax - tableMin)/(nSubgridTableLevels-1)
 
       layerThickMin = subgridTable(1)
       layerThickMax = subgridTable(nSubgridTableLevels)
+      call mpas_log_write('ssh in: $r',realArgs=(/zeta/))
 
-      if (layerThick > layerThickMax) then
-        zeta = layerThick - bathymetry
-        !call mpas_log_write('ssh lookup, above table: $r $r $r',realArgs=(/layerThick,zeta,bathymetry/))
+      do lev = 1,nSubgridTableLevels
+        zeta0 = (real(lev,RKIND)-1.0_RKIND)*deltaZ + tableMin
+        layerThick0 = subgridTable(lev)
+        call mpas_log_write('ssh, layerThick: $r $r',realArgs=(/zeta0,layerThick0/))
+      enddo
 
-      else if (layerThick < layerThickMin) then
-        zeta = config_drying_min_cell_height - bathymetry
-        !call mpas_log_write('ssh lookup, below table: $r $r $r',realArgs=(/layerThick,zeta,bathymetry/))
+      if (layerThick >= layerThickMax) then
+        zeta = layerThick - bathymetryMean
+        call mpas_log_write('ssh lookup, above table: $r $r $r',realArgs=(/layerThick,zeta,bathymetryMean/))
+
+      else if (layerThick <= layerThickMin) then
+        zeta = config_drying_min_cell_height + eps - bathymetryMin
+        call mpas_log_write('ssh lookup, below table: $r $r $r',realArgs=(/layerThick,zeta,bathymetryMin/))
 
       else        
 
@@ -216,14 +230,14 @@ contains
           layerThick0 = subgridTable(lev)
           layerThick1 = subgridTable(lev+1)
 
-          !call mpas_log_write('ssh lookup, in table level $i: $r $r $r $r',intArgs=(/lev/),realArgs=(/zeta0,zeta1,layerThick0,layerThick1/))
+          call mpas_log_write('ssh lookup, in table level $i: $r $r $r $r',intArgs=(/lev/),realArgs=(/zeta0,zeta1,layerThick0,layerThick1/))
   
           if ((layerThick <= layerThick1) .and. (layerThick >= layerThick0)) then
             phi0 = (layerThick-layerThick1)/(layerThick0-layerThick1)
             phi1 = (layerThick-layerThick0)/(layerThick1-layerThick0)
             zeta = phi0*zeta0 + phi1*zeta1
 
-            !call mpas_log_write('ssh lookup, in table: $r $r $r',realArgs=(/layerThick,zeta,bathymetry/))
+            call mpas_log_write('ssh lookup, in table: $r $r $r $r',realArgs=(/layerThick,zeta,bathymetryMean,zeta+bathymetryMean/))
             return
           end if
   
