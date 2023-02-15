@@ -422,11 +422,6 @@ contains
       end do
 
 
-      if (.not. config_use_subgrid_wetting_drying) then
-        block_ptr => block_ptr % next
-        cycle
-      endif
-
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Cells
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
