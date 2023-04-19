@@ -1035,8 +1035,7 @@ vertex:do iVertex = 1,nVerticesSolve
         do tri = 1,nSubgridCV
 
           pVal = 0.0_RKIND
-          !if (averageDepth + ssh >= config_drying_min_cell_height+eps) then
-          if (subgridBathymetryValues(tri) + ssh >= config_drying_min_cell_height + eps) then
+          if (subgridBathymetryValues(tri) + ssh >= 0.0_RKIND) then
             pVal = 1.0_RKIND
           endif
 
