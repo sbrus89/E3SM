@@ -361,9 +361,9 @@ contains
 
 
        ! Bathymetry    
-       do iCell = 1, nCellsSolve
-          call ocn_init_parabolic_bowl_bathymetry(xCell(iCell),yCell(iCell),bottomDepth(iCell))
-       end do
+       !do iCell = 1, nCellsSolve
+       !   call ocn_init_parabolic_bowl_bathymetry(xCell(iCell),yCell(iCell),bottomDepth(iCell))
+       !end do
 
 
        minLevelCell(:) = 1
@@ -486,7 +486,7 @@ contains
 
         ! Evaluate wet ssh average
         !---------------------------------------------------------------
-        !call ocn_init_wet_average(iCell, nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, ssh)
+        call ocn_init_wet_average(iCell, nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, ssh)
 
       enddo
 
@@ -627,11 +627,6 @@ vertex:do iVertex = 1,nVerticesSolve
        ! Set vertCoordMovementWeights
        vertCoordMovementWeights(:) = 1.0_RKIND
 
-       ! Set ssh
-       do iCell = 1, nCellsSolve
-         call ocn_init_parabolic_bowl_ssh(xCell(iCell),yCell(iCell),bottomDepth(iCell),ssh(iCell))
-       end do
-
        if (config_use_wetting_drying) then
 
          do iCell = 1, nCellsSolve
@@ -644,10 +639,15 @@ vertex:do iVertex = 1,nVerticesSolve
             ! make sure depth is thick enough via ssh = TOTAL_DEPTH - bottomDepth
             ! add a thin layer of nlayer*config_drying_min_cellhight 
             ! 
+ 
+            if (config_use_subgrid_wetting_drying) then
 
-            !ssh(iCell) = - bottomDepth(iCell) + &
-            !  max(ssh(iCell) + bottomDepth(iCell), &
-            !  maxLevelCell(iCell)*(config_drying_min_cell_height + eps))
+            else
+              call ocn_init_parabolic_bowl_ssh(xCell(iCell),yCell(iCell),bottomDepth(iCell),ssh(iCell))
+              ssh(iCell) = - bottomDepth(iCell) + &
+                max(ssh(iCell) + bottomDepth(iCell), &
+                maxLevelCell(iCell)*(config_drying_min_cell_height + eps))
+            endif
           
             do k = 1, maxLevelCell(iCell)
               layerThickness(k,iCell) = max(config_drying_min_cell_height + eps, &
@@ -930,7 +930,7 @@ vertex:do iVertex = 1,nVerticesSolve
  
       ssh = (sqrtOneMC2/oneMC) - 1.0_RKIND - ((RR**2.0)/(LL**2.0))*( (oneMC2/(oneMC**2.0)) - 1.0_RKIND ) ;
       ssh = config_parabolic_bowl_b0*ssh ; 
-      ssh = - bottomDepth + max(ssh + bottomDepth, config_drying_min_cell_height + eps)
+      !ssh = - bottomDepth + max(ssh + bottomDepth, config_drying_min_cell_height + eps)
 
    !--------------------------------------------------------------------
 
@@ -1018,15 +1018,12 @@ vertex:do iVertex = 1,nVerticesSolve
       real (kind=RKIND), dimension(:,:), intent(inout) :: subgridWetVolumeTable
 
       real (kind=RKIND) :: deltaZ, ssh, pVal
-      real (kind=RKIND) :: averageDepth
       integer :: lev, tri
       
 
    !--------------------------------------------------------------------
    
       deltaZ = (subgridSshTableRange(2,iCV)-subgridSshTableRange(1,iCV))/real(nSubgridTableLevels-1,RKIND);
-
-      averageDepth = sum(subgridBathymetryValues(1:nSubgridCV))/real(nSubgridCV,RKIND) 
 
       subgridWetVolumeTable(1,iCV) = config_drying_min_cell_height + eps
       ssh = subgridSshTableRange(1,iCV) + deltaZ
@@ -1092,19 +1089,16 @@ vertex:do iVertex = 1,nVerticesSolve
       do tri = 1,nSubgridCV
 
         pVal = 0.0_RKIND
-        !if (averageDepth + ssh >= config_drying_min_cell_height) then
         if (subgridBathymetryValues(tri) + subgridSshValues(tri) >= config_drying_min_cell_height+eps) then
           pVal = 1.0_RKIND
           wetArea = wetArea + subgridAreas(tri)
         endif
         subgridWetAverage(iCV) = subgridWetAverage(iCV) + pVal*subgridSshValues(tri)*subgridAreas(tri)
 
-        !subgridWetAverage(iCV) = subgridWetAverage(iCV) + subgridSshValues(tri)*subgridAreas(tri)
-  
       enddo
 
       if (wetArea < eps) then
-        subgridWetAverage(iCV) = -9999
+        subgridWetAverage(iCV) = config_drying_min_cell_height+eps - averageDepth 
       else
         subgridWetAverage(iCV) = subgridWetAverage(iCV)/wetArea
       endif
@@ -1116,11 +1110,11 @@ vertex:do iVertex = 1,nVerticesSolve
 
 !***********************************************************************
 !
-!  routine ocn_init_validate_TEMPLATE
+!  routine ocn_init_validate_parabolic_bowl
 !
 !> \brief   Validation for this initial condition
-!> \author  FILL_IN_AUTHOR
-!> \date    FILL_IN_DATE
+!> \author  
+!> \date   
 !> \details
 !>  This routine validates the configuration options for this case.
 !
