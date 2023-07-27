@@ -48,7 +48,6 @@ module ocn_init_parabolic_bowl
    use mpas_constants
    use mpas_dmpar
 
-   use ocn_mesh
    use ocn_constants
    use ocn_config
    use ocn_init_vertical_grids
