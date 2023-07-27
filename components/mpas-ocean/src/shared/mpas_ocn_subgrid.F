@@ -205,21 +205,21 @@ contains
 
       layerThickMin = subgridTable(1)
       layerThickMax = subgridTable(nSubgridTableLevels)
-      call mpas_log_write('ssh in: $r',realArgs=(/zeta/))
+      !call mpas_log_write('ssh in: $r',realArgs=(/zeta/))
 
       do lev = 1,nSubgridTableLevels
         zeta0 = (real(lev,RKIND)-1.0_RKIND)*deltaZ + tableMin
         layerThick0 = subgridTable(lev)
-        call mpas_log_write('ssh, layerThick: $r $r',realArgs=(/zeta0,layerThick0/))
+        !call mpas_log_write('ssh, layerThick: $r $r',realArgs=(/zeta0,layerThick0/))
       enddo
 
       if (layerThick >= layerThickMax) then
         zeta = layerThick - bathymetryMean
-        call mpas_log_write('ssh lookup, above table: $r $r $r',realArgs=(/layerThick,zeta,bathymetryMean/))
+        !call mpas_log_write('ssh lookup, above table: $r $r $r',realArgs=(/layerThick,zeta,bathymetryMean/))
 
       else if (layerThick <= layerThickMin) then
         zeta = config_drying_min_cell_height + eps - bathymetryMin
-        call mpas_log_write('ssh lookup, below table: $r $r $r',realArgs=(/layerThick,zeta,bathymetryMin/))
+        !call mpas_log_write('ssh lookup, below table: $r $r $r',realArgs=(/layerThick,zeta,bathymetryMin/))
 
       else        
 
@@ -230,14 +230,14 @@ contains
           layerThick0 = subgridTable(lev)
           layerThick1 = subgridTable(lev+1)
 
-          call mpas_log_write('ssh lookup, in table level $i: $r $r $r $r',intArgs=(/lev/),realArgs=(/zeta0,zeta1,layerThick0,layerThick1/))
+          !call mpas_log_write('ssh lookup, in table level $i: $r $r $r $r',intArgs=(/lev/),realArgs=(/zeta0,zeta1,layerThick0,layerThick1/))
   
           if ((layerThick <= layerThick1) .and. (layerThick >= layerThick0)) then
             phi0 = (layerThick-layerThick1)/(layerThick0-layerThick1)
             phi1 = (layerThick-layerThick0)/(layerThick1-layerThick0)
             zeta = phi0*zeta0 + phi1*zeta1
 
-            call mpas_log_write('ssh lookup, in table: $r $r $r $r',realArgs=(/layerThick,zeta,bathymetryMean,zeta+bathymetryMean/))
+            !call mpas_log_write('ssh lookup, in table: $r $r $r $r',realArgs=(/layerThick,zeta,bathymetryMean,zeta+bathymetryMean/))
             return
           end if
   
