@@ -723,7 +723,6 @@ contains
 
       ! Compute mean layer thickness at edge
 
-      !if (.false.) then
       if (config_use_subgrid_wetting_drying) then
 #ifdef MPAS_OPENACC
         !$acc parallel loop &
@@ -809,7 +808,6 @@ contains
       case (thickEdgeFluxUpwind)
          ! Use upwind thickness as the edge flux value
 
-        !if (.false.) then
         if (config_use_subgrid_wetting_drying) then
 #ifdef MPAS_OPENACC
            !$acc parallel loop &
@@ -1224,8 +1222,7 @@ contains
       !$omp do schedule(runtime) &
       !$omp    private(i, k, iCell, invAreaTri1, layerThicknessVertex, iVertex, sshVertex)
 #endif
-      if (.false.) then
-      !if (config_use_subgrid_wetting_drying) then
+      if (config_use_subgrid_wetting_drying) then
         do iVertex = 1, nVertices
            invAreaTri1 = 1.0_RKIND / areaTriangle(iVertex)
            do k = 1, maxLevelVertexBot(iVertex)
