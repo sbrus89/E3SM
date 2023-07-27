@@ -484,9 +484,9 @@ contains
         call ocn_init_vertical_integration(iCell,subgridSshCellTableRange, nSubgridCell, subgridBathymetryValues, subgridAreas, subgridWetVolumeCellTable)
         !print*, iCell, areaCell(iCell), nSubgridCell, sum(subgridAreas(1:nSubgridCell))
 
-        ! Evaluate wet ssh average
+        ! Evaluate wet layerThickness average
         !---------------------------------------------------------------
-        call ocn_init_wet_average(iCell, nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, ssh)
+        call ocn_init_wet_average(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, layerThickness(1,iCell))
 
       enddo
 
@@ -641,24 +641,30 @@ vertex:do iVertex = 1,nVerticesSolve
             ! 
  
             if (config_use_subgrid_wetting_drying) then
-
+              call ocn_subgrid_ssh_lookup(layerThickness(1,iCell),&
+                                          subgridWetVolumeCellTable(:,iCell),&
+                                          subgridSshCellTableRange(:,iCell),&
+                                          bottomDepth(iCell),&
+                                          subgridCellBathymetryMin(iCell),&
+                                          ssh(iCell))
             else
               call ocn_init_parabolic_bowl_ssh(xCell(iCell),yCell(iCell),bottomDepth(iCell),ssh(iCell))
               ssh(iCell) = - bottomDepth(iCell) + &
                 max(ssh(iCell) + bottomDepth(iCell), &
                 maxLevelCell(iCell)*(config_drying_min_cell_height + eps))
+
+              do k = 1, maxLevelCell(iCell)
+                layerThickness(k,iCell) = max(config_drying_min_cell_height + eps, &
+                  (ssh(iCell) + bottomDepth(iCell))/real(maxLevelCell(iCell),RKIND))
+               
+                if (layerThickness(k,iCell) < config_drying_min_cell_height) then
+                  call mpas_log_write('layerThickness($i,$i)=$r', MPAS_LOG_CRIT, &
+                    intArgs=(/k,iCell/), &
+                    realArgs=(/layerThickness(k,iCell)/))
+                end if
+              end do
             endif
           
-            do k = 1, maxLevelCell(iCell)
-              layerThickness(k,iCell) = max(config_drying_min_cell_height + eps, &
-                (ssh(iCell) + bottomDepth(iCell))/real(maxLevelCell(iCell),RKIND))
-             
-              if (layerThickness(k,iCell) < config_drying_min_cell_height) then
-                call mpas_log_write('layerThickness($i,$i)=$r', MPAS_LOG_CRIT, &
-                  intArgs=(/k,iCell/), &
-                  realArgs=(/layerThickness(k,iCell)/))
-              end if
-            end do
           
             do k = 1, maxLevelCell(iCell)
               restingThickness(k,iCell) = bottomDepth(iCell)/maxLevelCell(iCell)
@@ -1025,9 +1031,9 @@ vertex:do iVertex = 1,nVerticesSolve
    
       deltaZ = (subgridSshTableRange(2,iCV)-subgridSshTableRange(1,iCV))/real(nSubgridTableLevels-1,RKIND);
 
-      subgridWetVolumeTable(1,iCV) = config_drying_min_cell_height + eps
+      subgridWetVolumeTable(1,iCV) = config_drying_min_cell_height + eps 
       ssh = subgridSshTableRange(1,iCV) + deltaZ
-      subgridWetVolumeTable(2,iCV) = (config_drying_min_cell_height+eps)*sum(subgridAreas(1:nSubgridCV))
+      subgridWetVolumeTable(2,iCV) = subgridWetVolumeTable(1,iCV)*sum(subgridAreas(1:nSubgridCV))
       do lev = 2,nSubgridTableLevels
         do tri = 1,nSubgridCV
 
@@ -1065,18 +1071,17 @@ vertex:do iVertex = 1,nVerticesSolve
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_init_wet_average(iCV, nSubgridCV, subgridBathymetryValues, subgridSshValues, subgridAreas, subgridWetAverage)!{{{
+   subroutine ocn_init_wet_average(nSubgridCV, subgridBathymetryValues, subgridSshValues, subgridAreas, subgridWetAverage)!{{{
            
       implicit none 
 
-      integer, intent(in) :: iCV
       integer, intent(in) :: nSubgridCV
       real (kind=RKIND), dimension(:), intent(in) :: subgridBathymetryValues, subgridAreas
       real (kind=RKIND), dimension(:), intent(in) :: subgridSshValues
-      real (kind=RKIND), dimension(:), intent(inout) :: subgridWetAverage
+      real (kind=RKIND), intent(inout) :: subgridWetAverage
 
       real (kind=RKIND) :: deltaZ, ssh, pVal
-      real (kind=RKIND) :: averageDepth, wetArea
+      real (kind=RKIND) :: averageDepth, wetArea, layerThicknessValue
       integer :: lev, tri
       
 
@@ -1084,24 +1089,19 @@ vertex:do iVertex = 1,nVerticesSolve
    
       averageDepth = sum(subgridBathymetryValues(1:nSubgridCV))/real(nSubgridCV,RKIND) 
 
-      subgridWetAverage(iCV) = 0.0_RKIND
+      subgridWetAverage = 0.0_RKIND
       wetArea = 0.0_RKIND
       do tri = 1,nSubgridCV
 
-        pVal = 0.0_RKIND
-        if (subgridBathymetryValues(tri) + subgridSshValues(tri) >= config_drying_min_cell_height+eps) then
-          pVal = 1.0_RKIND
-          wetArea = wetArea + subgridAreas(tri)
+        layerThicknessValue = subgridBathymetryValues(tri) + subgridSshValues(tri)
+        if (layerThicknessValue < config_drying_min_cell_height + eps) then
+          layerThicknessValue = config_drying_min_cell_height + eps
         endif
-        subgridWetAverage(iCV) = subgridWetAverage(iCV) + pVal*subgridSshValues(tri)*subgridAreas(tri)
-
+        subgridWetAverage = subgridWetAverage + layerThicknessValue*subgridAreas(tri)
+        wetArea = wetArea + subgridAreas(tri)
       enddo
 
-      if (wetArea < eps) then
-        subgridWetAverage(iCV) = config_drying_min_cell_height+eps - averageDepth 
-      else
-        subgridWetAverage(iCV) = subgridWetAverage(iCV)/wetArea
-      endif
+      subgridWetAverage = subgridWetAverage/wetArea
       
 
    !--------------------------------------------------------------------
