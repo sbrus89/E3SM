@@ -2531,8 +2531,8 @@ contains
          end do
 
 
-         !if (config_use_subgrid_wetting_drying) then
-         if (.false.) then
+         if (config_use_subgrid_wetting_drying) then
+         !if (.false.) then
            call ocn_subgrid_ssh_lookup(layerThickness(1,iCell), &
                                        subgridWetVolumeCellTable(:,iCell), &
                                        subgridSshCellTableRange(:,iCell), &
