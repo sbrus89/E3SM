@@ -479,7 +479,7 @@ contains
         ! Evaluate subgrid bathymetry
         !---------------------------------------------------------------
         bottomDepth(iCell) = sum(subgridBathymetryValues(1:nSubgridCell))/real(nSubgridCell,RKIND)
-        subgridCellBathymetryMin(iCell) = minval(subgridBathymetryValues(1:nSubgridCell))
+        subgridCellBathymetryMin(iCell) = maxval(subgridBathymetryValues(1:nSubgridCell))
         !subgridCellBathymetryMin(iCell) = bottomDepth(iCell)
 
         ! Vertical integration of wet fraction
