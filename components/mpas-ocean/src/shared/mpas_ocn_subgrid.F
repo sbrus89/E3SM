@@ -124,7 +124,7 @@ contains
       tableMin = subgridTableRange(1)
       tableMax = subgridTableRange(2)
       nSubgridTableLevels = config_subgrid_table_levels_init
-      deltaZ = (tableMax - tableMin)/(nSubgridTableLevels-1)
+      deltaZ = (tableMax - tableMin)/real(nSubgridTableLevels-1,RKIND)
 
       if (zeta >= tableMax) then
         layerThick = zeta + bathymetry
@@ -201,17 +201,16 @@ contains
       tableMin = subgridTableRange(1)
       tableMax = subgridTableRange(2)
       nSubgridTableLevels = config_subgrid_table_levels_init
-      deltaZ = (tableMax - tableMin)/(nSubgridTableLevels-1)
+      deltaZ = (tableMax - tableMin)/real(nSubgridTableLevels-1,RKIND)
 
       layerThickMin = subgridTable(1)
       layerThickMax = subgridTable(nSubgridTableLevels)
-      !call mpas_log_write('ssh in: $r',realArgs=(/zeta/))
 
-      do lev = 1,nSubgridTableLevels
-        zeta0 = (real(lev,RKIND)-1.0_RKIND)*deltaZ + tableMin
-        layerThick0 = subgridTable(lev)
-        !call mpas_log_write('ssh, layerThick: $r $r',realArgs=(/zeta0,layerThick0/))
-      enddo
+      !do lev = 1,nSubgridTableLevels
+      !  zeta0 = (real(lev,RKIND)-1.0_RKIND)*deltaZ + tableMin
+      !  layerThick0 = subgridTable(lev)
+      !  call mpas_log_write('ssh, layerThick: $r $r',realArgs=(/zeta0,layerThick0/))
+      !enddo
 
       if (layerThick >= layerThickMax) then
         zeta = layerThick - bathymetryMean

@@ -728,7 +728,7 @@ vertex:do iVertex = 1,nVerticesSolve
 
       ! Equi-spaced nodes on -1,+1
       allocate(xPoints(nSubgridLevel+1))
-      dx = 2.0/real(nSubgridLevel,RKIND)
+      dx = 2.0_RKIND/real(nSubgridLevel,RKIND)
       xPoints(1) = -1.0_RKIND
       do i = 2,nSubgridLevel+1
         xPoints(i) = xPoints(i-1)+dx   
@@ -749,9 +749,11 @@ vertex:do iVertex = 1,nVerticesSolve
 
       ! Trianglulate tensor product of equi-spaced nodes on reference triangle
       ! r - horizontal coordinate (i index), s - vertical coordinate (j index)
-      nSubgridTri = 1
+      nSubgridTri = 0
       do j = 1,nSubgridLevel
         do i = 1,nSubgridLevel+1 - j 
+
+          nSubgridTri = nSubgridTri+1 
 
           ! lower triangle in pair (see l in triangle above)
           rSubgridPoints(1,nSubgridTri) = xPoints(i)
@@ -765,11 +767,12 @@ vertex:do iVertex = 1,nVerticesSolve
 
           !print("(i5,1x,3(e10.3,1x))"), nSubgridTri, (rSubgridPoints(k,nSubgridTri), k=1,3)
           !print("(i5,1x,3(e10.3,1x))"), nSubgridTri, (sSubgridPoints(k,nSubgridTri), k=1,3)
-          nSubgridTri = nSubgridTri+1 
 
           ! upper triangle in pair (see u in triangle above, doesn't occur next to hypotenuse)          
           if (i < nSubgridLevel+1 - j) then
             
+            nSubgridTri = nSubgridTri + 1
+
             rSubgridPoints(1,nSubgridTri) = xPoints(i+1)
             sSubgridPoints(1,nSubgridTri) = xPoints(j)
             
@@ -781,7 +784,6 @@ vertex:do iVertex = 1,nVerticesSolve
 
             !print("(i5,1x,3(e10.3,1x))"), nSubgridTri, (rSubgridPoints(k,nSubgridTri), k=1,3)
             !print("(i5,1x,3(e10.3,1x))"), nSubgridTri, (sSubgridPoints(k,nSubgridTri), k=1,3)
-            nSubgridTri = nSubgridTri + 1
             
           endif
 
@@ -934,7 +936,7 @@ vertex:do iVertex = 1,nVerticesSolve
 
       RR = sqrt(x**2 + y**2) ;
  
-      ssh = (sqrtOneMC2/oneMC) - 1.0_RKIND - ((RR**2.0)/(LL**2.0))*( (oneMC2/(oneMC**2.0)) - 1.0_RKIND ) ;
+      ssh = (sqrtOneMC2/oneMC) - 1.0_RKIND - ((RR**2)/(LL**2))*( (oneMC2/(oneMC**2)) - 1.0_RKIND ) ;
       ssh = config_parabolic_bowl_b0*ssh ; 
       !ssh = - bottomDepth + max(ssh + bottomDepth, config_drying_min_cell_height + eps)
 
