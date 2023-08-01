@@ -94,7 +94,8 @@ module ocn_init_parabolic_bowl
       subgridVertexBathymetryMean, &
       subgridCellBathymetryMin, &
       subgridEdgeBathymetryMin, &
-      subgridVertexBathymetryMin
+      subgridVertexBathymetryMin, &
+      subgridLayerThicknessDebug
    integer, pointer :: nSubgridTableLevels
 
 !***********************************************************************
@@ -338,6 +339,8 @@ contains
                                 subgridVertexBathymetryMin)
        call mpas_pool_get_dimension(meshPool, 'nSubgridTableLevels', &
                                     nSubgridTableLevels)
+       call mpas_pool_get_array(meshPool, 'subgridLayerThicknessDebug', &
+                                subgridLayerThicknessDebug)
 
 
 
@@ -676,13 +679,13 @@ vertex:do iVertex = 1,nVerticesSolve
        block_ptr => block_ptr % next
     end do
 
-      !do iCell = 1,nCellsSolve
-      !  call ocn_subgrid_layer_thickness_lookup(ssh(iCell), & 
-      !                                          subgridWetVolumeCellTable(:,iCell), &
-      !                                          subgridSshCellTableRange(:,iCell),&
-      !                                          bottomDepth(iCell),&
-      !                                          layerThickness(1,iCell))
-      !enddo
+    do iCell = 1,nCellsSolve
+      call ocn_subgrid_layer_thickness_lookup(ssh(iCell), & 
+                                              subgridWetVolumeCellTable(:,iCell), &
+                                              subgridSshCellTableRange(:,iCell),&
+                                              bottomDepth(iCell),&
+                                              subgridLayerThicknessDebug(iCell))
+    enddo
       !do iCell = 1,nCellsSolve
       !  call ocn_subgrid_ssh_lookup(layerThickness(1,iCell),&
       !                              subgridWetVolumeCellTable(:,iCell),&

@@ -2593,6 +2593,10 @@
 			 description="Minimum bathymetry on vertex from subgrid information"
 			 packages="subgridWetDryPKG"
 		/>
+		<var name="subgridLayerThicknessDebug" type="real" dimensions="nCells" units="m"
+			 description="Debug field"
+			 packages="subgridWetDryPKG"
+		/>
 	</var_struct>
 	<var_struct name="verticalMesh" time_levs="1">
 		<var name="restingThickness" type="real" dimensions="nVertLevels nCells" units="m"
