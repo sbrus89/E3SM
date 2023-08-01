@@ -2539,6 +2539,8 @@ contains
                                        bottomDepth(iCell), &
                                        subgridCellBathymetryMin(iCell), & 
                                        ssh(iCell))
+           zTop(1,iCell) = ssh(iCell)
+           zMid(1,iCell) = -bottomDepth(iCell) + 0.5_RKIND*layerThickness(1,iCell)
          else
            ! copy zTop(1,iCell) into sea-surface height array
            ssh(iCell) = zTop(minLevelCell(iCell),iCell)
