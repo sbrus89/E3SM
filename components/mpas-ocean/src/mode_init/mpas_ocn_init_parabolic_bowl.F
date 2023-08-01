@@ -176,6 +176,7 @@ contains
     real (kind=RKIND) :: x(3), y(3)
     integer :: slice, nSlice
     integer :: i,j
+    real (kind=RKIND) :: deltaZ
 
     iErr = 0
 
@@ -485,11 +486,22 @@ contains
         !---------------------------------------------------------------
 
         call ocn_init_vertical_integration(iCell,subgridSshCellTableRange, nSubgridCell, subgridBathymetryValues, subgridAreas, subgridWetVolumeCellTable)
-        !print*, iCell, areaCell(iCell), nSubgridCell, sum(subgridAreas(1:nSubgridCell))
+        !print*, iCell, areaCell(iCell)-sum(subgridAreas(1:nSubgridCell))
 
         ! Evaluate wet layerThickness average
         !---------------------------------------------------------------
         call ocn_init_wet_average(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, layerThickness(1,iCell))
+
+        if (iCell == 3030) then
+          print*, subgridSshCellTableRange(1,iCell)
+          print*, subgridSshCellTableRange(2,iCell)
+          print*, nSubgridTableLevels
+          deltaZ = (subgridSshCellTableRange(2,iCell) - subgridSshCellTableRange(1,iCell))/(nSubgridTableLevels-1)
+          print*, deltaZ
+          do i = 1,nSubgridTableLevels
+            print*, (real(i,RKIND)-1.0_RKIND)*deltaZ + subgridSshCellTableRange(1,iCell), subgridWetVolumeCellTable(i,iCell)
+          enddo
+        endif
 
       enddo
 
@@ -650,6 +662,16 @@ vertex:do iVertex = 1,nVerticesSolve
                                           bottomDepth(iCell),&
                                           subgridCellBathymetryMin(iCell),&
                                           ssh(iCell))
+
+              !call ocn_init_parabolic_bowl_ssh(xCell(iCell),yCell(iCell),bottomDepth(iCell),ssh(iCell))
+              !ssh(iCell) = - bottomDepth(iCell) + &
+              !  max(ssh(iCell) + bottomDepth(iCell), &
+              !  maxLevelCell(iCell)*(config_drying_min_cell_height + eps))
+              !call ocn_subgrid_layer_thickness_lookup(ssh(iCell), & 
+              !                                        subgridWetVolumeCellTable(:,iCell), &
+              !                                        subgridSshCellTableRange(:,iCell),&
+              !                                        bottomDepth(iCell),&
+              !                                        layerThickness(1,iCell))
             else
               call ocn_init_parabolic_bowl_ssh(xCell(iCell),yCell(iCell),bottomDepth(iCell),ssh(iCell))
               ssh(iCell) = - bottomDepth(iCell) + &
@@ -835,7 +857,6 @@ vertex:do iVertex = 1,nVerticesSolve
      ! Coordinates of physical triangle
      ! (ensure counter-clockwise numering)
      call ocn_init_tri_area(xTri(:), yTri(:), area)
-     !print*, area
      if (area < 0.0_RKIND) then
        x = xTri(2)
        y = yTri(2)
@@ -843,6 +864,7 @@ vertex:do iVertex = 1,nVerticesSolve
        yTri(2) = yTri(3)
        xTri(3) = x
        yTri(3) = y
+       !print*, area
        area = abs(area)
      endif
 
