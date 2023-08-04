@@ -106,7 +106,7 @@ mpas_ocn_submesoscale_eddies.o:  mpas_ocn_constants.o mpas_ocn_config.o mpas_ocn
 
 mpas_ocn_eddy_parameterization_helpers.o: mpas_ocn_constants.o mpas_ocn_config.o mpas_ocn_diagnostics_variables.o mpas_ocn_mesh.o
 
-mpas_ocn_vel_pressure_grad.o: mpas_ocn_constants.o mpas_ocn_config.o mpas_ocn_mesh.o
+mpas_ocn_vel_pressure_grad.o: mpas_ocn_constants.o mpas_ocn_config.o mpas_ocn_mesh.o mpas_ocn_subgrid.o
 
 mpas_ocn_vel_vadv.o: mpas_ocn_constants.o mpas_ocn_config.o mpas_ocn_mesh.o
 

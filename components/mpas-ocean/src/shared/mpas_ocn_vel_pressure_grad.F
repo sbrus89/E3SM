@@ -28,6 +28,7 @@ module ocn_vel_pressure_grad
    use ocn_constants
    use ocn_config
    use ocn_mesh
+   use ocn_subgrid
 
    implicit none
    private
@@ -169,6 +170,9 @@ contains
          meridSshGrad,     &! config_meridional_ssh_grad
          zonalSshGrad       ! config_zonal_ssh_grad
 
+      real (kind=RKIND) :: &
+         wetFraction
+
       ! End preamble
       !-----------------------------------------------------------------
       ! Begin code
@@ -207,9 +211,17 @@ contains
             kMin = minLevelEdgeBot(iEdge)
             kMax = maxLevelEdgeTop(iEdge)
 
+            wetFraction = 1.0_RKIND
+            !if (config_use_subgrid_wetting_drying) then
+            !   call ocn_subgrid_wet_fraction_lookup(0.5_RKIND*(ssh(cell2)+ssh(cell1)), &
+            !                                        subgridWetFractionEdgeTable(:,iEdge), &
+            !                                        subgridSshEdgeTableRange(:,iEdge), &
+            !                                        wetFraction)
+            !endif
+
             do k=kMin,kMax
                tend(k,iEdge) = tend(k,iEdge) - &
-                               edgeMask(k,iEdge)*invdcEdge* &
+                               edgeMask(k,iEdge)*invdcEdge*wetFraction* &
                                (  gravity*(ssh(cell2) - ssh(cell1)) &
                                 + density0Inv*(  surfacePressure(cell2) &
                                                - surfacePressure(cell1)) )
