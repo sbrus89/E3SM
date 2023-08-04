@@ -88,7 +88,10 @@ module ocn_init_parabolic_bowl
       subgridWetVolumeVertexTable, &
       subgridSshCellTableRange, &
       subgridSshEdgeTableRange, &
-      subgridSshVertexTableRange
+      subgridSshVertexTableRange, &
+      subgridWetFractionCellTable, &
+      subgridWetFractionEdgeTable, &
+      subgridWetFractionVertexTable
    real(kind=RKIND), dimension(:), pointer :: &
       subgridEdgeBathymetryMean, &
       subgridVertexBathymetryMean, &
@@ -322,6 +325,12 @@ contains
                                 subgridWetVolumeEdgeTable)
        call mpas_pool_get_array(meshPool, 'subgridWetVolumeVertexTable', &
                                 subgridWetVolumeVertexTable)
+       call mpas_pool_get_array(meshPool, 'subgridWetFractionCellTable', &
+                                subgridWetFractionCellTable)
+       call mpas_pool_get_array(meshPool, 'subgridWetFractionEdgeTable', &
+                                subgridWetFractionEdgeTable)
+       call mpas_pool_get_array(meshPool, 'subgridWetFractionVertexTable', &
+                                subgridWetFractionVertexTable)
        call mpas_pool_get_array(meshPool, 'subgridSshCellTableRange', &
                                 subgridSshCellTableRange)
        call mpas_pool_get_array(meshPool, 'subgridSshEdgeTableRange', &
@@ -485,7 +494,8 @@ contains
         ! Vertical integration of wet fraction
         !---------------------------------------------------------------
 
-        call ocn_init_vertical_integration(iCell,subgridSshCellTableRange, nSubgridCell, subgridBathymetryValues, subgridAreas, subgridWetVolumeCellTable)
+        call ocn_init_vertical_integration(iCell,subgridSshCellTableRange, nSubgridCell, subgridBathymetryValues, subgridAreas, &
+                                           subgridWetVolumeCellTable, subgridWetFractionCellTable)
         !print*, iCell, areaCell(iCell)-sum(subgridAreas(1:nSubgridCell))
 
         ! Evaluate wet layerThickness average
@@ -558,7 +568,8 @@ contains
         ! Vertical integration of wet fraction
         !---------------------------------------------------------------
 
-        call ocn_init_vertical_integration(iEdge,subgridSshEdgeTableRange, nSubgridEdge, subgridBathymetryValues, subgridAreas, subgridWetVolumeEdgeTable)
+        call ocn_init_vertical_integration(iEdge,subgridSshEdgeTableRange, nSubgridEdge, subgridBathymetryValues, subgridAreas, &
+                                           subgridWetVolumeEdgeTable, subgridWetFractionEdgeTable)
 
       enddo
 
@@ -623,7 +634,8 @@ vertex:do iVertex = 1,nVerticesSolve
         ! Vertical integration of wet fraction
         !---------------------------------------------------------------
 
-        call ocn_init_vertical_integration(iVertex,subgridSshVertexTableRange, nSubgridVertex, subgridBathymetryValues, subgridAreas, subgridWetVolumeVertexTable)
+        call ocn_init_vertical_integration(iVertex,subgridSshVertexTableRange, nSubgridVertex, subgridBathymetryValues, subgridAreas, &
+                                           subgridWetVolumeVertexTable, subgridWetFractionVertexTable)
 
       enddo vertex
 
@@ -834,7 +846,8 @@ vertex:do iVertex = 1,nVerticesSolve
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_init_evaluate_subgrid_data(xTri, yTri, nSubgridTri, nSubgridCV, rSubgridPoints, sSubgridPoints, subgridBathymetryValues, subgridAreas, subgridSshValues)!{{{
+   subroutine ocn_init_evaluate_subgrid_data(xTri, yTri, nSubgridTri, nSubgridCV, rSubgridPoints, sSubgridPoints, &
+                                             subgridBathymetryValues, subgridAreas, subgridSshValues)!{{{
            
       implicit none 
       real (kind=RKIND), intent(inout) :: xTri(3), yTri(3)
@@ -1040,7 +1053,8 @@ vertex:do iVertex = 1,nVerticesSolve
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_init_vertical_integration(iCV, subgridSshTableRange, nSubgridCV, subgridBathymetryValues, subgridAreas, subgridWetVolumeTable)!{{{
+   subroutine ocn_init_vertical_integration(iCV, subgridSshTableRange, nSubgridCV, subgridBathymetryValues, subgridAreas, &
+                                            subgridWetVolumeTable, subgridWetFractionTable)!{{{
            
       implicit none 
 
@@ -1049,6 +1063,7 @@ vertex:do iVertex = 1,nVerticesSolve
       integer, intent(in) :: nSubgridCV
       real (kind=RKIND), dimension(:), intent(in) :: subgridBathymetryValues, subgridAreas
       real (kind=RKIND), dimension(:,:), intent(inout) :: subgridWetVolumeTable
+      real (kind=RKIND), dimension(:,:), intent(inout) :: subgridWetFractionTable
 
       real (kind=RKIND) :: deltaZ, ssh, pVal
       integer :: lev, tri
@@ -1061,6 +1076,7 @@ vertex:do iVertex = 1,nVerticesSolve
       subgridWetVolumeTable(1,iCV) = config_drying_min_cell_height + eps 
       ssh = subgridSshTableRange(1,iCV) + deltaZ
       subgridWetVolumeTable(2,iCV) = subgridWetVolumeTable(1,iCV)*sum(subgridAreas(1:nSubgridCV))
+      subgridWetFractionTable(1,iCV) = 0.0_RKIND
       do lev = 2,nSubgridTableLevels
         do tri = 1,nSubgridCV
 
@@ -1070,6 +1086,7 @@ vertex:do iVertex = 1,nVerticesSolve
           endif
 
           subgridWetVolumeTable(lev,iCV) = subgridWetVolumeTable(lev,iCV) + pVal*deltaZ*subgridAreas(tri)
+          subgridWetFractionTable(lev,iCV) = subgridWetFractionTable(lev,iCV) + pVal*subgridAreas(tri)
   
         enddo
 
@@ -1078,6 +1095,7 @@ vertex:do iVertex = 1,nVerticesSolve
         endif
 
         subgridWetVolumeTable(lev,iCV) = subgridWetVolumeTable(lev,iCV)/sum(subgridAreas(1:nSubgridCV))
+        subgridWetFractionTable(lev,iCV) = subgridWetFractionTable(lev,iCV)/sum(subgridAreas(1:nSubgridCV))
 
         ssh = ssh + deltaZ
       enddo

@@ -158,6 +158,9 @@ module ocn_mesh
       subgridWetVolumeCellTable, &
       subgridWetVolumeEdgeTable, &
       subgridWetVolumeVertexTable, &
+      subgridWetFractionCellTable, &
+      subgridWetFractionEdgeTable, &
+      subgridWetFractionVertexTable, &
       subgridSshCellTableRange, &
       subgridSshEdgeTableRange, &
       subgridSshVertexTableRange
@@ -516,6 +519,12 @@ contains
                                  subgridWetVolumeEdgeTable)
         call mpas_pool_get_array(meshPool, 'subgridWetVolumeVertexTable', &
                                  subgridWetVolumeVertexTable)
+        call mpas_pool_get_array(meshPool, 'subgridWetFractionCellTable', &
+                                 subgridWetFractionCellTable)
+        call mpas_pool_get_array(meshPool, 'subgridWetFractionEdgeTable', &
+                                 subgridWetFractionEdgeTable)
+        call mpas_pool_get_array(meshPool, 'subgridWetFractionVertexTable', &
+                                 subgridWetFractionVertexTable)
         call mpas_pool_get_array(meshPool, 'subgridSshCellTableRange', &
                                  subgridSshCellTableRange)
         call mpas_pool_get_array(meshPool, 'subgridSshEdgeTableRange', &

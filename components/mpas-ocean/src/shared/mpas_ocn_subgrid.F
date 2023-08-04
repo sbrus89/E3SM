@@ -50,6 +50,7 @@ module ocn_subgrid
    !--------------------------------------------------------------------
 
    public :: ocn_subgrid_layer_thickness_lookup, &
+             ocn_subgrid_wet_fraction_lookup, &
              ocn_subgrid_ssh_lookup, &
              ocn_subgrid_init
 
@@ -149,6 +150,77 @@ contains
 
 
    end subroutine ocn_subgrid_layer_thickness_lookup!}}}
+
+!***********************************************************************
+!
+!  routine ocn_subgrid_wet_fraction_lookup
+!
+!> \brief   
+!> \author  Steven Brus, Damrongsak Wirasaet
+!> \date    September 2022
+!> \details
+!>  
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_subgrid_wet_fraction_lookup(zeta, &
+                                              subgridTable, &
+                                              subgridTableRange, &
+                                              wetFraction)!{{{
+
+      !-----------------------------------------------------------------
+      ! input variables
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), intent(in) :: zeta
+      real (kind=RKIND), dimension(:), intent(in) :: subgridTable
+      real (kind=RKIND), dimension(:), intent(in) :: subgridTableRange
+
+      !-----------------------------------------------------------------
+      ! output variables
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), intent(out) :: wetFraction
+
+      !-----------------------------------------------------------------
+      ! local variables
+      !-----------------------------------------------------------------
+
+      integer :: lev
+      integer :: nSubgridTableLevels
+
+      real (kind=RKIND) :: tableMin
+      real (kind=RKIND) :: tableMax
+      real (kind=RKIND) :: deltaZ
+      real (kind=RKIND) :: zeta0, zeta1
+
+      tableMin = subgridTableRange(1)
+      tableMax = subgridTableRange(2)
+      nSubgridTableLevels = config_subgrid_table_levels_init
+      deltaZ = (tableMax - tableMin)/real(nSubgridTableLevels-1,RKIND)
+
+      if (zeta >= tableMax) then
+        wetFraction = 1.0_RKIND
+        !call mpas_log_write('thickness lookup, above table: $r $r $r',realArgs=(/layerThick,zeta,bathymetry/))
+      else if (zeta <= tableMin) then
+        wetFraction = 0.0_RKIND
+        !call mpas_log_write('thickness lookup, below table: $r $r $r',realArgs=(/layerThick,zeta,bathymetry/))
+      else 
+        do lev = 1, nSubgridTableLevels-1
+          zeta0 = (real(lev,RKIND)-1.0_RKIND)*deltaZ + tableMin
+          zeta1 = zeta0 + deltaZ
+
+          if ((zeta <= zeta1) .and. (zeta >= zeta0)) then
+            wetFraction = ((zeta-zeta0)*subgridTable(lev+1) - (zeta-zeta1)*subgridTable(lev))/deltaZ
+            !call mpas_log_write('thickness lookup, in table: $r $r $r $r',realArgs=(/layerThick,zeta,bathymetry,zeta+bathymetry/))
+            return
+          end if
+
+        end do
+      end if      
+
+
+   end subroutine ocn_subgrid_wet_fraction_lookup!}}}
 
 !***********************************************************************
 !

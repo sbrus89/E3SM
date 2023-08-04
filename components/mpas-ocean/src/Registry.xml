@@ -2597,6 +2597,18 @@
 			 description="Debug field"
 			 packages="subgridWetDryPKG"
 		/>
+		<var name="subgridWetFractionCellTable" type="real" dimensions="nSubgridTableLevels nCells" units="m"
+			 description="Pre-computed wet fraction for each cell at given ssh value"
+			 packages="subgridWetDryPKG"
+		/>
+		<var name="subgridWetFractionEdgeTable" type="real" dimensions="nSubgridTableLevels nEdges" units="m"
+			 description="Pre-computed wet fraction for each edge at given ssh value"
+			 packages="subgridWetDryPKG"
+		/>
+		<var name="subgridWetFractionVertexTable" type="real" dimensions="nSubgridTableLevels nVertices" units="m"
+			 description="Pre-computed wet fraction for each edge at given ssh value"
+			 packages="subgridWetDryPKG"
+		/>
 	</var_struct>
 	<var_struct name="verticalMesh" time_levs="1">
 		<var name="restingThickness" type="real" dimensions="nVertLevels nCells" units="m"
