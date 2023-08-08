@@ -235,6 +235,16 @@ contains
 !     endif
 #endif
 
+       ! DW: Move here
+       !
+       ! Z-coordinates
+       ! This section must be placed in the code before computing the density.
+       !
+       ! inputs : layerThickness
+       ! outputs : zMid, zTop, ssh)
+       call ocn_diagnostic_solve_z_coordinates(layerThickness, zMid, zTop, ssh)
+
+
       ! inputs: layerThickness, normalVelocity
       ! output: layerThickEdgeMean, layerThickEdgeDrag, layerThickEdgeFlux
       call ocn_diagnostic_solve_layerThicknessEdge(normalVelocity, &
@@ -334,13 +344,13 @@ contains
       call ocn_diagnostic_solve_surface_pressure(forcingPool, atmosphericPressure, &
                 seaIcePressure, surfacePressure)
 
-      !
-      ! Z-coordinates
-      ! This section must be placed in the code before computing the density.
-      !
-      ! inputs : layerThickness
-      ! outputs : zMid, zTop, ssh)
-      call ocn_diagnostic_solve_z_coordinates(layerThickness, zMid, zTop, ssh)
+!      !
+!      ! Z-coordinates
+!      ! This section must be placed in the code before computing the density.
+!      !
+!      ! inputs : layerThickness
+!      ! outputs : zMid, zTop, ssh)
+!      call ocn_diagnostic_solve_z_coordinates(layerThickness, zMid, zTop, ssh)
 
       !
       ! equation of state
