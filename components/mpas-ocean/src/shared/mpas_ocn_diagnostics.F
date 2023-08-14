@@ -1223,7 +1223,8 @@ contains
       !$omp do schedule(runtime) &
       !$omp    private(i, k, iCell, invAreaTri1, layerThicknessVertex, iVertex, sshVertex)
 #endif
-      if (config_use_subgrid_wetting_drying) then
+      !if (config_use_subgrid_wetting_drying) then
+      if (.false.) then
         do iVertex = 1, nVertices
            invAreaTri1 = 1.0_RKIND / areaTriangle(iVertex)
            do k = 1, maxLevelVertexBot(iVertex)
