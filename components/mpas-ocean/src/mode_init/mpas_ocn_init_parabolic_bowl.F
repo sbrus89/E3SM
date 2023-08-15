@@ -177,6 +177,14 @@ contains
     integer :: slice, nSlice
     integer :: i,j
     real (kind=RKIND) :: deltaZ
+! DW
+    integer:: nsubgridCellEdge, iEdgeSegment
+    real (kind=RKIND), dimension(:,:), allocatable :: cellEdgeBathymetryValues
+    real (kind=RKIND), dimension(:), allocatable:: dsEdge
+    integer:: jj
+    real (kind=RKIND), dimension(:), allocatable:: xSubgridCell, ySubgridCell
+
+
 
     iErr = 0
 
@@ -374,7 +382,7 @@ contains
        do iCell = 1, nCellsSolve
          ! Set up vertical grid
          maxLevelCell(iCell) = nVertLevels ; ! sigma coordinates 
-        end do
+       end do
 
 
        ! Set velocity
@@ -475,10 +483,12 @@ contains
 
         subgridSshCellTableRange(1,iCell) = -maxval(subgridBathymetryValues(1:nSubgridCell)) + config_drying_min_cell_height + eps
         subgridSshCellTableRange(2,iCell) = -minval(subgridBathymetryValues(1:nSubgridCell))
-
+       
         ! Evaluate subgrid bathymetry
         !---------------------------------------------------------------
-        bottomDepth(iCell) = sum(subgridBathymetryValues(1:nSubgridCell))/real(nSubgridCell,RKIND)
+        ! DW
+        bottomDepth(iCell) = sum(subgridBathymetryValues(1:nSubgridCell)*subgridAreas(1:nSubgridCell))/sum(subgridAreas(1:nSubgridCell))
+!!                real(nSubgridCell,RKIND)
         subgridCellBathymetryMin(iCell) = maxval(subgridBathymetryValues(1:nSubgridCell))
         !subgridCellBathymetryMin(iCell) = bottomDepth(iCell)
 
@@ -486,22 +496,25 @@ contains
         !---------------------------------------------------------------
 
         call ocn_init_vertical_integration(iCell,subgridSshCellTableRange, nSubgridCell, subgridBathymetryValues, subgridAreas, subgridWetVolumeCellTable)
-        !print*, iCell, areaCell(iCell)-sum(subgridAreas(1:nSubgridCell))
+        ! print*, iCell, areaCell(iCell)-sum(subgridAreas(1:nSubgridCell))
+        
+        call ocn_init_wet_average_ssh(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, ssh(iCell))!{{{
 
-        ! Evaluate wet layerThickness average
-        !---------------------------------------------------------------
-        call ocn_init_wet_average(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, layerThickness(1,iCell))
-
-        if (iCell == 3030) then
-          print*, subgridSshCellTableRange(1,iCell)
-          print*, subgridSshCellTableRange(2,iCell)
-          print*, nSubgridTableLevels
-          deltaZ = (subgridSshCellTableRange(2,iCell) - subgridSshCellTableRange(1,iCell))/(nSubgridTableLevels-1)
-          print*, deltaZ
-          do i = 1,nSubgridTableLevels
-            print*, (real(i,RKIND)-1.0_RKIND)*deltaZ + subgridSshCellTableRange(1,iCell), subgridWetVolumeCellTable(i,iCell)
-          enddo
-        endif
+!!$        ! Evaluate wet layerThickness average
+!!$        !---------------------------------------------------------------
+!!$        ! call ocn_init_wet_average(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, layerThickness(1,iCell))
+!!$        call ocn_init_grid_average(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, layerThickness(1,iCell))
+!!$
+!!$        if (iCell == 3030) then
+!!$          print*, subgridSshCellTableRange(1,iCell)
+!!$          print*, subgridSshCellTableRange(2,iCell)
+!!$          print*, nSubgridTableLevels
+!!$          deltaZ = (subgridSshCellTableRange(2,iCell) - subgridSshCellTableRange(1,iCell))/(nSubgridTableLevels-1)
+!!$          print*, deltaZ
+!!$          do i = 1,nSubgridTableLevels
+!!$            print*, (real(i,RKIND)-1.0_RKIND)*deltaZ + subgridSshCellTableRange(1,iCell), subgridWetVolumeCellTable(i,iCell)
+!!$          enddo
+!!$        endif
 
       enddo
 
@@ -511,6 +524,16 @@ contains
       ! Edges
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       print*, "Begin edges", nEdgesSolve
+
+      nSubgridCellEdge=config_parabolic_bowl_subgrid_level 
+      allocate( cellEdgeBathymetryValues(3,nSubgridCellEdge) )   
+      allocate( dsEdge(nSubgridCellEdge) ) 
+      cellEdgeBathymetryValues = -99999 ; 
+
+      allocate(xSubgridCell(maxEdges*nSubgridTriPerSlice))
+      allocate(ySubgridCell(maxEdges*nSubgridTriPErSlice)) 
+
+!      open( unit = 22, file = 'edgediag.dat', action = 'write' ) ; 
 
       do iEdge = 1,nEdgesSolve
         ! Evaluate subgrid bathymetry at centers of sub-triangles for edge slices
@@ -540,29 +563,60 @@ contains
           x(3) = xCell(cellsOnEdge(slice,iEdge))
           y(3) = yCell(cellsOnEdge(slice,iEdge))
 
-          call ocn_init_evaluate_subgrid_data(x, y, nSubgridTriPerSlice, nSubgridEdge, rSubgridPoints, sSubgridPoints, subgridBathymetryValues, subgridAreas)
-
+         
+          call ocn_init_evaluate_subgrid_data(x, y, nSubgridTriPerSlice, nSubgridEdge, rSubgridPoints, sSubgridPoints, & 
+             subgridBathymetryValues, subgridAreas, xSubgridCell=xSubgridCell, ySubgridCell=ySubgridCell ) ;    
         enddo
+
+        ! DW: Use the higher values of the pair of subcells along the
+        !     cell edge
+        cellEdgeBathymetryValues(1,:) = subgridBathymetryValues(1:2*nSubgridCellEdge - 1:2) 
+        if ( nslice > 1 ) then
+           cellEdgeBathymetryValues(2,:) = &
+               subgridBathymetryValues(nSubgridTriPerSlice+2*nsubgridCellEdge - 1:nSubgridTriPerSlice+1:-2)
+        else
+           cellEdgeBathymetryValues(2,:) = cellEdgeBathymetryValues(1,:)     
+        endif
+
+        do iEdgeSegment = 1, nSubgridCellEdge
+            cellEdgeBathymetryValues(3,iEdgeSegment) = minval(cellEdgeBathymetryValues(1:2,iEdgeSegment) ) 
+        end do 
+        dsEdge(:) = sqrt( (x(2) - x(1))*(x(2) - x(1)) + (y(2) - y(1))*(y(2)- y(1)) )/nSubgridCellEdge 
+
+!        write(22,'(4I8,4F17.7)') iEdge, CellsOnEdge(1:2,iEdge), nSubgridTriPerSlice, x(1:2), y(1:2)
+!        do jj = 1, nSubgridEdge
+!             write(22,'(3F17.7)') xSubgridCell(jj), ySubgridCell(jj), subgridBathymetryValues(jj)  
+!        end do
+!        write(22,*) ' ' ;
+!
+!        do iEdgeSegment = 1, nSubgridCellEdge
+!             write(22,'(E17.7)') cellEdgeBathymetryValues(3,iEdgeSegment) ;
+!        end do
+!        write(22,*) '' ;
 
         ! Evaluate bounds of look-up table range
         !---------------------------------------------------------------
 
-        subgridSshEdgeTableRange(1,iEdge) = -maxval(subgridBathymetryValues(1:nSubgridEdge)) + config_drying_min_cell_height + eps
-        subgridSshEdgeTableRange(2,iEdge) = -minval(subgridBathymetryValues(1:nSubgridEdge))
+!        subgridSshEdgeTableRange(1,iEdge) = -maxval(subgridBathymetryValues(1:nSubgridEdge)) + config_drying_min_cell_height + eps
+!        subgridSshEdgeTableRange(2,iEdge) = -minval(subgridBathymetryValues(1:nSubgridEdge))
+        subgridSshEdgeTableRange(1,iEdge) = -maxval(CellEdgeBathymetryValues(3,1:nSubgridCellEdge)) + config_drying_min_cell_height + eps
+        subgridSshEdgeTableRange(2,iEdge) = -minval(CellEdgeBathymetryValues(3,1:nSubgridCellEdge))
+
 
         ! Evaluate subgrid bathymetry
         !---------------------------------------------------------------
-        subgridEdgeBathymetryMean(iEdge) = sum(subgridBathymetryValues(1:nSubgridEdge))/real(nSubgridEdge,RKIND) 
-        subgridEdgeBathymetryMin(iEdge)  = minval(subgridBathymetryValues(1:nSubgridEdge))
+!        subgridEdgeBathymetryMean(iEdge) = sum(subgridBathymetryValues(1:nSubgridEdge))/real(nSubgridEdge,RKIND) 
+!        subgridEdgeBathymetryMin(iEdge)  = minval(subgridBathymetryValues(1:nSubgridEdge))
+        subgridEdgeBathymetryMean(iEdge) = sum(cellEdgeBathymetryValues(3,1:nSubgridCellEdge))/real(nSubgridCellEdge,RKIND) 
+        subgridEdgeBathymetryMin(iEdge)  = maxval(cellEdgeBathymetryValues(3,1:nSubgridCellEdge))
 
         ! Vertical integration of wet fraction
         !---------------------------------------------------------------
-
-        call ocn_init_vertical_integration(iEdge,subgridSshEdgeTableRange, nSubgridEdge, subgridBathymetryValues, subgridAreas, subgridWetVolumeEdgeTable)
-
-      enddo
-
-
+!        call ocn_init_vertical_integration(iEdge,subgridSshEdgeTableRange, nSubgridEdge, subgridBathymetryValues, subgridAreas, subgridWetVolumeEdgeTable)
+        call ocn_init_vertical_integration( iEdge, subgridSshEdgeTableRange, &
+                      nSubgridCellEdge, cellEdgeBathymetryValues(3,:), dsEdge, subgridWetVolumeEdgeTable )
+      end do
+!      close(22) ; 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Vertex
@@ -617,8 +671,11 @@ vertex:do iVertex = 1,nVerticesSolve
 
         ! Evaluate subgrid bathymetry
         !---------------------------------------------------------------
-        subgridVertexBathymetryMean(iVertex) = sum(subgridBathymetryValues(1:nSubgridVertex))/real(nSubgridVertex,RKIND)
-        subgridVertexBathymetryMin(iVertex)  = minval(subgridBathymetryValues(1:nSubgridVertex))
+        subgridVertexBathymetryMean(iVertex) = sum(subgridBathymetryValues(1:nSubgridVertex)*subgridAreas(1:nSubgridVertex))/sum(subgridAreas(1:nSubgridVertex))
+            ! real(nSubgridVertex,RKIND)
+!        subgridVertexBathymetryMin(iVertex)  = minval(subgridBathymetryValues(1:nSubgridVertex))
+        subgridVertexBathymetryMin(iVertex)  = maxval(subgridBathymetryValues(1:nSubgridVertex))
+
 
         ! Vertical integration of wet fraction
         !---------------------------------------------------------------
@@ -656,12 +713,12 @@ vertex:do iVertex = 1,nVerticesSolve
             ! 
  
             if (config_use_subgrid_wetting_drying) then
-              call ocn_subgrid_ssh_lookup(layerThickness(1,iCell),&
-                                          subgridWetVolumeCellTable(:,iCell),&
-                                          subgridSshCellTableRange(:,iCell),&
-                                          bottomDepth(iCell),&
-                                          subgridCellBathymetryMin(iCell),&
-                                          ssh(iCell))
+!!              call ocn_subgrid_ssh_lookup(layerThickness(1,iCell),&
+!!                                          subgridWetVolumeCellTable(:,iCell),&
+!!                                          subgridSshCellTableRange(:,iCell),&
+!!                                          bottomDepth(iCell),&
+!!                                          subgridCellBathymetryMin(iCell),&
+!!                                          ssh(iCell))
 
               !call ocn_init_parabolic_bowl_ssh(xCell(iCell),yCell(iCell),bottomDepth(iCell),ssh(iCell))
               !ssh(iCell) = - bottomDepth(iCell) + &
@@ -701,13 +758,24 @@ vertex:do iVertex = 1,nVerticesSolve
        block_ptr => block_ptr % next
     end do
 
-    do iCell = 1,nCellsSolve
-      call ocn_subgrid_layer_thickness_lookup(ssh(iCell), & 
+    ! do iCell = 1,nCellsSolve
+    !  call ocn_subgrid_layer_thickness_lookup(ssh(iCell), & 
+    !                                          subgridWetVolumeCellTable(:,iCell), &
+    !                                          subgridSshCellTableRange(:,iCell),&
+    !                                          bottomDepth(iCell),&
+    !                                          subgridLayerThicknessDebug(iCell))
+    ! enddo
+
+     ! DW
+     do iCell = 1,nCellsSolve
+         call ocn_subgrid_layer_thickness_lookup(ssh(iCell), & 
                                               subgridWetVolumeCellTable(:,iCell), &
                                               subgridSshCellTableRange(:,iCell),&
                                               bottomDepth(iCell),&
-                                              subgridLayerThicknessDebug(iCell))
-    enddo
+                                              LayerThickness(1,iCell))
+     enddo
+     !
+
       !do iCell = 1,nCellsSolve
       !  call ocn_subgrid_ssh_lookup(layerThickness(1,iCell),&
       !                              subgridWetVolumeCellTable(:,iCell),&
@@ -834,7 +902,7 @@ vertex:do iVertex = 1,nVerticesSolve
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_init_evaluate_subgrid_data(xTri, yTri, nSubgridTri, nSubgridCV, rSubgridPoints, sSubgridPoints, subgridBathymetryValues, subgridAreas, subgridSshValues)!{{{
+   subroutine ocn_init_evaluate_subgrid_data(xTri, yTri, nSubgridTri, nSubgridCV, rSubgridPoints, sSubgridPoints, subgridBathymetryValues, subgridAreas, subgridSshValues, xSubgridCell, ySubgridCell )!{{{
            
       implicit none 
       real (kind=RKIND), intent(inout) :: xTri(3), yTri(3)
@@ -844,11 +912,15 @@ vertex:do iVertex = 1,nVerticesSolve
       real (kind=RKIND), dimension(:), intent(inout) :: subgridBathymetryValues
       real (kind=RKIND), dimension(:), intent(inout) :: subgridAreas
       real (kind=RKIND), dimension(:), intent(inout),optional :: subgridSshValues
+      real (kind=RKIND), dimension(:), intent(inout), optional :: xSubgridCell, ySubgridCell
+
+
       real (kind=RKIND) :: rCenter, sCenter
       real (kind=RKIND) :: xCenter, yCenter
       real (kind=RKIND) :: xSubgridPoints(3), ySubgridPoints(3)
       real (kind=RKIND) :: x, y
       real (kind=RKIND) :: area
+
 
       integer :: iPt,i
 
@@ -858,14 +930,21 @@ vertex:do iVertex = 1,nVerticesSolve
      ! (ensure counter-clockwise numering)
      call ocn_init_tri_area(xTri(:), yTri(:), area)
      if (area < 0.0_RKIND) then
-       x = xTri(2)
-       y = yTri(2)
-       xTri(2) = xTri(3)
-       yTri(2) = yTri(3)
-       xTri(3) = x
-       yTri(3) = y
-       !print*, area
-       area = abs(area)
+!       x = xTri(2)
+!       y = yTri(2)
+!       xTri(2) = xTri(3)
+!       yTri(2) = yTri(3)
+!       xTri(3) = x
+!       yTri(3) = y
+!       !print*, area
+!       area = abs(area)
+      x = xTri(1)
+      y = yTri(1) 
+      xTri(1) = xTri(2) 
+      yTri(1) = yTri(2)
+      xTri(2) = x ;
+      yTri(2) = y ; 
+      area = abs(area) ; 
      endif
 
      !print("(3(f10.3,1x))"), (xTri(i)/1000, i=1,3)
@@ -900,7 +979,13 @@ vertex:do iVertex = 1,nVerticesSolve
         endif
 
         !print("(I5,I5,1x,5(f10.3,1x))"), nSubgridCV, iPt, x/1000, y/1000, subgridBathymetryValues(nSubgridCV), subgridAreas(nSubgridCV)
+        if ( present(xSubgridCell) ) then
+            xSubgridCell(nSubgridCV) = xCenter ;
+        endif
 
+        if ( present(ySubgridCell) ) then
+            ySubgridCell(nSubgridCV) = yCenter ;
+        end if
       enddo
 
    !--------------------------------------------------------------------
@@ -1097,7 +1182,7 @@ vertex:do iVertex = 1,nVerticesSolve
 !>  
 !
 !-----------------------------------------------------------------------
-
+   ! 
    subroutine ocn_init_wet_average(nSubgridCV, subgridBathymetryValues, subgridSshValues, subgridAreas, subgridWetAverage)!{{{
            
       implicit none 
@@ -1113,8 +1198,57 @@ vertex:do iVertex = 1,nVerticesSolve
       
 
    !--------------------------------------------------------------------
-   
       averageDepth = sum(subgridBathymetryValues(1:nSubgridCV))/real(nSubgridCV,RKIND) 
+
+      subgridWetAverage = 0.0_RKIND
+      wetArea = 0.0_RKIND
+      do tri = 1,nSubgridCV
+
+        layerThicknessValue = subgridBathymetryValues(tri) + subgridSshValues(tri)
+        !if (layerThicknessValue < config_drying_min_cell_height + eps) then
+        !  layerThicknessValue = config_drying_min_cell_height + eps
+        !endif
+        !subgridWetAverage = subgridWetAverage + layerThicknessValue*subgridAreas(tri)
+        !wetArea = wetArea + subgridAreas(tri)
+        if ( layerThicknessValue > config_drying_min_cell_height ) then
+              subgridWetAverage = subgridWetAverage + layerThicknessValue*subgridAreas(tri)
+              WetArea = WetArea + subgridAreas(tri) ;   
+        endif 
+      enddo
+
+      if ( WetArea > 0.D0 ) then
+          subgridWetAverage = subgridWetAverage/wetArea ;
+      else 
+          subgridWetAverage = config_drying_min_cell_height + eps ;
+      endif 
+
+      if ( subgridWetAverage < config_drying_min_cell_height + eps ) then
+         subgridWetAverage = config_drying_min_cell_height + eps ;     
+      endif
+      
+   !--------------------------------------------------------------------
+   end subroutine ocn_init_wet_average!}}}
+
+
+   ! DW
+   subroutine ocn_init_grid_average(nSubgridCV, subgridBathymetryValues, subgridSshValues, subgridAreas, subgridWetAverage)!{{{
+           
+      implicit none 
+
+      integer, intent(in) :: nSubgridCV
+      real (kind=RKIND), dimension(:), intent(in) :: subgridBathymetryValues, subgridAreas
+      real (kind=RKIND), dimension(:), intent(in) :: subgridSshValues
+      real (kind=RKIND), intent(inout) :: subgridWetAverage
+
+      real (kind=RKIND) :: deltaZ, ssh, pVal
+      real (kind=RKIND) :: averageDepth, wetArea, layerThicknessValue
+      integer :: lev, tri
+      
+
+   !-------------------------------------------------------------------
+      ! averageDepth = sum(subgridBathymetryValues(1:nSubgridCV))/real(nSubgridCV,RKIND) 
+      averageDepth = sum(subgridBathymetryValues(1:nSubgridCV)*subgridAreas(1:nSubgridCV))/sum(subgridAreas(1:nSubgridCV))
+      ! real(nSubgridCV,RKIND) 
 
       subgridWetAverage = 0.0_RKIND
       wetArea = 0.0_RKIND
@@ -1130,10 +1264,45 @@ vertex:do iVertex = 1,nVerticesSolve
 
       subgridWetAverage = subgridWetAverage/wetArea
       
-
    !--------------------------------------------------------------------
+   end subroutine ocn_init_grid_average!}}}
 
-   end subroutine ocn_init_wet_average!}}}
+   
+   ! DW
+   subroutine ocn_init_wet_average_ssh( nSubgridCV, subgridBathymetryValues, subgridSshValues, subgridAreas, sshWetAverage)!{{{
+      implicit none
+
+      integer, intent(in) :: nSubgridCV
+      real (kind=RKIND), dimension(:), intent(in) :: subgridBathymetryValues, subgridAreas
+      real (kind=RKIND), dimension(:), intent(in) :: subgridSshValues
+      real (kind=RKIND), intent(inout) :: sshWetAverage
+
+      real (kind=RKIND) :: deltaZ, ssh, pVal
+      real (kind=RKIND) :: averageDepth, wetArea, layerThicknessValue
+      integer :: lev, tri
+
+
+      sshWetAverage = 0.0_RKIND 
+      wetArea = 0.0_RKIND 
+
+      do tri = 1, nsubgridCV
+        layerThicknessValue = subgridBathymetryValues(tri) + subgridSshValues(tri)
+
+        if (layerThicknessValue > config_drying_min_cell_height + eps ) then
+           sshWetAverage = sshWetAverage + subgridSshValues(tri)*subgridAreas(tri)
+           wetArea = wetArea + subgridAreas(tri)
+        endif
+      end do
+
+      if ( WetArea > 0.0_RKIND ) then
+          sshWetAverage = sshWetAverage/WetArea ;
+      else
+          sshWetAverage = -maxval(subgridBathymetryValues(1:nsubgridCV)) & 
+              + config_drying_min_cell_height ;
+      endif
+
+      return ;
+   end subroutine ocn_init_wet_average_ssh
 
 !***********************************************************************
 !

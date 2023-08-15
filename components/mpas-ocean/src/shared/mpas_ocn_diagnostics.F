@@ -845,19 +845,26 @@ contains
                                                          subgridEdgeBathymetryMean(iEdge), &
                                                          layerThickEdgeFlux(1,iEdge))
               else
-                 call ocn_subgrid_layer_thickness_lookup(ssh(cell1), &
+!!$                 call ocn_subgrid_layer_thickness_lookup(ssh(cell1), &
+!!$                                                         subgridWetVolumeEdgeTable(:,iEdge), &
+!!$                                                         subgridSshEdgeTableRange(:,iEdge), &
+!!$                                                         subgridEdgeBathymetryMean(iEdge), &
+!!$                                                         layerThicknessCell1)
+!!$                 call ocn_subgrid_layer_thickness_lookup(ssh(cell2), &
+!!$                                                         subgridWetVolumeEdgeTable(:,iEdge), &
+!!$                                                         subgridSshEdgeTableRange(:,iEdge), &
+!!$                                                         subgridEdgeBathymetryMean(iEdge), &
+!!$                                                         layerThicknessCell2)
+!!$                 layerThickEdgeFlux(1,iEdge) = &
+!!$                                     max(layerThicknessCell1, &
+!!$                                         layerThicknessCell2)
+
+                 sshMean = (ssh(cell1) + ssh(cell2))/2.0_RKIND ; 
+                 call ocn_subgrid_layer_thickness_lookup(sshMean, &
                                                          subgridWetVolumeEdgeTable(:,iEdge), &
                                                          subgridSshEdgeTableRange(:,iEdge), &
                                                          subgridEdgeBathymetryMean(iEdge), &
-                                                         layerThicknessCell1)
-                 call ocn_subgrid_layer_thickness_lookup(ssh(cell2), &
-                                                         subgridWetVolumeEdgeTable(:,iEdge), &
-                                                         subgridSshEdgeTableRange(:,iEdge), &
-                                                         subgridEdgeBathymetryMean(iEdge), &
-                                                         layerThicknessCell2)
-                 layerThickEdgeFlux(1,iEdge) = &
-                                     max(layerThicknessCell1, &
-                                         layerThicknessCell2)
+                                                         layerThickEdgeFlux(1,iedge))                   
               end if
            end do
 #ifndef MPAS_OPENACC
