@@ -552,42 +552,43 @@ contains
         call ocn_init_wet_average(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, layerThicknessEdgeAverage, &
                                   subgridUValues, subgridVValues, uVelocityAverage(iEdge), vVelocityAverage(iEdge))
 
+        if ( .NOT. config_parabolic_bowl_subgrid_edge_bathymetry_max_pixel ) then
+           ! Evaluate bounds of look-up table range
+           !---------------------------------------------------------------
 
-        ! Evaluate bounds of look-up table range
-        !---------------------------------------------------------------
-
-!        subgridSshEdgeTableRange(1,iEdge) = -maxval(subgridBathymetryValues(1:nSubgridEdge)) + config_drying_min_cell_height + eps
-!        subgridSshEdgeTableRange(2,iEdge) = -minval(subgridBathymetryValues(1:nSubgridEdge))
+           subgridSshEdgeTableRange(1,iEdge) = -maxval(subgridBathymetryValues(1:nSubgridEdge)) + config_drying_min_cell_height + eps
+           subgridSshEdgeTableRange(2,iEdge) = -minval(subgridBathymetryValues(1:nSubgridEdge))
 
 
-        ! Evaluate subgrid bathymetry
-        !---------------------------------------------------------------
-!
-!        subgridEdgeBathymetryMean(iEdge) = sum(subgridBathymetryValues(1:nSubgridEdge))/real(nSubgridEdge,RKIND) 
-!        subgridEdgeBathymetryMin(iEdge)  = maxval(subgridBathymetryValues(1:nSubgridEdge))
+           ! Evaluate subgrid bathymetry
+           !---------------------------------------------------------------
 
-        ! Vertical integration of wet fraction
-        !---------------------------------------------------------------
+           subgridEdgeBathymetryMean(iEdge) = sum(subgridBathymetryValues(1:nSubgridEdge))/real(nSubgridEdge,RKIND) 
+           subgridEdgeBathymetryMin(iEdge)  = maxval(subgridBathymetryValues(1:nSubgridEdge))
 
-!        call ocn_init_vertical_integration(iEdge,subgridSshEdgeTableRange, nSubgridEdge, subgridBathymetryValues, subgridAreas, &
-!                                           subgridWetVolumeEdgeTable, subgridWetFractionEdgeTable)
+           ! Vertical integration of wet fraction
+           !---------------------------------------------------------------
 
-        ! Evaluate bounds of look-up table range
-        !---------------------------------------------------------------
+           call ocn_init_vertical_integration(iEdge,subgridSshEdgeTableRange, nSubgridEdge, subgridBathymetryValues, subgridAreas, &
+                                           subgridWetVolumeEdgeTable, subgridWetFractionEdgeTable)
+        else
+           ! Evaluate bounds of look-up table range
+           !---------------------------------------------------------------
 
-        subgridSshEdgeTableRange(1,iEdge) = -maxval(CellEdgeBathymetryValues(3,1:nSubgridCellEdge)) + config_drying_min_cell_height + eps
-        subgridSshEdgeTableRange(2,iEdge) = -minval(CellEdgeBathymetryValues(3,1:nSubgridCellEdge))
+           subgridSshEdgeTableRange(1,iEdge) = -maxval(CellEdgeBathymetryValues(3,1:nSubgridCellEdge)) + config_drying_min_cell_height + eps
+           subgridSshEdgeTableRange(2,iEdge) = -minval(CellEdgeBathymetryValues(3,1:nSubgridCellEdge))
 
-        ! Evaluate bounds of look-up table range
-        !---------------------------------------------------------------
+           ! Evaluate bounds of look-up table range
+           !---------------------------------------------------------------
 
-        subgridEdgeBathymetryMean(iEdge) = sum(cellEdgeBathymetryValues(3,1:nSubgridCellEdge))/real(nSubgridCellEdge,RKIND) 
-        subgridEdgeBathymetryMin(iEdge)  = maxval(cellEdgeBathymetryValues(3,1:nSubgridCellEdge))
+           subgridEdgeBathymetryMean(iEdge) = sum(cellEdgeBathymetryValues(3,1:nSubgridCellEdge))/real(nSubgridCellEdge,RKIND) 
+           subgridEdgeBathymetryMin(iEdge)  = maxval(cellEdgeBathymetryValues(3,1:nSubgridCellEdge))
 
-        ! Vertical integration of wet fraction
-        !---------------------------------------------------------------
-        call ocn_init_vertical_integration( iEdge, subgridSshEdgeTableRange, &
+           ! Vertical integration of wet fraction
+           !---------------------------------------------------------------
+           call ocn_init_vertical_integration( iEdge, subgridSshEdgeTableRange, &
                       nSubgridCellEdge, cellEdgeBathymetryValues(3,:), dsEdge, subgridWetVolumeEdgeTable, subgridWetFractionEdgeTable )
+        endif
       end do
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
