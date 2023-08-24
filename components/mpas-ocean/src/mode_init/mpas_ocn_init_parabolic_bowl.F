@@ -527,25 +527,8 @@ contains
                                               subgridBathymetryValues, subgridAreas, subgridSshValues, subgridUValues, subgridVValues)
 
          
-!!$          call ocn_init_evaluate_subgrid_data(x, y, nSubgridTriPerSlice, nSubgridEdge, rSubgridPoints, sSubgridPoints, & 
-!!$             subgridBathymetryValues, subgridAreas, xSubgridCell=xSubgridCell, ySubgridCell=ySubgridCell ) ;    
+ 
         enddo
-
-        ! DW: Use the higher values of the pair of subcells along the
-        !     cell edge
-        cellEdgeBathymetryValues(1,:) = subgridBathymetryValues(1:2*nSubgridCellEdge - 1:2) 
-        if ( nslice > 1 ) then
-           cellEdgeBathymetryValues(2,:) = &
-               subgridBathymetryValues(nSubgridTriPerSlice+2*nsubgridCellEdge - 1:nSubgridTriPerSlice+1:-2)
-        else
-           cellEdgeBathymetryValues(2,:) = cellEdgeBathymetryValues(1,:)     
-        endif
-
-        do iEdgeSegment = 1, nSubgridCellEdge
-            cellEdgeBathymetryValues(3,iEdgeSegment) = minval(cellEdgeBathymetryValues(1:2,iEdgeSegment) ) 
-        end do 
-        dsEdge(:) = sqrt( (x(2) - x(1))*(x(2) - x(1)) + (y(2) - y(1))*(y(2)- y(1)) )/nSubgridCellEdge 
-
 
         ! Evaluate velocity average
         !---------------------------------------------------------------
@@ -572,6 +555,22 @@ contains
            call ocn_init_vertical_integration(iEdge,subgridSshEdgeTableRange, nSubgridEdge, subgridBathymetryValues, subgridAreas, &
                                            subgridWetVolumeEdgeTable, subgridWetFractionEdgeTable)
         else
+           ! DW: Use the higher values of the pair of subcells along the
+           !     cell edge
+           cellEdgeBathymetryValues(1,:) = subgridBathymetryValues(1:2*nSubgridCellEdge - 1:2) 
+           if ( nslice > 1 ) then
+             cellEdgeBathymetryValues(2,:) = &
+                subgridBathymetryValues(nSubgridTriPerSlice+2*nsubgridCellEdge - 1:nSubgridTriPerSlice+1:-2)
+           else
+             cellEdgeBathymetryValues(2,:) = cellEdgeBathymetryValues(1,:)     
+           endif
+
+           do iEdgeSegment = 1, nSubgridCellEdge
+              cellEdgeBathymetryValues(3,iEdgeSegment) = minval(cellEdgeBathymetryValues(1:2,iEdgeSegment) ) 
+           end do 
+           dsEdge(:) = sqrt( (x(2) - x(1))*(x(2) - x(1)) + (y(2) - y(1))*(y(2)- y(1)) )/nSubgridCellEdge 
+
+
            ! Evaluate bounds of look-up table range
            !---------------------------------------------------------------
 
@@ -589,6 +588,7 @@ contains
            call ocn_init_vertical_integration( iEdge, subgridSshEdgeTableRange, &
                       nSubgridCellEdge, cellEdgeBathymetryValues(3,:), dsEdge, subgridWetVolumeEdgeTable, subgridWetFractionEdgeTable )
         endif
+
       end do
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1178,6 +1178,7 @@ vertex:do iVertex = 1,nVerticesSolve
 
    end subroutine ocn_init_vertical_integration!}}}
 
+
 !***********************************************************************
 !
 !  routine ocn_init_wet_average
@@ -1190,7 +1191,7 @@ vertex:do iVertex = 1,nVerticesSolve
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_init_wet_average(nSubgridCV, subgridBathymetryValues,subgridSshValues, subgridAreas,  subgridThicknessAverage, &
+   subroutine ocn_init_wet_average(nSubgridCV, subgridBathymetryValues, subgridSshValues, subgridAreas, subgridThicknessAverage, &
                                    subgridUValues, subgridVValues, subgridUAverage, subgridVAverage)!{{{
            
       implicit none 
@@ -1210,10 +1211,9 @@ vertex:do iVertex = 1,nVerticesSolve
       integer :: lev, tri
       
 
-   !-------------------------------------------------------------------
-      ! averageDepth = sum(subgridBathymetryValues(1:nSubgridCV))/real(nSubgridCV,RKIND) 
-      averageDepth = sum(subgridBathymetryValues(1:nSubgridCV)*subgridAreas(1:nSubgridCV))/sum(subgridAreas(1:nSubgridCV))
-      ! real(nSubgridCV,RKIND) 
+   !--------------------------------------------------------------------
+   
+      averageDepth = sum(subgridBathymetryValues(1:nSubgridCV))/real(nSubgridCV,RKIND) 
 
       computeVelAverage = .false.
       if (present(subgridUValues) .and. present(subgridVValues) .and. &
@@ -1225,7 +1225,6 @@ vertex:do iVertex = 1,nVerticesSolve
       wetArea = 0.0_RKIND
       HU_int = 0.0_RKIND
       HV_int = 0.0_RKIND
-
       do tri = 1,nSubgridCV
 
         layerThicknessValue = subgridBathymetryValues(tri) + subgridSshValues(tri)
@@ -1247,10 +1246,13 @@ vertex:do iVertex = 1,nVerticesSolve
       endif
       subgridThicknessAverage = H_int/wetArea
       
+
    !--------------------------------------------------------------------
+
    end subroutine ocn_init_wet_average!}}}
 
-   
+
+
    ! DW
    subroutine ocn_init_wet_average_ssh( nSubgridCV, subgridBathymetryValues, subgridSshValues, subgridAreas, sshWetAverage)!{{{
       implicit none
