@@ -61,6 +61,7 @@ module mpas_subdriver
 
       type (core_type), intent(inout), pointer :: corelist
       type (domain_type), intent(inout), pointer :: domain_ptr
+      type (domain_type), pointer :: domain_ptr_btr
       integer, intent(in), optional :: mpi_comm
 
       integer :: iArg, nArgs
@@ -164,11 +165,24 @@ module mpas_subdriver
       domain_ptr % domainID = domainID
       domainID = domainID + 1
 
+      call mpas_framework_init_phase1(domain_ptr % dminfo, mpi_comm=mpi_comm)
+
+#ifdef CORE_OCEAN
+      allocate(domain_ptr % next)
+      domain_ptr_btr => domain_ptr % next
+      call mpas_allocate_domain(domain_ptr_btr)
+
+      domain_ptr_btr % core => corelist
+      domain_ptr_btr % dminfo => domain_ptr % dminfo
+      domain_ptr_btr % domainID = domainID
+      domainID = domainID + 1
+#endif
+
+      do while (associated(domain_ptr))
+
       !
       ! Initialize infrastructure
       !
-      call mpas_framework_init_phase1(domain_ptr % dminfo, mpi_comm=mpi_comm)
-
 
 #ifdef CORE_ATMOSPHERE
       call atm_setup_core(corelist)
@@ -199,6 +213,7 @@ module mpas_subdriver
       call test_setup_domain(domain_ptr)
 #endif
 
+
       ! Set up the log manager as early as possible so we can use it for any errors/messages during subsequent init steps
       ! We need:
       ! 1) domain_ptr to be allocated,
@@ -208,6 +223,8 @@ module mpas_subdriver
       if ( ierr /= 0 ) then
          call mpas_dmpar_global_abort('ERROR: Log setup failed for core ' // trim(domain_ptr % core % coreName))
       end if
+
+         call mpas_log_write('Initializing domain for '//trim(domain_ptr % core % coreName)//'domainID $i', intArgs=(/domain_ptr % domainID/))
 
       if ( readNamelistArg ) then
          domain_ptr % namelist_filename = namelistFile
@@ -355,6 +372,11 @@ module mpas_subdriver
       end if
 
       call mpas_timer_stop('initialize')
+
+         domain_ptr => domain_ptr % next
+      end do
+
+      domain_ptr => corelist % domainlist
 
    end subroutine mpas_init
 
