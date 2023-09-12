@@ -52,6 +52,7 @@ module mpas_subdriver
 
       type (core_type), intent(inout), pointer :: corelist
       type (domain_type), intent(inout), pointer :: domain_ptr
+      type (domain_type), pointer :: domain_ptr_btr
       integer, intent(in), optional :: mpi_comm
 
       integer :: iArg, nArgs
@@ -156,189 +157,210 @@ module mpas_subdriver
       domain_ptr % domainID = domainID
       domainID = domainID + 1
 
-      !
-      ! Initialize infrastructure
-      !
       call mpas_framework_init_phase1(domain_ptr % dminfo, mpi_comm=mpi_comm)
 
+#ifdef CORE_OCEAN
+      allocate(domain_ptr % next)
+      domain_ptr_btr => domain_ptr % next
+      call mpas_allocate_domain(domain_ptr_btr)
+
+      domain_ptr_btr % core => corelist
+      domain_ptr_btr % dminfo => domain_ptr % dminfo
+      domain_ptr_btr % domainID = domainID
+      domainID = domainID + 1
+#endif
+
+      do while (associated(domain_ptr))
+
+         !
+         ! Initialize infrastructure
+         !
 
 #ifdef CORE_ATMOSPHERE
-      call atm_setup_core(corelist)
-      call atm_setup_domain(domain_ptr)
+         call atm_setup_core(corelist)
+         call atm_setup_domain(domain_ptr)
 #endif
 #ifdef CORE_SEAICE
-      call seaice_setup_core(corelist)
-      call seaice_setup_domain(domain_ptr)
+         call seaice_setup_core(corelist)
+         call seaice_setup_domain(domain_ptr)
 #endif
 #ifdef CORE_INIT_ATMOSPHERE
-      call init_atm_setup_core(corelist)
-      call init_atm_setup_domain(domain_ptr)
+         call init_atm_setup_core(corelist)
+         call init_atm_setup_domain(domain_ptr)
 #endif
 #ifdef CORE_LANDICE
-      call li_setup_core(corelist)
-      call li_setup_domain(domain_ptr)
+         call li_setup_core(corelist)
+         call li_setup_domain(domain_ptr)
 #endif
 #ifdef CORE_OCEAN
-      call ocn_setup_core(corelist)
-      call ocn_setup_domain(domain_ptr)
+         call ocn_setup_core(corelist)
+         call ocn_setup_domain(domain_ptr)
 #endif
 #ifdef CORE_SW
-      call sw_setup_core(corelist)
-      call sw_setup_domain(domain_ptr)
+         call sw_setup_core(corelist)
+         call sw_setup_domain(domain_ptr)
 #endif
 #ifdef CORE_TEST
-      call test_setup_core(corelist)
-      call test_setup_domain(domain_ptr)
+         call test_setup_core(corelist)
+         call test_setup_domain(domain_ptr)
 #endif
 
-      ! Set up the log manager as early as possible so we can use it for any errors/messages during subsequent init steps
-      ! We need:
-      ! 1) domain_ptr to be allocated,
-      ! 2) dmpar_init complete to access dminfo,
-      ! 3) *_setup_core to assign the setup_log function pointer
-      ierr = domain_ptr % core % setup_log(domain_ptr % logInfo, domain_ptr)
-      if ( ierr /= 0 ) then
-         call mpas_dmpar_global_abort('ERROR: Log setup failed for core ' // trim(domain_ptr % core % coreName))
-      end if
 
-      if ( readNamelistArg ) then
-         domain_ptr % namelist_filename = namelistFile
-      end if
+         ! Set up the log manager as early as possible so we can use it for any errors/messages during subsequent init steps
+         ! We need:
+         ! 1) domain_ptr to be allocated,
+         ! 2) dmpar_init complete to access dminfo,
+         ! 3) *_setup_core to assign the setup_log function pointer
+         ierr = domain_ptr % core % setup_log(domain_ptr % logInfo, domain_ptr)
+         if ( ierr /= 0 ) then
+            call mpas_dmpar_global_abort('ERROR: Log setup failed for core ' // trim(domain_ptr % core % coreName))
+         end if
 
-      if ( readStreamsArg ) then
-         domain_ptr % streams_filename = streamsFile
-      end if
+         call mpas_log_write('Initializing domain for '//trim(domain_ptr % core % coreName)//'domainID $i', intArgs=(/domain_ptr % domainID/))
 
-      ierr = domain_ptr % core % setup_namelist(domain_ptr % configs, domain_ptr % namelist_filename, domain_ptr % dminfo)
-      if ( ierr /= 0 ) then
-         call mpas_log_write('Namelist setup failed for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
-      end if
+         if ( readNamelistArg ) then
+            domain_ptr % namelist_filename = namelistFile
+         end if
 
-      call mpas_framework_init_phase2(domain_ptr)
+         if ( readStreamsArg ) then
+            domain_ptr % streams_filename = streamsFile
+         end if
 
-      ierr = domain_ptr % core % define_packages(domain_ptr % packages)
-      if ( ierr /= 0 ) then
-         call mpas_log_write('Package definition failed for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
-      end if
+         ierr = domain_ptr % core % setup_namelist(domain_ptr % configs, domain_ptr % namelist_filename, domain_ptr % dminfo)
+         if ( ierr /= 0 ) then
+            call mpas_log_write('Namelist setup failed for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
+         end if
 
-      ierr = domain_ptr % core % setup_packages(domain_ptr % configs, domain_ptr % packages, domain_ptr % iocontext)
-      if ( ierr /= 0 ) then
-         call mpas_log_write('Package setup failed for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
-      end if
+         call mpas_framework_init_phase2(domain_ptr)
 
-      ierr = domain_ptr % core % setup_decompositions(domain_ptr % decompositions)
-      if ( ierr /= 0 ) then
-         call mpas_log_write('Decomposition setup failed for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
-      end if
+         ierr = domain_ptr % core % define_packages(domain_ptr % packages)
+         if ( ierr /= 0 ) then
+            call mpas_log_write('Package definition failed for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
+         end if
 
-      ierr = domain_ptr % core % setup_clock(domain_ptr % clock, domain_ptr % configs)
-      if ( ierr /= 0 ) then
-         call mpas_log_write('Clock setup failed for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
-      end if
+         ierr = domain_ptr % core % setup_packages(domain_ptr % configs, domain_ptr % packages, domain_ptr % iocontext)
+         if ( ierr /= 0 ) then
+            call mpas_log_write('Package setup failed for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
+         end if
 
-      call mpas_log_write('Reading streams configuration from file '//trim(domain_ptr % streams_filename))
-      inquire(file=trim(domain_ptr % streams_filename), exist=streamsExists)
+         ierr = domain_ptr % core % setup_decompositions(domain_ptr % decompositions)
+         if ( ierr /= 0 ) then
+            call mpas_log_write('Decomposition setup failed for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
+         end if
 
-      if ( .not. streamsExists ) then
-         call mpas_log_write('Streams file '//trim(domain_ptr % streams_filename)//' does not exist.', messageType=MPAS_LOG_CRIT)
-      end if
+         ierr = domain_ptr % core % setup_clock(domain_ptr % clock, domain_ptr % configs)
+         if ( ierr /= 0 ) then
+            call mpas_log_write('Clock setup failed for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
+         end if
 
-      call mpas_timer_start('total time')
-      call mpas_timer_start('initialize')
+         call mpas_log_write('Reading streams configuration from file '//trim(domain_ptr % streams_filename))
+         inquire(file=trim(domain_ptr % streams_filename), exist=streamsExists)
 
-      !
-      ! Using information from the namelist, a graph.info file, and a file containing
-      !    mesh fields, build halos and allocate blocks in the domain
-      !
-      ierr = domain_ptr % core % get_mesh_stream(domain_ptr % configs, mesh_stream)
-      if ( ierr /= 0 ) then
-         call mpas_log_write('Failed to find mesh stream for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
-      end if
+         if ( .not. streamsExists ) then
+            call mpas_log_write('Streams file '//trim(domain_ptr % streams_filename)//' does not exist.', messageType=MPAS_LOG_CRIT)
+         end if
 
-      call mpas_f_to_c_string(domain_ptr % streams_filename, c_filename)
-      call mpas_f_to_c_string(mesh_stream, c_mesh_stream)
-      c_comm = domain_ptr % dminfo % comm
-      call xml_stream_get_attributes(c_filename, c_mesh_stream, c_comm, &
-                                     c_mesh_filename_temp, c_ref_time_temp, &
-                                     c_filename_interval_temp, c_iotype, c_ierr)
-      if (c_ierr /= 0) then
-         call mpas_log_write('stream xml get attribute failed: '//trim(domain_ptr % streams_filename), messageType=MPAS_LOG_CRIT)
-      end if
-      call mpas_c_to_f_string(c_mesh_filename_temp, mesh_filename_temp)
-      call mpas_c_to_f_string(c_ref_time_temp, ref_time_temp)
-      call mpas_c_to_f_string(c_filename_interval_temp, filename_interval_temp)
-      call mpas_c_to_f_string(c_iotype, iotype)
+         call mpas_timer_start('total time')
+         call mpas_timer_start('initialize')
 
-      if (trim(iotype) == 'pnetcdf') then
-         mesh_iotype = MPAS_IO_PNETCDF
-      else if (trim(iotype) == 'pnetcdf,cdf5') then
-         mesh_iotype = MPAS_IO_PNETCDF5
-      else if (trim(iotype) == 'netcdf') then
-         mesh_iotype = MPAS_IO_NETCDF
-      else if (trim(iotype) == 'netcdf4') then
-         mesh_iotype = MPAS_IO_NETCDF4
-      else
-         mesh_iotype = MPAS_IO_PNETCDF
-      end if
+         !
+         ! Using information from the namelist, a graph.info file, and a file containing
+         !    mesh fields, build halos and allocate blocks in the domain
+         !
+         ierr = domain_ptr % core % get_mesh_stream(domain_ptr % configs, mesh_stream)
+         if ( ierr /= 0 ) then
+            call mpas_log_write('Failed to find mesh stream for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
+         end if
 
-      start_time = mpas_get_clock_time(domain_ptr % clock, MPAS_START_TIME, ierr)
-      if ( trim(ref_time_temp) == 'initial_time' ) then
-          call mpas_get_time(start_time, dateTimeString=ref_time_temp, ierr=ierr)
-      end if
+         call mpas_f_to_c_string(domain_ptr % streams_filename, c_filename)
+         call mpas_f_to_c_string(mesh_stream, c_mesh_stream)
+         c_comm = domain_ptr % dminfo % comm
+         call xml_stream_get_attributes(c_filename, c_mesh_stream, c_comm, &
+                                        c_mesh_filename_temp, c_ref_time_temp, &
+                                        c_filename_interval_temp, c_iotype, c_ierr)
+         if (c_ierr /= 0) then
+            call mpas_log_write('stream xml get attribute failed: '//trim(domain_ptr % streams_filename), messageType=MPAS_LOG_CRIT)
+         end if
+         call mpas_c_to_f_string(c_mesh_filename_temp, mesh_filename_temp)
+         call mpas_c_to_f_string(c_ref_time_temp, ref_time_temp)
+         call mpas_c_to_f_string(c_filename_interval_temp, filename_interval_temp)
+         call mpas_c_to_f_string(c_iotype, iotype)
 
-      blockID = -1
-      if ( trim(filename_interval_temp) == 'none' ) then
-          call mpas_expand_string(ref_time_temp, blockID, mesh_filename_temp, mesh_filename)
-      else
-          call mpas_set_time(ref_time, dateTimeString=ref_time_temp, ierr=ierr)
-          call mpas_set_timeInterval(filename_interval, timeString=filename_interval_temp, ierr=ierr)
-          call mpas_build_stream_filename(ref_time, start_time, filename_interval, mesh_filename_temp, blockID, mesh_filename, ierr)
-      end if
-      call mpas_log_write(' ** Attempting to bootstrap MPAS framework using stream: ' // trim(mesh_stream))
-      call mpas_bootstrap_framework_phase1(domain_ptr, mesh_filename, mesh_iotype)
+         if (trim(iotype) == 'pnetcdf') then
+            mesh_iotype = MPAS_IO_PNETCDF
+         else if (trim(iotype) == 'pnetcdf,cdf5') then
+            mesh_iotype = MPAS_IO_PNETCDF5
+         else if (trim(iotype) == 'netcdf') then
+            mesh_iotype = MPAS_IO_NETCDF
+         else if (trim(iotype) == 'netcdf4') then
+            mesh_iotype = MPAS_IO_NETCDF4
+         else
+            mesh_iotype = MPAS_IO_PNETCDF
+         end if
 
-      !
-      ! Set up run-time streams
-      !
-      call MPAS_stream_mgr_init(domain_ptr % streamManager, domain_ptr % ioContext, domain_ptr % clock, &
-                                domain_ptr % blocklist % allFields, domain_ptr % packages, domain_ptr % blocklist % allStructs)
+         start_time = mpas_get_clock_time(domain_ptr % clock, MPAS_START_TIME, ierr)
+         if ( trim(ref_time_temp) == 'initial_time' ) then
+             call mpas_get_time(start_time, dateTimeString=ref_time_temp, ierr=ierr)
+         end if
 
-      call add_stream_attributes(domain_ptr)
+         blockID = -1
+         if ( trim(filename_interval_temp) == 'none' ) then
+             call mpas_expand_string(ref_time_temp, blockID, mesh_filename_temp, mesh_filename)
+         else
+             call mpas_set_time(ref_time, dateTimeString=ref_time_temp, ierr=ierr)
+             call mpas_set_timeInterval(filename_interval, timeString=filename_interval_temp, ierr=ierr)
+             call mpas_build_stream_filename(ref_time, start_time, filename_interval, mesh_filename_temp, blockID, mesh_filename, ierr)
+         end if
+         call mpas_log_write(' ** Attempting to bootstrap MPAS framework using stream: ' // trim(mesh_stream))
+         call mpas_bootstrap_framework_phase1(domain_ptr, mesh_filename, mesh_iotype)
 
-      ierr = domain_ptr % core % setup_immutable_streams(domain_ptr % streamManager)
-      if ( ierr /= 0 ) then
-         call mpas_log_write('Immutable streams setup failed for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
-      end if
+         !
+         ! Set up run-time streams
+         !
+         call MPAS_stream_mgr_init(domain_ptr % streamManager, domain_ptr % ioContext, domain_ptr % clock, &
+                                   domain_ptr % blocklist % allFields, domain_ptr % packages, domain_ptr % blocklist % allStructs)
 
-      mgr_p = c_loc(domain_ptr % streamManager)
-      call xml_stream_parser(c_filename, mgr_p, c_comm, c_ierr)
-      if (c_ierr /= 0) then
-         call mpas_log_write('xml stream parser failed: '//trim(domain_ptr % streams_filename), messageType=MPAS_LOG_CRIT)
-      end if
+         call add_stream_attributes(domain_ptr)
 
-      !
-      ! Validate streams after set-up
-      !
-      call mpas_log_write(' ** Validating streams')
-      call MPAS_stream_mgr_validate_streams(domain_ptr % streamManager, ierr = ierr)
-      if ( ierr /= MPAS_STREAM_MGR_NOERR ) then
-         call mpas_dmpar_global_abort('ERROR: Validation of streams failed for core ' // trim(domain_ptr % core % coreName))
-      end if
+         ierr = domain_ptr % core % setup_immutable_streams(domain_ptr % streamManager)
+         if ( ierr /= 0 ) then
+            call mpas_log_write('Immutable streams setup failed for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
+         end if
 
-      !
-      ! Finalize the setup of blocks and fields
-      !
-      call mpas_bootstrap_framework_phase2(domain_ptr)
+         mgr_p = c_loc(domain_ptr % streamManager)
+         call xml_stream_parser(c_filename, mgr_p, c_comm, c_ierr)
+         if (c_ierr /= 0) then
+            call mpas_log_write('xml stream parser failed: '//trim(domain_ptr % streams_filename), messageType=MPAS_LOG_CRIT)
+         end if
 
-      !
-      ! Initialize core
-      !
-      iErr = domain_ptr % core % core_init(domain_ptr, timeStamp)
-      if ( ierr /= 0 ) then
-         call mpas_log_write('Core init failed for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
-      end if
+         !
+         ! Validate streams after set-up
+         !
+         call mpas_log_write(' ** Validating streams')
+         call MPAS_stream_mgr_validate_streams(domain_ptr % streamManager, ierr = ierr)
+         if ( ierr /= MPAS_STREAM_MGR_NOERR ) then
+            call mpas_dmpar_global_abort('ERROR: Validation of streams failed for core ' // trim(domain_ptr % core % coreName))
+         end if
 
-      call mpas_timer_stop('initialize')
+         !
+         ! Finalize the setup of blocks and fields
+         !
+         call mpas_bootstrap_framework_phase2(domain_ptr)
+
+         !
+         ! Initialize core
+         !
+         iErr = domain_ptr % core % core_init(domain_ptr, timeStamp)
+         if ( ierr /= 0 ) then
+            call mpas_log_write('Core init failed for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
+         end if
+
+         call mpas_timer_stop('initialize')
+
+         domain_ptr => domain_ptr % next
+      end do
+
+      domain_ptr => corelist % domainlist
 
    end subroutine mpas_init
 
