@@ -23,7 +23,9 @@ module ocn_core_interface
 
    private
 
-   public :: ocn_setup_core, ocn_setup_domain
+   public :: ocn_setup_core, ocn_setup_domain, ocn_configure_domain
+
+   integer :: domain_count = 0
 
    contains
    !***********************************************************************
@@ -79,6 +81,8 @@ module ocn_core_interface
       type (domain_type), pointer :: domain
 
 #include "../inc/domain_variables.inc"
+
+      domain_count = domain_count + 1
 
    end subroutine ocn_setup_domain!}}}
 
@@ -720,6 +724,44 @@ module ocn_core_interface
       iErr = 0
       call ocn_generate_structs(block, block % structs, block % dimensions, block % packages)
    end function ocn_setup_block!}}}
+
+   !***********************************************************************
+   !
+   !  function ocn_configure_domain
+   !
+   !> \brief   Ocean domain configuration function
+   !> \author  Steven Brus
+   !> \date    09/21/2023
+   !> \details
+   !>  This function sets specialized options for the separate barotropic
+   !>  domain
+   !
+   !-----------------------------------------------------------------------
+   subroutine ocn_configure_domain(domain)!{{{
+      type (domain_type), intent(inout), pointer :: domain
+
+      integer :: iErr
+      logical, pointer :: config_separate_barotropic_baroclinic_meshes
+      character(len=StrKIND), pointer :: config_block_decomp_file_prefix
+      character(len=StrKIND), pointer :: config_proc_decomp_file_prefix
+
+      call mpas_pool_get_config(domain % configs, 'config_separate_barotropic_baroclinic_meshes', config_separate_barotropic_baroclinic_meshes)
+      if (.not. config_separate_barotropic_baroclinic_meshes) then
+         deallocate(domain % next)
+      end if
+
+      if (domain % domainID == 1) then
+         domain % streams_filename = trim(domain % streams_filename)//'_btr'
+
+         call mpas_pool_get_config(domain % configs, 'config_block_decomp_file_prefix', config_block_decomp_file_prefix)
+         call mpas_pool_get_config(domain % configs, 'config_proc_decomp_file_prefix', config_proc_decomp_file_prefix)      
+         
+         config_block_decomp_file_prefix = trim(config_block_decomp_file_prefix)//'btr.'
+         config_proc_decomp_file_prefix = trim(config_proc_decomp_file_prefix)//'btr.'
+
+      end if
+      iErr = 0
+   end subroutine ocn_configure_domain!}}}
 
 #include "../inc/setup_immutable_streams.inc"
 

@@ -231,6 +231,10 @@ module mpas_subdriver
             call mpas_log_write('Namelist setup failed for core '//trim(domain_ptr % core % coreName), messageType=MPAS_LOG_CRIT)
          end if
 
+#ifdef CORE_OCEAN
+         call ocn_configure_domain(domain_ptr)
+#endif
+
          call mpas_framework_init_phase2(domain_ptr)
 
          ierr = domain_ptr % core % define_packages(domain_ptr % packages)
