@@ -1196,6 +1196,12 @@
 					possible_values="Any positive integer greater than or equal to one. A value of one employs the same dt in all regions."
 		/>
 	</nml_record>
+	<nml_record name="separate_barotropic_baroclinic_meshes" mode="init;forward">
+		<nml_option name="config_separate_barotropic_baroclinic_meshes" type="logical" default_value=".false."
+					description="Enable separate spatial meshes for barotropic and baroclinic modes"
+					possible_values=".true. or .false."
+		/>
+	</nml_record>
 	<nml_record name="pressure_gradient" mode="forward">
 		<nml_option name="config_pressure_gradient_type" type="character" default_value="pressure_and_zmid"
 					description="Form of pressure gradient terms in momentum equation. For most applications, the gradient of pressure and layer mid-depth are appropriate.  For isopycnal coordinates, one may use the gradient of the Montgomery potential.  The sea surface height gradient (ssh_gradient) option is for barotropic, depth-averaged pressure."
