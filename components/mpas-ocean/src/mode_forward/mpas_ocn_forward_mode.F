@@ -279,6 +279,10 @@ module ocn_forward_mode
          return
       endif
 
+      if (domain % domainID == 1) then
+         return
+      end if
+
       !-----------------------------------------------------------------
       ! Initialize mesh before anything else since many depend on it
       !-----------------------------------------------------------------
