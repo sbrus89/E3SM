@@ -7,7 +7,7 @@
 !
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
-!  ocn_init_Buttermilk_bay
+!  ocn_init_parabolic_bowl
 !
 !> \brief MPAS ocean initialize case -- TEMPLATE
 !> \author D. Wirasaet, S. Brus
@@ -39,7 +39,7 @@
 !
 !-----------------------------------------------------------------------
 
-module ocn_init_parabolic_bowl
+module ocn_init_Buttermilk_bay
 
    use mpas_kind_types
    use mpas_io_units
@@ -53,6 +53,12 @@ module ocn_init_parabolic_bowl
    use ocn_init_vertical_grids
    use ocn_init_cell_markers
    use ocn_subgrid
+
+   use mpas_constants
+   use mpas_io
+   use mpas_io_streams
+   use mpas_stream_manager
+
 
    implicit none
    private
@@ -70,8 +76,8 @@ module ocn_init_parabolic_bowl
    !
    !--------------------------------------------------------------------
 
-   public :: ocn_init_setup_parabolic_bowl, &
-             ocn_init_validate_parabolic_bowl
+   public :: ocn_init_setup_Buttermilk_bay, &
+             ocn_init_validate_Buttermilk_bay
 
    !--------------------------------------------------------------------
    !
@@ -79,9 +85,9 @@ module ocn_init_parabolic_bowl
    !
    !--------------------------------------------------------------------
 
-   real (kind=RKIND):: LL, CC
-   real (kind=RKIND):: oneMC2, sqrtOneMC2, oneMC
-   real (kind=RKIND),  parameter :: eps=1.0e-10
+!   real (kind=RKIND):: LL, CC
+!   real (kind=RKIND):: oneMC2, sqrtOneMC2, oneMC
+!   real (kind=RKIND),  parameter :: eps=1.0e-10
    real(kind=RKIND), dimension(:,:), pointer :: &
       subgridWetVolumeCellTable, &
       subgridWetVolumeEdgeTable, &
@@ -101,6 +107,13 @@ module ocn_init_parabolic_bowl
       subgridLayerThicknessDebug
    integer, pointer :: nSubgridTableLevels
 
+   ! For netcdf topobathy input variables
+   integer :: nLatTopo, nLonTopo
+
+   type (field1DReal) :: topoLat, topoLon
+   type (field2DReal) :: topoIC
+
+   real(kind=RKIND), parameter:: eps = 1.0e-10_RKIND ;   
 !***********************************************************************
 
 contains
@@ -110,7 +123,7 @@ contains
 !  routine ocn_init_setup_parabolic_bowl
 !
 !> \brief   Setup for this initial condition
-!> \author  D. Wirasaet
+!> \author  D. Wirasaet and S. Brus
 !> \date    May-June 2022
 !> \details
 !>  This routine sets up the initial conditions for this case.
@@ -118,7 +131,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-  subroutine ocn_init_setup_parabolic_bowl(domain, iErr)!{{{
+  subroutine ocn_init_setup_Buttermilk_bay(domain, iErr)!{{{
     use mpas_vector_operations  ! To calcutate edgeNormalVector
     
     implicit none
@@ -184,19 +197,18 @@ contains
     integer :: i,j
     real (kind=RKIND) :: deltaZ
 ! DW
+    integer:: jj
     integer:: nsubgridCellEdge, iEdgeSegment
+    real (kind=RKIND):: pi
     real (kind=RKIND), dimension(:,:), allocatable :: cellEdgeBathymetryValues
     real (kind=RKIND), dimension(:), allocatable:: dsEdge
-    integer:: jj
     real (kind=RKIND), dimension(:), allocatable:: xSubgridCell, ySubgridCell
-
-
 
     iErr = 0
 
     call ocn_subgrid_init(domain,iErr)
 
-    if(config_init_configuration .ne. trim('parabolic_bowl')) return
+    if(config_init_configuration .ne. trim('buttermilk_bay')) return
 
     ! Determine vertical grid for configuration
     call mpas_pool_get_subpool(domain % blocklist % structs, 'mesh', meshPool)
@@ -204,7 +216,7 @@ contains
     call mpas_pool_get_dimension(meshPool, 'nVertLevelsP1', nVertLevelsP1)
     call mpas_pool_get_config(meshPool, 'on_a_sphere', on_a_sphere)
 
-    nVertLevels  = config_parabolic_bowl_vert_levels ;
+    nVertLevels  = config_Buttermilk_bay_vert_levels ;
     nVertLevelsP1 = nVertLevels + 1
 
     allocate(interfaceLocations(nVertLevelsP1))
@@ -246,26 +258,27 @@ contains
     call mpas_dmpar_max_real(domain % dminfo, xMax, xMaxGlobal)
     call mpas_dmpar_min_real(domain % dminfo, dcEdgeMin, dcEdgeMinGlobal)
 
-    xshift = 0.5_RKIND*(xMin + xMax) ;
-    yshift = 0.5_RKIND*(YMin + yMax) ;  
-    
+    pi = acos(-1.0_RKIND) ; 
+    xshift = 0.0_RKIND ;
+    yshift = -(YMin + dcEdgeMin*sin(pi/3.0_RKIND)) ;
+
+    !***********************************************************************
+    !
+    !  Topography
+    !
+    !***********************************************************************
+
+    call mpas_log_write( 'Reading bathymetry from a NetCDF file')
+ 
+    if (config_Buttermilk_bay_topography_source == 'latlon_file' .or. &
+             config_Buttermilk_bay_topography_source == 'xy_file' ) then
+       call mpas_log_write( 'Reading topography data from file.')
+       call ocn_init_setup_Buttermilk_bay_read_topo(domain, iErr)
+    endif
+
     !--------------------------------------------------------------------
     ! Use this section to set initial values
     !--------------------------------------------------------------------
-
-    den = ((config_parabolic_bowl_omega**2.0) - (config_parabolic_bowl_Coriolis_parameter**2.0)) ; 
-    num = (8.0_RKIND*config_parabolic_bowl_gravity*config_parabolic_bowl_b0) ;
-    LL  = sqrt(num/den) ; 
-
-    den = (config_parabolic_bowl_b0 + config_parabolic_bowl_eta0)**2.0 + config_parabolic_bowl_b0**2.0 ;
-    num = (config_parabolic_bowl_b0 + config_parabolic_bowl_eta0)**2.0 - config_parabolic_bowl_b0**2.0 ; 
-
-    CC = num/den ;
-
-    oneMC2 = 1.0_RKIND - CC**2.0 ;
-    sqrtOneMC2 = sqrt(oneMC2) ; 
-    oneMC = 1.0_RKIND - CC ;
-
 
     block_ptr => domain % blocklist
     do while(associated(block_ptr))
@@ -329,7 +342,7 @@ contains
                                 subgridWetFractionCellTable)
        call mpas_pool_get_array(meshPool, 'subgridWetFractionEdgeTable', &
                                 subgridWetFractionEdgeTable)
-       call mpas_pool_get_array(meshPool, 'subgridWetFractionVertexTable', &
+       call mpas_pool_get_array(meshPool,'subgridWetFractionVertexTable',&
                                 subgridWetFractionVertexTable)
        call mpas_pool_get_array(meshPool, 'subgridSshCellTableRange', &
                                 subgridSshCellTableRange)
@@ -353,10 +366,9 @@ contains
                                 subgridLayerThicknessDebug)
 
 
-
        ! if config_parabolic_bowl_adjust_domain_center == .true.,
        ! Adjust center of the mesh so that its center is located at (0,0)
-       if ( config_parabolic_bowl_adjust_domain_center ) then
+       if ( config_Buttermilk_bay_adjust_domain ) then
           xCell = xCell - xshift ; 
           yCell = yCell - yshift ;
 
@@ -367,10 +379,8 @@ contains
           yVertex = yVertex - yshift ; 
        end if
 
-
        ! Initlialze vector
        call mpas_initialize_vectors(meshPool) ; 
-
 
        minLevelCell(:) = 1
        do iCell = 1, nCellsSolve
@@ -379,24 +389,23 @@ contains
        end do
 
 
-       do iCell = 1, nCellsSolve
-         
+       do iCell = 1, nCellsSolve       
           ! Set temperature
           activeTracers(index_temperature, :, iCell) = 10.0_RKIND
 
           ! Set salinity
           activeTracers(index_salinity, :, iCell) = 30.0_RKIND
 
-         ! Set Coriolis parameters, if other than zero
-         fCell(iCell) = config_parabolic_bowl_coriolis_parameter ; 
+          ! Set Coriolis parameters, if other than zero
+          fCell(iCell) = config_Buttermilk_bay_coriolis_parameter ; 
       end do
 
       do iEdge = 1, nEdgesSolve
-         fEdge(iEdge) = config_parabolic_bowl_coriolis_parameter ;  
+         fEdge(iEdge) = config_Buttermilk_bay_coriolis_parameter ;  
       end do
 
       do iVertex = 1, nVerticesSolve
-         fVertex(iVertex) =  config_parabolic_bowl_coriolis_parameter ;
+         fVertex(iVertex) = config_Buttermilk_bay_coriolis_parameter ;
       end do
 
 
@@ -405,17 +414,19 @@ contains
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       print*, "Begin cells", nCellsSolve
 
-      nSubgridTriPerSlice = config_parabolic_bowl_subgrid_level**2
+      nSubgridTriPerSlice = config_Buttermilk_bay_subgrid_level**2
       allocate(rSubgridPoints(3,maxEdges*nSubgridTriPerSlice), sSubgridPoints(3,maxEdges*nSubgridTriPerSlice))
-      call ocn_init_define_subgrid_points(config_parabolic_bowl_subgrid_level, rSubgridPoints, sSubgridPoints)
+      call ocn_init_define_subgrid_points(config_Buttermilk_bay_subgrid_level, rSubgridPoints, sSubgridPoints)
       allocate(subgridBathymetryValues(maxEdges*nSubgridTriPerSlice), subgridAreas(maxEdges*nSubgridTriPerSlice))
       allocate(subgridSshValues(maxEdges*nSubgridTriPerSlice))
       allocate(subgridUValues(maxEdges*nSubgridTriPerSlice))
       allocate(subgridVValues(maxEdges*nSubgridTriPerSlice))
 
-      do iCell = 1,nCellsSolve
-        !print*, "iCell: ", iCell
 
+      open( unit = 101, file = 'BM_bathy.dat', action = 'write' ) ; 
+
+      do iCell = 1,nCellsSolve
+        !
         ! Evaluate subgrid bathymetry at centers of sub-triangles for cell slices 
         ! (all subdivided triangles for each cell slice are gathered into 
         !  subgridBathymetryValues and subgridAreas)
@@ -445,7 +456,10 @@ contains
                                               subgridBathymetryValues, subgridAreas, subgridSshValues)
 
         enddo
-        
+      
+        do jj = 1, nSubgridCell
+           WRITE( 101, '(I6,2F16.8)' ) iCell, subgridBathymetryValues(jj) ;  
+        end do 
 
         ! Evaluate bounds of look-up table range
         !---------------------------------------------------------------
@@ -471,22 +485,18 @@ contains
 
         
 !!$        call ocn_init_wet_average_ssh(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, ssh(iCell))!{{{
-
-
       enddo
-
-
+      close( unit = 101 ) ;
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Edges
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       print*, "Begin edges", nEdgesSolve
 
-
       allocate(uVelocityAverage(nEdgesSolve))
       allocate(vVelocityAverage(nEdgesSolve))
 
-      nSubgridCellEdge=config_parabolic_bowl_subgrid_level 
+      nSubgridCellEdge=config_Buttermilk_bay_subgrid_level 
       allocate( cellEdgeBathymetryValues(3,nSubgridCellEdge) )   
       allocate( dsEdge(nSubgridCellEdge) ) 
       cellEdgeBathymetryValues = -99999 ; 
@@ -496,6 +506,7 @@ contains
 
 
       do iEdge = 1,nEdgesSolve
+        !--------------------------------------------------------------
         ! Evaluate subgrid bathymetry at centers of sub-triangles for edge slices
         ! (all subdivided triangles for each edge slice are gathered into 
         !  subgridBathymetryValues and subgridAreas)
@@ -507,7 +518,6 @@ contains
             nSlice = nSlice + 1
           endif
         enddo
-
 
         nSubgridEdge = 0  ! Counter for all subgrid triangles over edge slices
         do slice = 1,nSlice ! Loop over edge slices
@@ -524,10 +534,9 @@ contains
 
 
           call ocn_init_evaluate_subgrid_data(x, y, nSubgridTriPerSlice, nSubgridEdge, rSubgridPoints, sSubgridPoints, &
-                                              subgridBathymetryValues, subgridAreas, subgridSshValues, subgridUValues, subgridVValues)
-
-         
- 
+                                              subgridBathymetryValues, subgridAreas, subgridSshValues, subgridUValues, subgridVValues, &
+                                              xSubgridCell, ySubgridCell )
+  
         enddo
 
         ! Evaluate velocity average
@@ -535,7 +544,7 @@ contains
         call ocn_init_wet_average(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, layerThicknessEdgeAverage, &
                                   subgridUValues, subgridVValues, uVelocityAverage(iEdge), vVelocityAverage(iEdge))
 
-        if ( .NOT. config_parabolic_bowl_subgrid_edge_bathymetry_max_pixel ) then
+        if ( .NOT. config_Buttermilk_bay_subgrid_edge_bathymetry_max_pixel ) then
            ! Evaluate bounds of look-up table range
            !---------------------------------------------------------------
 
@@ -680,7 +689,7 @@ vertex:do iVertex = 1,nVerticesSolve
                                        + vVelocityAverage(iEdge)*edgeNormalVectors(2,iEdge) ;
             end do
          else
-            call ocn_init_parabolic_bowl_velocity(xEdge(iEdge), yEdge(iEdge), uu, vv)
+            call ocn_init_Buttermilk_bay_velocity(xEdge(iEdge), yEdge(iEdge), uu, vv)
             do k = 1, nVertLevels 
                normalVelocity(k,iEdge) = uu*edgeNormalVectors(1,iEdge) + vv*edgeNormalVectors(2,iEdge) ;
             end do
@@ -716,8 +725,8 @@ vertex:do iVertex = 1,nVerticesSolve
 !                                              LayerThickness(1,iCell))
 
             else
-              call ocn_init_parabolic_bowl_bathymetry(xCell(iCell),yCell(iCell),bottomDepth(iCell))
-              call ocn_init_parabolic_bowl_ssh(xCell(iCell),yCell(iCell),bottomDepth(iCell),ssh(iCell))
+              call ocn_init_Buttermilk_bay_bathymetry(xCell(iCell),yCell(iCell),bottomDepth(iCell))
+              call ocn_init_Buttermilk_bay_ssh(xCell(iCell),yCell(iCell),bottomDepth(iCell),ssh(iCell))
               ssh(iCell) = - bottomDepth(iCell) + &
                 max(ssh(iCell) + bottomDepth(iCell), &
                 maxLevelCell(iCell)*(config_drying_min_cell_height + eps))
@@ -756,12 +765,16 @@ vertex:do iVertex = 1,nVerticesSolve
 
 
     deallocate(interfaceLocations)
+    if (config_global_ocean_topography_source == 'latlon_file') then
+        call mpas_log_write( 'Cleaning up topography IC fields')
+        call ocn_init_Buttermilk_bay_destroy_topo_fields()
+    endif
     !--------------------------------------------------------------------
 
-    print*, "****** End parabolic bowl init *****" ;
+    print*, "****** End Butter milk bay init *****" ;
 
     return ;  
-  end subroutine ocn_init_setup_parabolic_bowl!}}}
+  end subroutine ocn_init_setup_Buttermilk_bay!}}}
 
 !***********************************************************************
 !
@@ -867,10 +880,13 @@ vertex:do iVertex = 1,nVerticesSolve
 !-----------------------------------------------------------------------
 
 
-   subroutine ocn_init_evaluate_subgrid_data(xTri, yTri, nSubgridTri, nSubgridCV, rSubgridPoints, sSubgridPoints, &
-                                             subgridBathymetryValues, subgridAreas, &
-                                             subgridSshValues, subgridUValues, subgridVValues)!{{{
-!   subroutine ocn_init_evaluate_subgrid_data(xTri, yTri, nSubgridTri, nSubgridCV, rSubgridPoints, sSubgridPoints, subgridBathymetryValues, subgridAreas, subgridSshValues, xSubgridCell, ySubgridCell )!{{{
+!   subroutine ocn_init_evaluate_subgrid_data(xTri, yTri, nSubgridTri, nSubgridCV, rSubgridPoints, sSubgridPoints, &
+!                                             subgridBathymetryValues, subgridAreas, &
+!                                             subgridSshValues, subgridUValues, subgridVValues)!{{{
+   subroutine ocn_init_evaluate_subgrid_data( xTri, yTri, nSubgridTri, nSubgridCV, rSubgridPoints, sSubgridPoints, & 
+                                   subgridBathymetryValues, subgridAreas, &
+                                   subgridSshValues, subgridUValues, subgridVValues, &
+                                   xSubgridCell, ySubgridCell ) !{{{
 
            
       implicit none 
@@ -883,7 +899,7 @@ vertex:do iVertex = 1,nVerticesSolve
       real (kind=RKIND), dimension(:), intent(inout),optional :: subgridSshValues
       real (kind=RKIND), dimension(:), intent(inout),optional :: subgridUValues, subgridVValues
 
-!      real (kind=RKIND), dimension(:), intent(inout), optional :: xSubgridCell, ySubgridCell
+      real (kind=RKIND), dimension(:), intent(inout), optional :: xSubgridCell, ySubgridCell
 
       real (kind=RKIND) :: rCenter, sCenter
       real (kind=RKIND) :: xCenter, yCenter
@@ -922,7 +938,7 @@ vertex:do iVertex = 1,nVerticesSolve
         call ocn_init_tri_coordinate_transform(rCenter, sCenter, xTri, yTri, xCenter, yCenter)
 
         ! Evaluate bathymetry
-        call ocn_init_parabolic_bowl_bathymetry(xCenter, yCenter, subgridBathymetryValues(nSubgridCV))
+        call ocn_init_Buttermilk_bay_bathymetry(xCenter, yCenter, subgridBathymetryValues(nSubgridCV))
 
         ! Transformation of sub-triangle vertices to physical coordinates
         do i = 1,3
@@ -932,22 +948,22 @@ vertex:do iVertex = 1,nVerticesSolve
         ! Calculate area of sub-triangle
         call ocn_init_tri_area(xSubgridPoints(:), ySubgridPoints(:), subgridAreas(nSubgridCV))
 
-        ! Optinally evalulate ssh 
+        ! Optionally evalulate ssh 
         if (present(subgridsshValues)) then
-           call ocn_init_parabolic_bowl_ssh(xCenter, yCenter, subgridBathymetryValues(nSubgridCV), subgridSshValues(nSubgridCV))
+           call ocn_init_Buttermilk_bay_ssh(xCenter, yCenter, subgridBathymetryValues(nSubgridCV), subgridSshValues(nSubgridCV))
         endif
 
         if (present(subgridUValues).and.present(subgridVValues)) then
-           call ocn_init_parabolic_bowl_velocity(xCenter, yCenter, subgridUValues(nSubgridCV), subgridVValues(nSubgridCV))
+           call ocn_init_Buttermilk_bay_velocity(xCenter, yCenter, subgridUValues(nSubgridCV), subgridVValues(nSubgridCV))
         endif   
 
-!        if ( present(xSubgridCell) ) then
-!            xSubgridCell(nSubgridCV) = xCenter ;
-!        endif
-!
-!        if ( present(ySubgridCell) ) then
-!            ySubgridCell(nSubgridCV) = yCenter ;
-!        end if
+        if ( present(xSubgridCell) ) then
+            xSubgridCell(nSubgridCV) = xCenter ;
+        endif
+
+        if ( present(ySubgridCell) ) then
+            ySubgridCell(nSubgridCV) = yCenter ;
+        end if
       enddo
 
    !--------------------------------------------------------------------
@@ -966,22 +982,64 @@ vertex:do iVertex = 1,nVerticesSolve
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_init_parabolic_bowl_bathymetry(x, y, depth)!{{{
+   subroutine ocn_init_Buttermilk_bay_bathymetry(x, y, depth)!{{{
            
       implicit none 
 
       real (kind=RKIND), intent(in) :: x, y
       real (kind=RKIND), intent(out) :: depth
-      real (kind=RKIND) :: RR
 
-   !--------------------------------------------------------------------
+      integer:: ix(2)
+      real (kind=RKIND) :: xc(2)
+      real (kind=RKIND) :: dx(2), x0(2), xN(2), bath(4), f(4), den
+      real (kind=RKIND) :: xv(2), yv(2) 
 
-      RR = sqrt(x**2 + y**2) 
-      depth  = config_parabolic_bowl_b0*(1.0_RKIND - (RR**2)/(LL**2))
+      !--------------------------------------------------------------------
+      !
+      ! DEM must be on a uniform grid
+      x0 = (/ topoLon%array(1), topoLat%array(1) /) ;
+      xN = (/ topoLon%array(nLonTopo), topoLat%array(nLatTopo) /) ; 
+      dx = (/ topoLon%array(2) - topoLon%array(1), &
+              topoLat%array(2) - topoLat%array(1) /) ;
+     
+      xc = (/ x, y /) ; 
+      ix = floor( (xc - x0)/dx ) + 1 ;
+         
+      if ( ( ix(1) >= 1 .and. ix(1) < nLonTopo ) .and. &
+              ( ix(2) >= 1 .and. ix(2) < nLatTopo ) ) then 
+        ! include the west and soutth bourdaries of 
+        ! a given uniform raster DEM       
+        bath(1) = TopoIC%array(ix(1),ix(2))  ;
+        bath(2) = TopoIC%array(ix(1)+1,ix(2)) ; 
+        bath(3) = TopoIC%array(ix(1)+1,ix(2)+1) ; 
+        bath(4) = TopoIC%array(ix(1),ix(2)) ;
 
-   !--------------------------------------------------------------------
+        xv(1) = topoLon%array(ix(1)) ;
+        xv(2) = topoLon%array(ix(1)+1) ; 
 
-   end subroutine ocn_init_parabolic_bowl_bathymetry!}}}
+        yv(1) = topoLat%array(ix(2)) ;
+        yv(2) = topoLat%array(ix(2)+1) ;
+
+        den = dx(1)*dx(2) ;
+       
+        f(1) = ( xc(1) - xv(2) )*( xc(2) - yv(2) )/den ;
+        f(2) = ( xc(1) - xv(1) )*( xc(2) - yv(2) )/(-den) ;
+        f(3) = ( xc(1) - xv(1) )*( xc(2) - yv(1) )/den  ;
+        f(4) = ( xc(1) - xv(2) )*( xc(2) - yv(1) )/(-den) ; 
+
+        depth = sum( bath*f ) ;              
+      else
+        ! nearest extrapolation
+        ix(1) = merge( 1, ix(1), ix(1) < 1 ) ; 
+        ix(1) = merge( nLonTopo, ix(1), ix(1) >= nLonTopo ) ; 
+        ix(2) = merge( 1, ix(2), ix(2) < 1 )  ;
+        ix(2) = merge( nLatTopo, ix(2), ix(2) >= nLatTopo ) ; 
+      
+        depth = TopoIC%array(ix(1),ix(2)) ;
+      endif       
+
+      return ;       
+   end subroutine ocn_init_Buttermilk_bay_bathymetry!}}}
 
 !***********************************************************************
 !
@@ -995,7 +1053,7 @@ vertex:do iVertex = 1,nVerticesSolve
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_init_parabolic_bowl_ssh(x, y, bottomDepth, ssh)!{{{
+   subroutine ocn_init_Buttermilk_bay_ssh(x, y, bottomDepth, ssh)!{{{
            
       implicit none 
 
@@ -1006,15 +1064,19 @@ vertex:do iVertex = 1,nVerticesSolve
 
    !--------------------------------------------------------------------
 
-      RR = sqrt(x**2 + y**2) ;
- 
-      ssh = (sqrtOneMC2/oneMC) - 1.0_RKIND - ((RR**2)/(LL**2))*( (oneMC2/(oneMC**2)) - 1.0_RKIND ) ;
-      ssh = config_parabolic_bowl_b0*ssh ; 
-      !ssh = - bottomDepth + max(ssh + bottomDepth, config_drying_min_cell_height + eps)
+!      RR = sqrt(x**2 + y**2) ;
+! 
+!      ssh = (sqrtOneMC2/oneMC) - 1.0_RKIND - ((RR**2)/(LL**2))*( (oneMC2/(oneMC**2)) - 1.0_RKIND ) ;
+!      ssh = config_parabolic_bowl_b0*ssh ; 
+!      !ssh = - bottomDepth + max(ssh + bottomDepth, config_drying_min_cell_height + eps)
+
+      ssh = 0.0_RKIND ;
+      ssh = merge( -bottomDepth + eps, ssh, ssh + bottomDepth < eps ) ;
+
 
    !--------------------------------------------------------------------
 
-   end subroutine ocn_init_parabolic_bowl_ssh!}}}
+   end subroutine ocn_init_Buttermilk_bay_ssh!}}}
 
 !***********************************************************************
 !
@@ -1028,7 +1090,7 @@ vertex:do iVertex = 1,nVerticesSolve
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_init_parabolic_bowl_velocity(x, y, u, v)!{{{
+   subroutine ocn_init_Buttermilk_bay_velocity(x, y, u, v)!{{{
            
       implicit none 
 
@@ -1038,25 +1100,11 @@ vertex:do iVertex = 1,nVerticesSolve
 
    !--------------------------------------------------------------------
 
-   RR = sqrt(x**2 + y**2) ;
-   
-   HH = (sqrtOneMC2/oneMC) - ( (RR**2)/(LL**2))*( (oneMC2/(oneMC**2))  ) ;
-   HH = config_parabolic_bowl_b0*HH  ;
-   
-    
-   u =  - config_parabolic_bowl_Coriolis_parameter*y*( sqrtOneMC2 + CC - 1.0_RKIND  ) ;
-   v =    config_parabolic_bowl_Coriolis_parameter*x*( sqrtOneMc2 + CC - 1.0_RKIND  ) ; 
-
-   u = 0.5_RKIND*u/oneMC ; 
-   v = 0.5_RKIND*v/oneMC ; 
-   if ( HH < eps ) then
-       u = 0.0_RKIND ;
-       v = 0.0_RKIND ;
-   end if
-
+      u = 0.0_RKIND ; 
+      v = 0.0_RKIND ;
    !--------------------------------------------------------------------
 
-   end subroutine ocn_init_parabolic_bowl_velocity!}}}
+   end subroutine ocn_init_Buttermilk_bay_velocity!}}}
 
 !***********************************************************************
 !
@@ -1107,9 +1155,9 @@ vertex:do iVertex = 1,nVerticesSolve
 
    !--------------------------------------------------------------------
 
-        ! Transformation of sub-triangle center to physical coordinates
-        x = 0.5_RKIND*(-(r+s)*xTri(1) + (1.0_RKIND+r)*xTri(2) + (1.0_RKIND+s)*xTri(3))
-        y = 0.5_RKIND*(-(r+s)*yTri(1) + (1.0_RKIND+r)*yTri(2) + (1.0_RKIND+s)*yTri(3))
+      ! Transformation of sub-triangle center to physical coordinates
+      x = 0.5_RKIND*(-(r+s)*xTri(1) + (1.0_RKIND+r)*xTri(2) + (1.0_RKIND+s)*xTri(3))
+      y = 0.5_RKIND*(-(r+s)*yTri(1) + (1.0_RKIND+r)*yTri(2) + (1.0_RKIND+s)*yTri(3))
 
    !--------------------------------------------------------------------
 
@@ -1189,6 +1237,7 @@ vertex:do iVertex = 1,nVerticesSolve
 !> \details Compute the thickness and velocity averages over an area
 !>          based on the subgrid wet area
 !
+!  DW:  Shall we rename it to 'ocn_init_grid_average'?  
 !-----------------------------------------------------------------------
 
    subroutine ocn_init_wet_average(nSubgridCV, subgridBathymetryValues, subgridSshValues, subgridAreas, subgridThicknessAverage, &
@@ -1251,9 +1300,7 @@ vertex:do iVertex = 1,nVerticesSolve
 
    end subroutine ocn_init_wet_average!}}}
 
-
-
-   ! DW
+   ! 
    subroutine ocn_init_wet_average_ssh( nSubgridCV, subgridBathymetryValues, subgridSshValues, subgridAreas, sshWetAverage)!{{{
       implicit none
 
@@ -1291,18 +1338,117 @@ vertex:do iVertex = 1,nVerticesSolve
 
 !***********************************************************************
 !
-!  routine ocn_init_validate_parabolic_bowl
+!  routine ocn_init_setup_global_ocean_read_topo
 !
-!> \brief   Validation for this initial condition
-!> \author  Steven Brus
-!> \date   November 2022
+!> \brief   Read the topography IC file
+!> \author  D. Wirasaet, S. Brus
+!> \date    Sep 2023 
 !> \details
-!>  This routine validates the configuration options for this case.
+!>  This routine reads the topography IC file, including latitude and longitude
+!>   information for topography data.
+!>
+!>  Adapted from ocn_init_setup_global_ocean_read_topo
+!-----------------------------------------------------------------------
+    subroutine ocn_init_setup_Buttermilk_bay_read_topo(domain, iErr)!{{{
+       type (domain_type), intent(inout) :: domain
+       integer, intent(out) :: iErr
+
+       type (MPAS_Stream_type) :: topographyStream
+
+       iErr = 0
+
+       ! Define stream for depth levels
+       call MPAS_createStream(topographyStream, domain % iocontext, &
+                config_Buttermilk_bay_topography_file, MPAS_IO_NETCDF, &
+                                                   MPAS_IO_READ, ierr=iErr)
+
+       ! Setup topoLat, topoLon, and topoIC fields for stream to be read in
+       topoLat % fieldName = trim(config_Buttermilk_bay_topography_lat_varname)
+       topoLat % dimSizes(1) = nLatTopo
+       topoLat % dimNames(1) = trim(config_Buttermilk_bay_topography_nlat_dimname)
+       topoLat % isVarArray = .false.
+       topoLat % isPersistent = .true.
+       topoLat % isActive = .true.
+       topoLat % hasTimeDimension = .false.
+       topoLat % block => domain % blocklist
+       allocate(topoLat % attLists(1))
+       allocate(topoLat % array(nLatTopo))
+
+       topoLon % fieldName = trim(config_Buttermilk_bay_topography_lon_varname)
+       topoLon % dimSizes(1) = nLonTopo
+       topoLon % dimNames(1) = trim(config_Buttermilk_bay_topography_nlon_dimname)
+       topoLon % isVarArray = .false.
+       topoLon % isPersistent = .true.
+       topoLon % isActive = .true.
+       topoLon % hasTimeDimension = .false.
+       topoLon % block => domain % blocklist
+       allocate(topoLon % attLists(1))
+       allocate(topoLon % array(nLonTopo))
+
+       topoIC % fieldName = trim(config_Buttermilk_bay_topography_varname)
+       topoIC % dimSizes(1) = nLonTopo
+       topoIC % dimSizes(2) = nLatTopo
+       topoIC % dimNames(1) = trim(config_Buttermilk_bay_topography_nlon_dimname)
+       topoIC % dimNames(2) = trim(config_Buttermilk_bay_topography_nlat_dimname)
+       topoIC % isVarArray = .false.
+       topoIC % isPersistent = .true.
+       topoIC % isActive = .true.
+       topoIC % hasTimeDimension = .false.
+       topoIC % block => domain % blocklist
+       allocate(topoIC % attLists(1))
+       allocate(topoIC % array(nLonTopo, nLatTopo))
+
+       ! Add topoLat, topoLon, and topoIC fields to stream
+       call MPAS_streamAddField(topographyStream, topoLat, iErr)
+       call MPAS_streamAddField(topographyStream, topoLon, iErr)
+       call MPAS_streamAddField(topographyStream, topoIC, iErr)
+
+
+       ! Read stream
+       call MPAS_readStream(topographyStream, 1, iErr)
+
+       ! Close stream
+       call MPAS_closeStream(topographyStream)
+
+
+    end subroutine ocn_init_setup_Buttermilk_bay_read_topo!}}}
+
+
+!***********************************************************************
 !
+!  routine ocn_init_Buttermilk_bay_destroy_topo_fields
+!
+!> \brief   Topography field cleanup routine
+!> \author  D. Wirasaet and S. Brus
+!> \date    Sep 2023
+!> \details
+!>  This routine destroys the fields that were created to hold topography
+!>  initial condition information
+!>
+!>  NOTE: adapteed from ocn_init_global_ocaen_destroy_topo_fileds
 !-----------------------------------------------------------------------
 
-   subroutine ocn_init_validate_parabolic_bowl(configPool, packagePool, iocontext, iErr)!{{{
-           
+    subroutine ocn_init_Buttermilk_bay_destroy_topo_fields()!{{{
+       implicit none 
+
+       deallocate(topoIC % array)
+       deallocate(topoLat % array)
+       deallocate(topoLon % array)
+    end subroutine ocn_init_Buttermilk_bay_destroy_topo_fields!}}}
+
+
+!***********************************************************************
+!
+!  routine ocn_init_Buttermilk_bay
+!
+!> \brief   Validation for this initial condition
+!> \author  D. Wirasaet and Steven Brus
+!> \date   Sep 2022
+!> \details
+!>  This routine validates the configuration options for this case.
+!> 
+!-----------------------------------------------------------------------
+   subroutine ocn_init_validate_Buttermilk_bay(configPool, packagePool, iocontext, iErr)!{{{
       implicit none 
 
    !--------------------------------------------------------------------
@@ -1311,34 +1457,513 @@ vertex:do iVertex = 1,nVerticesSolve
 
       integer, intent(out) :: iErr
 
-      character (len=StrKIND), pointer :: config_init_configuration
-      integer, pointer :: config_vert_levels, config_parabolic_bowl_vert_levels
-   
+      ! character (len=StrKIND), pointer :: config_init_configuration
+      integer, pointer :: config_vert_levels, config_Buttermilk_bay_vert_levels
+
+
+      type (mpas_io_context_type), pointer :: iocontext_ptr
+      type (MPAS_IO_Handle_type) :: inputFile
+      character (len=StrKIND), pointer :: config_init_configuration, &
+                                          config_Buttermilk_bay_topography_source, &
+                                          config_Buttermilk_bay_topography_file, &
+                                          config_Buttermilk_bay_topography_nlat_dimname, &
+                                          config_Buttermilk_bay_topography_nlon_dimname 
+
       iErr = 0
 
       call mpas_pool_get_config(configPool, 'config_init_configuration', config_init_configuration)
 
-      if(config_init_configuration .ne. trim('parabolic_bowl')) return
+      if(config_init_configuration .ne. trim('buttermilk_bay')) return
 
       call mpas_pool_get_config(configPool, 'config_vert_levels', config_vert_levels)
-      call mpas_pool_get_config(configPool, 'config_parabolic_bowl_vert_levels', config_parabolic_bowl_vert_levels)
+      call mpas_pool_get_config(configPool,  &
+     &      'config_Buttermilk_bay_vert_levels', config_Buttermilk_bay_vert_levels)
 
-      if(config_vert_levels <= 0 .and. config_parabolic_bowl_vert_levels > 0) then
-         config_vert_levels = config_parabolic_bowl_vert_levels
+      if(config_vert_levels <= 0 .and. config_Buttermilk_bay_vert_levels > 0) then
+         config_vert_levels = config_Buttermilk_bay_vert_levels
       else if (config_vert_levels <= 0) then
-         call mpas_log_write( 'Validation failed for para_bowl. Not given a usable value for vertical levels.', MPAS_LOG_CRIT)
+         call mpas_log_write( 'Validation failed for Buttermilk bay.'// &
+     &     'Not given a usable value for vertical levels.', MPAS_LOG_CRIT)
          iErr = 1
       end if
 
-      print*, "in ocn_init_validate_parabolic_bowl()" ; 
+
+      !---------- adapted from ocn_init_validate_global_ocean
+      call mpas_pool_get_config(configPool, 'config_Buttermilk_bay_topography_source', &
+                                config_Buttermilk_bay_topography_source)
+      call mpas_pool_get_config(configPool, 'config_Buttermilk_bay_topography_file', &
+                                config_Buttermilk_bay_topography_file)
+      call mpas_pool_get_config(configPool, 'config_Buttermilk_bay_topography_nlat_dimname', &
+                                config_Buttermilk_bay_topography_nlat_dimname)
+      call mpas_pool_get_config(configPool, 'config_Buttermilk_bay_topography_nlon_dimname', &
+                                config_Buttermilk_bay_topography_nlon_dimname)
+
+
+      if (config_Buttermilk_bay_topography_source /= 'latlon_file' .and. &
+          config_Buttermilk_bay_topography_source /= 'xy_file') then
+         call mpas_log_write( 'Unexpected value for & 
+    &               config_Buttermilk_bay_topography_source: ' &
+             // trim(config_Buttermilk_bay_topography_source), MPAS_LOG_CRIT)
+         iErr = 1
+         return
+      end if
+
+      ! print*, "message ",  config_Buttermilk_bay_topography_file, config_Buttermilk_bay_topography_source     
+      if (config_Buttermilk_bay_topography_file == 'none' .and. &
+          (config_Buttermilk_bay_topography_source == 'latlon_file' .or. &
+          config_Buttermilk_bay_topography_source == 'xy_file') ) then
+         call mpas_log_write( 'Validation failed for Buttermilk bay test case. ' &
+           // 'Invalid filename for config_Buttermilk_bay_topography_file ' &
+           // config_Buttermilk_bay_topography_file // '  ' &
+           // config_Buttermilk_bay_topography_source , MPAS_LOG_CRIT)
+         iErr = 1
+         return
+      end if
+
+!!      call mpas_log_write( ' in ocn_init_validate_buttermilk_bay '//config_Buttermilk_bay_topography_source, MPAS_LOG_CRIT ) 
+
+      if (config_Buttermilk_bay_topography_source == 'latlon_file' .or. &
+           config_Buttermilk_bay_topography_source == 'xy_file'  ) then
+
+!!         call mpas_log_write( ' before io_open', MPAS_LOG_CRIT ) 
+          
+         inputFile = MPAS_io_open(config_Buttermilk_bay_topography_file, & 
+                        MPAS_IO_READ, MPAS_IO_NETCDF, iocontext_ptr, ierr=iErr)
+         if (iErr /= 0) then
+            call mpas_log_write( 'could not open file '// &
+     &              trim(config_Buttermilk_bay_topography_file), MPAS_LOG_CRIT)
+            return
+         end if
+
+         call mpas_log_write( 'after io_open', MPAS_LOG_CRIT ) 
+
+
+         call MPAS_io_inq_dim(inputFile, config_Buttermilk_bay_topography_nlat_dimname, nLatTopo, iErr)
+         call MPAS_io_inq_dim(inputFile, config_Buttermilk_bay_topography_nlon_dimname, nLonTopo, iErr)
+
+         call MPAS_io_close(inputFile, iErr)
+
+         call mpas_log_write( ' in ocn_init_validate_buttermilk_bay &
+                        after io_close', MPAS_LOG_CRIT ) 
+
+       if ( config_Buttermilk_bay_topography_latlon_degrees .and. &
+              config_Buttermilk_bay_topography_source == 'latlon_file' ) then
+          topoLat % array(:) = topoLat % array(:) * pii / 180.0_RKIND
+          topoLon % array(:) = topoLon % array(:) * pii / 180.0_RKIND
+       end if
+
+      end if
+      !----------
+
+      call mpas_log_write( ' Done ocn_init_validate_buttermilk_bay ', MPAS_LOG_CRIT ) 
    !--------------------------------------------------------------------
 
-   end subroutine ocn_init_validate_parabolic_bowl!}}}
+   end subroutine ocn_init_validate_ButterMilk_bay!}}}
+
+
+!!***********************************************************************
+!!
+!!  routine ocn_init_validate_global_ocean
+!!
+!!> \brief   Validation for global ocean test case
+!!> \author  Doug Jacobsen
+!!> \date    03/04/2014
+!!> \details
+!!>  This routine validates the configuration options for the global ocean test case.
+!!
+!!-----------------------------------------------------------------------
+!
+!   subroutine ocn_init_validate_global_ocean(configPool, packagePool, iocontext, iErr)!{{{
+!
+!   !--------------------------------------------------------------------
+!
+!      type (mpas_pool_type), intent(inout) :: configPool, packagePool
+!      type (mpas_io_context_type), intent(inout), target :: iocontext
+!      integer, intent(out) :: iErr
+!
+!      type (mpas_io_context_type), pointer :: iocontext_ptr
+!      type (MPAS_IO_Handle_type) :: inputFile
+!      character (len=StrKIND), pointer :: config_init_configuration, &
+!                                          config_global_ocean_topography_source, &
+!                                          config_global_ocean_depth_file, &
+!                                          config_global_ocean_depth_dimname, &
+!                                          config_global_ocean_temperature_file, &
+!                                          config_global_ocean_salinity_file, &
+!                                          config_global_ocean_tracer_nlat_dimname, &
+!                                          config_global_ocean_tracer_nlon_dimname, &
+!                                          config_global_ocean_tracer_ndepth_dimname, &
+!                                          config_global_ocean_topography_file, &
+!                                          config_global_ocean_topography_nlat_dimname, &
+!                                          config_global_ocean_topography_nlon_dimname, &
+!                                          config_global_ocean_windstress_file, &
+!                                          config_global_ocean_windstress_nlat_dimname, &
+!                                          config_global_ocean_windstress_nlon_dimname, &
+!                                          config_global_ocean_land_ice_topo_file, &
+!                                          config_global_ocean_land_ice_topo_nlat_dimname, &
+!                                          config_global_ocean_land_ice_topo_nlon_dimname, &
+!                                          config_global_ocean_swData_file, &
+!                                          config_global_ocean_swData_nlon_dimname, &
+!                                          config_global_ocean_swData_nlat_dimname, &
+!                                          config_global_ocean_ecosys_file, &
+!                                          config_global_ocean_ecosys_nlat_dimname, &
+!                                          config_global_ocean_ecosys_nlon_dimname, &
+!                                          config_global_ocean_ecosys_ndepth_dimname
+!
+!      integer, pointer :: config_vert_levels, config_global_ocean_tracer_vert_levels, &
+!                                          config_global_ocean_ecosys_vert_levels
+!      logical, pointer :: config_use_ecosysTracers
+!      logical, pointer :: landIceInitActive, config_global_ocean_depress_by_land_ice
+!      logical, pointer :: criticalPassagesActive, config_global_ocean_deepen_critical_passages
+!
+!      iocontext_ptr => iocontext
+!      iErr = 0
+!
+!      call mpas_pool_get_config(configPool, 'config_init_configuration', config_init_configuration)
+!
+!      if(config_init_configuration .ne. trim('global_ocean')) return
+!
+!      call mpas_pool_get_config(configPool, 'config_vert_levels', config_vert_levels)
+!
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_topography_source', &
+!                                config_global_ocean_topography_source)
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_depth_file', &
+!                                config_global_ocean_depth_file)
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_depth_dimname', &
+!                                config_global_ocean_depth_dimname)
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_temperature_file', &
+!                                config_global_ocean_temperature_file)
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_salinity_file', &
+!                                config_global_ocean_salinity_file)
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_tracer_nlat_dimname', &
+!                                config_global_ocean_tracer_nlat_dimname)
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_tracer_nlon_dimname', &
+!                                config_global_ocean_tracer_nlon_dimname)
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_tracer_ndepth_dimname', &
+!                                config_global_ocean_tracer_ndepth_dimname)
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_tracer_vert_levels', &
+!                                config_global_ocean_tracer_vert_levels)
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_topography_file', &
+!                                config_global_ocean_topography_file)
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_topography_nlat_dimname', &
+!                                config_global_ocean_topography_nlat_dimname)
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_topography_nlon_dimname', &
+!                                config_global_ocean_topography_nlon_dimname)
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_depress_by_land_ice', &
+!                                config_global_ocean_depress_by_land_ice)
+!      call mpas_pool_get_config(configPool, 'config_use_ecosysTracers', &
+!                                config_use_ecosysTracers)
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_land_ice_topo_file', &
+!                                config_global_ocean_land_ice_topo_file)
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_land_ice_topo_nlat_dimname', &
+!                                config_global_ocean_land_ice_topo_nlat_dimname)
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_land_ice_topo_nlon_dimname', &
+!                                config_global_ocean_land_ice_topo_nlon_dimname)
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_deepen_critical_passages', &
+!                                config_global_ocean_deepen_critical_passages)
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_windstress_file', &
+!                                config_global_ocean_windstress_file)
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_windstress_nlat_dimname', &
+!                                config_global_ocean_windstress_nlat_dimname)
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_windstress_nlon_dimname', &
+!                                config_global_ocean_windstress_nlon_dimname)
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_swData_file', &
+!                                config_global_ocean_swData_file)
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_swData_nlat_dimname', &
+!                                config_global_ocean_swData_nlat_dimname)
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_swData_nlon_dimname', &
+!                                config_global_ocean_swData_nlon_dimname)
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_ecosys_file', &
+!                                config_global_ocean_ecosys_file)
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_ecosys_nlat_dimname', &
+!                                config_global_ocean_ecosys_nlat_dimname)
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_ecosys_nlon_dimname', &
+!                                config_global_ocean_ecosys_nlon_dimname)
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_ecosys_ndepth_dimname', &
+!                                config_global_ocean_ecosys_ndepth_dimname)
+!      call mpas_pool_get_config(configPool, 'config_global_ocean_ecosys_vert_levels', &
+!                                config_global_ocean_ecosys_vert_levels)
+!
+!      call mpas_pool_get_package(packagePool, 'landIceInitActive', landIceInitActive)
+!      if ( config_global_ocean_depress_by_land_ice) then
+!         landIceInitActive = .true.
+!      end if
+!
+!      call mpas_pool_get_package(packagePool, 'criticalPassagesActive', criticalPassagesActive)
+!      if ( config_global_ocean_deepen_critical_passages) then
+!         criticalPassagesActive = .true.
+!      end if
+!
+!      if (trim(config_global_ocean_depth_file) == 'none') then
+!         call mpas_log_write( 'Validation failed for global ocean. ' &
+!             // 'Invalid filename for config_global_ocean_depth_file', MPAS_LOG_CRIT)
+!         iErr = 1
+!         return
+!      end if
+!
+!      inputFile = MPAS_io_open(config_global_ocean_depth_file, MPAS_IO_READ, MPAS_IO_NETCDF, iocontext_ptr, ierr=iErr)
+!      if (iErr .ne. 0) then
+!         call mpas_log_write( 'could not open file '// trim(config_global_ocean_depth_file), MPAS_LOG_CRIT)
+!         return
+!      end if
+!
+!      call MPAS_io_inq_dim(inputFile, config_global_ocean_depth_dimname, nDepthOutput, iErr)
+!
+!      call MPAS_io_close(inputFile, iErr)
+!
+!      if (trim(config_global_ocean_temperature_file) == 'none') then
+!         call mpas_log_write( 'Validation failed for global ocean. ' &
+!             // 'Invalid filename for config_global_ocean_temperature_file', MPAS_LOG_CRIT)
+!         iErr = 1
+!         return
+!      end if
+!
+!      if (trim(config_global_ocean_salinity_file) == 'none') then
+!         call mpas_log_write( 'Validation failed for global ocean. ' &
+!             // 'Invalid filename for config_global_ocean_salinity_file', MPAS_LOG_CRIT)
+!         iErr = 1
+!         return
+!      end if
+!
+!      inputFile = MPAS_io_open(config_global_ocean_temperature_file, MPAS_IO_READ, MPAS_IO_NETCDF, iocontext_ptr, ierr=iErr)
+!      if (iErr .ne. 0) then
+!         call mpas_log_write( 'could not open file '// trim(config_global_ocean_temperature_file), MPAS_LOG_CRIT)
+!         return
+!      end if
+!
+!      call MPAS_io_inq_dim(inputFile, config_global_ocean_tracer_nlat_dimname, nLatTracer, iErr)
+!      call MPAS_io_inq_dim(inputFile, config_global_ocean_tracer_nlon_dimname, nLonTracer, iErr)
+!      call MPAS_io_inq_dim(inputFile, config_global_ocean_tracer_ndepth_dimname, nDepthTracer, iErr)
+!
+!      call MPAS_io_close(inputFile, iErr)
+!
+!      if (config_global_ocean_tracer_vert_levels <= 0 .and. nDepthTracer > 0) then
+!         config_global_ocean_tracer_vert_levels = nDepthTracer
+!      else if(config_global_ocean_tracer_vert_levels <= 0) then
+!         call mpas_log_write( 'Validation failed for global ocean. ' &
+!              // 'Value of config_global_ocean_tracer_vert_levels=-1 ' &
+!              // 'but nDepthTracer was not correctly read from input file.', MPAS_LOG_CRIT)
+!         iErr = 1
+!      end if
+!
+!      if (trim(config_global_ocean_windstress_file) == 'none') then
+!         call mpas_log_write( 'Validation failed for global ocean. ' &
+!             // 'Invalid filename for config_global_ocean_windstress_file', MPAS_LOG_CRIT)
+!         iErr = 1
+!         return
+!      end if
+!
+!      inputFile = MPAS_io_open(config_global_ocean_swData_file, MPAS_IO_READ, MPAS_IO_NETCDF, iocontext_ptr, ierr=iErr)
+!
+!      call MPAS_io_inq_dim(inputFile, config_global_ocean_swData_nlat_dimname, nLatSW, iErr)
+!      call MPAS_io_inq_dim(inputFile, config_global_ocean_swData_nlon_dimname, nLonSW, iErr)
+!
+!      call MPAS_io_close(inputFile, iErr)
+!
+!      if (config_global_ocean_topography_source /= 'latlon_file' .and. &
+!          config_global_ocean_topography_source /= 'mpas_variable') then
+!         call mpas_log_write( 'Unexpected value for config_global_ocean_topography_source: ' &
+!             // trim(config_global_ocean_topography_source), MPAS_LOG_CRIT)
+!         iErr = 1
+!         return
+!      end if
+!
+!      if (config_global_ocean_topography_file == 'none' .and. &
+!          config_global_ocean_topography_source == 'latlon_file') then
+!         call mpas_log_write( 'Validation failed for global ocean. ' &
+!             // 'Invalid filename for config_global_ocean_topography_file', MPAS_LOG_CRIT)
+!         iErr = 1
+!         return
+!      end if
+!
+!      if (config_global_ocean_topography_source == 'latlon_file') then
+!         inputFile = MPAS_io_open(config_global_ocean_topography_file, MPAS_IO_READ, MPAS_IO_NETCDF, iocontext_ptr, ierr=iErr)
+!         if (iErr /= 0) then
+!            call mpas_log_write( 'could not open file '// trim(config_global_ocean_topography_file), MPAS_LOG_CRIT)
+!            return
+!         end if
+!
+!         call MPAS_io_inq_dim(inputFile, config_global_ocean_topography_nlat_dimname, nLatTopo, iErr)
+!         call MPAS_io_inq_dim(inputFile, config_global_ocean_topography_nlon_dimname, nLonTopo, iErr)
+!
+!         call MPAS_io_close(inputFile, iErr)
+!      end if
+!
+!      inputFile = MPAS_io_open(config_global_ocean_windstress_file, MPAS_IO_READ, MPAS_IO_NETCDF, iocontext_ptr, ierr=iErr)
+!      if (iErr .ne. 0) then
+!         call mpas_log_write( 'could not open file '// trim(config_global_ocean_windstress_file), MPAS_LOG_CRIT)
+!         return
+!      end if
+!
+!      call MPAS_io_inq_dim(inputFile, config_global_ocean_windstress_nlat_dimname, nLatWind, iErr)
+!      call MPAS_io_inq_dim(inputFile, config_global_ocean_windstress_nlon_dimname, nLonWind, iErr)
+!
+!      call MPAS_io_close(inputFile, iErr)
+!
+!      if (config_vert_levels <= 0 .and. nDepthOutput > 0) then
+!         config_vert_levels = nDepthOutput
+!      else if(config_vert_levels <= 0) then
+!         call mpas_log_write( 'Validation failed for global ocean. Not given a usable value for vertical levels.', MPAS_LOG_CRIT)
+!         iErr = 1
+!      end if
+!
+!      if ( config_use_ecosysTracers ) then
+!         if (trim(config_global_ocean_ecosys_file) == 'none') then
+!            call mpas_log_write( &
+!              'Validation failed for global ocean. Invalid filename for config_global_ocean_windstress_file', MPAS_LOG_CRIT)
+!            iErr = 1
+!            return
+!         end if
+!
+!         inputFile = MPAS_io_open(config_global_ocean_ecosys_file, MPAS_IO_READ, MPAS_IO_NETCDF, iocontext_ptr, ierr=iErr)
+!
+!         call MPAS_io_inq_dim(inputFile, config_global_ocean_ecosys_nlat_dimname, nLatEcosys, iErr)
+!         call MPAS_io_inq_dim(inputFile, config_global_ocean_ecosys_nlon_dimname, nLonEcosys, iErr)
+!         call MPAS_io_inq_dim(inputFile, config_global_ocean_ecosys_ndepth_dimname, nDepthEcosys, iErr)
+!
+!         call MPAS_io_close(inputFile, iErr)
+!
+!         if (config_global_ocean_ecosys_vert_levels <= 0 .and. nDepthEcosys > 0) then
+!            config_global_ocean_ecosys_vert_levels = nDepthEcosys
+!         else if(config_global_ocean_ecosys_vert_levels <= 0) then
+!            call mpas_log_write( 'Validation failed for global ocean. ' &
+!                 // 'Value of config_global_ocean_ecosys_vert_levels=-1, ' &
+!                 // 'but nDepthEcosys was not correctly read from input file.', MPAS_LOG_CRIT)
+!            iErr = 1
+!         end if
+!
+!      end if
+!
+!      if (config_global_ocean_depress_by_land_ice) then
+!         if (config_global_ocean_land_ice_topo_file == 'none' .and. &
+!             config_global_ocean_topography_source == 'latlon_file') then
+!            call mpas_log_write( 'Validation failed for global ocean. '// &
+!               'Invalid filename for config_global_ocean_land_ice_topo_file', MPAS_LOG_CRIT)
+!            iErr = 1
+!            return
+!         end if
+!
+!         if(config_global_ocean_topography_source == 'latlon_file') then
+!            inputFile = MPAS_io_open(config_global_ocean_land_ice_topo_file, MPAS_IO_READ, MPAS_IO_NETCDF, iocontext_ptr, ierr=iErr)
+!            if (iErr /= 0) then
+!               call mpas_log_write( 'could not open file '// trim(config_global_ocean_land_ice_topo_file), MPAS_LOG_CRIT)
+!               return
+!            end if
+!
+!            call MPAS_io_inq_dim(inputFile, config_global_ocean_land_ice_topo_nlat_dimname, nLatLandIceThk, iErr)
+!            call MPAS_io_inq_dim(inputFile, config_global_ocean_land_ice_topo_nlon_dimname, nLonLandIceThk, iErr)
+!
+!            call MPAS_io_close(inputFile, iErr)
+!         end if
+!      end if
+!
+!   !--------------------------------------------------------------------
+!
+!   end subroutine ocn_init_validate_global_ocean!}}}
+!
+
+
+
+!!***********************************************************************
+!!
+!!  routine ocn_init_setup_global_ocean_read_topo
+!!
+!!> \brief   Read the topography IC file
+!!> \author  Doug Jacobsen
+!!> \date    03/04/2014
+!!> \details
+!!>  This routine reads the topography IC file, including latitude and longitude
+!!>   information for topography data.
+!!
+!!-----------------------------------------------------------------------
+!
+!    subroutine ocn_init_setup_global_ocean_read_topo(domain, iErr)!{{{
+!       type (domain_type), intent(inout) :: domain
+!       integer, intent(out) :: iErr
+!
+!       type (MPAS_Stream_type) :: topographyStream
+!
+!       iErr = 0
+!
+!       ! Define stream for depth levels
+!       call MPAS_createStream(topographyStream, domain % iocontext, config_global_ocean_topography_file, MPAS_IO_NETCDF, &
+!                              MPAS_IO_READ, ierr=iErr)
+!
+!       ! Setup topoLat, topoLon, and topoIC fields for stream to be read in
+!       topoLat % fieldName = trim(config_global_ocean_topography_lat_varname)
+!       topoLat % dimSizes(1) = nLatTopo
+!       topoLat % dimNames(1) = trim(config_global_ocean_topography_nlat_dimname)
+!       topoLat % isVarArray = .false.
+!       topoLat % isPersistent = .true.
+!       topoLat % isActive = .true.
+!       topoLat % hasTimeDimension = .false.
+!       topoLat % block => domain % blocklist
+!       allocate(topoLat % attLists(1))
+!       allocate(topoLat % array(nLatTopo))
+!
+!       topoLon % fieldName = trim(config_global_ocean_topography_lon_varname)
+!       topoLon % dimSizes(1) = nLonTopo
+!       topoLon % dimNames(1) = trim(config_global_ocean_topography_nlon_dimname)
+!       topoLon % isVarArray = .false.
+!       topoLon % isPersistent = .true.
+!       topoLon % isActive = .true.
+!       topoLon % hasTimeDimension = .false.
+!       topoLon % block => domain % blocklist
+!       allocate(topoLon % attLists(1))
+!       allocate(topoLon % array(nLonTopo))
+!
+!       topoIC % fieldName = trim(config_global_ocean_topography_varname)
+!       topoIC % dimSizes(1) = nLonTopo
+!       topoIC % dimSizes(2) = nLatTopo
+!       topoIC % dimNames(1) = trim(config_global_ocean_topography_nlon_dimname)
+!       topoIC % dimNames(2) = trim(config_global_ocean_topography_nlat_dimname)
+!       topoIC % isVarArray = .false.
+!       topoIC % isPersistent = .true.
+!       topoIC % isActive = .true.
+!       topoIC % hasTimeDimension = .false.
+!       topoIC % block => domain % blocklist
+!       allocate(topoIC % attLists(1))
+!       allocate(topoIC % array(nLonTopo, nLatTopo))
+!
+!       ! Add topoLat, topoLon, and topoIC fields to stream
+!       call MPAS_streamAddField(topographyStream, topoLat, iErr)
+!       call MPAS_streamAddField(topographyStream, topoLon, iErr)
+!       call MPAS_streamAddField(topographyStream, topoIC, iErr)
+!
+!       if(config_global_ocean_topography_has_ocean_frac) then
+!          oceanFracIC % fieldName = trim(config_global_ocean_topography_ocean_frac_varname)
+!          oceanFracIC % dimSizes(1) = nLonTopo
+!          oceanFracIC % dimSizes(2) = nLatTopo
+!          oceanFracIC % dimNames(1) = trim(config_global_ocean_topography_nlon_dimname)
+!          oceanFracIC % dimNames(2) = trim(config_global_ocean_topography_nlat_dimname)
+!          oceanFracIC % isVarArray = .false.
+!          oceanFracIC % isPersistent = .true.
+!          oceanFracIC % isActive = .true.
+!          oceanFracIC % hasTimeDimension = .false.
+!          oceanFracIC % block => domain % blocklist
+!          allocate(oceanFracIC % attLists(1))
+!          allocate(oceanFracIC % array(nLonTopo, nLatTopo))
+!
+!          call MPAS_streamAddField(topographyStream, oceanFracIC, iErr)
+!       end if
+!
+!       ! Read stream
+!       call MPAS_readStream(topographyStream, 1, iErr)
+!
+!       ! Close stream
+!       call MPAS_closeStream(topographyStream)
+!
+!       if (config_global_ocean_topography_latlon_degrees) then
+!          topoLat % array(:) = topoLat % array(:) * pii / 180.0_RKIND
+!          topoLon % array(:) = topoLon % array(:) * pii / 180.0_RKIND
+!       end if
+!
+!    end subroutine ocn_init_setup_global_ocean_read_topo!}}}
+
 
 
 !***********************************************************************
 
-end module ocn_init_parabolic_bowl
+end module ocn_init_Buttermilk_bay
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 ! vim: foldmethod=marker
