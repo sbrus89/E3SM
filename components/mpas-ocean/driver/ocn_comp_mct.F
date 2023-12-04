@@ -2575,7 +2575,7 @@ contains
                                                avgOceanSurfaceDOCSemiLabile, &
                                                avgOceanSurfaceFeParticulate, &
                                                avgOceanSurfaceFeDissolved, &
-                                               ssh
+                                               avgSSH
 
    real (kind=RKIND), dimension(:,:), pointer :: avgTracersSurfaceValue, avgSurfaceVelocity, &
                                                  avgOceanSurfacePhytoC, &
@@ -2626,7 +2626,7 @@ contains
      call mpas_pool_get_dimension(forcingPool, 'index_avgSurfaceVelocityZonal', index_avgZonalSurfaceVelocity)
      call mpas_pool_get_dimension(forcingPool, 'index_avgSurfaceVelocityMeridional', index_avgMeridionalSurfaceVelocity)
 
-     call mpas_pool_get_array(statePool, 'ssh', ssh, 1)
+     call mpas_pool_get_array(forcingPool, 'avgSSH', avgSSH, 1)
      call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, 1)
 
      call mpas_pool_get_array(forcingPool, 'landIceMask', landIceMask)
@@ -2686,15 +2686,11 @@ contains
        o2x_o % rAttr(index_o2x_So_u, n) = avgSurfaceVelocity(index_avgZonalSurfaceVelocity, i)
        o2x_o % rAttr(index_o2x_So_v, n) = avgSurfaceVelocity(index_avgMeridionalSurfaceVelocity, i)
 
-       o2x_o % rAttr(index_o2x_So_ssh, n)  = ssh(i)
+       o2x_o % rAttr(index_o2x_So_ssh, n)  = avgSSH(i)
        o2x_o % rAttr(index_o2x_So_dhdx, n) = filteredSSHGradientZonal(i)
        o2x_o % rAttr(index_o2x_So_dhdy, n) = filteredSSHGradientMeridional(i)
 
        o2x_o % rAttr(index_o2x_Faoo_h2otemp, n) = avgTotalFreshWaterTemperatureFlux(i) * rho_sw * cp_sw
-
-       if (ocn_rof_two_way) then
-         o2x_o % rAttr(index_o2x_So_ssh, n)       = ssh(i)
-       end if
 
        if ( frazilIceActive ) then
           ! negative when frazil ice can be melted

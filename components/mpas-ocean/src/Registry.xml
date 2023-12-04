@@ -1932,6 +1932,7 @@
 			<var name="frazilSurfacePressure"/>
 			<var name="filteredSSHGradientZonal"/>
 			<var name="filteredSSHGradientMeridional"/>
+			<var name="avgSSH"/>
 			<var name="forcingGroupNames"/>
 			<var name="forcingGroupRestartTimes"/>
             <var name="gotmVertViscTopOfCell"/>
@@ -3679,6 +3680,10 @@
 				 description="Time averaged meridional gradient of SSH"
 			/>
 		</var_array>
+		<var name="avgSSH" type="real" dimensions="nCells Time" units="m"
+			description="Time averaged SSH"
+			packages="forwardMode;analysisMode"
+		/>
 		<var name="filteredSSHGradientZonal" type="real" dimensions="nCells Time" units="1"
 			description="Time filtered zonal gradient of SSH"
 			packages="forwardMode;analysisMode"
