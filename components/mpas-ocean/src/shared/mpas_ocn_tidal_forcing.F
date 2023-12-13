@@ -253,6 +253,9 @@ contains
         end if
 
         ! ensure tidalHeight can't push flow below anticipated minimum
+        !
+        ! - DW: will need some mod here 
+        !
         if (config_use_wetting_drying .and. tidalInputMask(iCell) == 1.0_RKIND) then
           ! ensure that tidal height can't force below total minimum thickness
           ! condition wrong to ensure that there isn't any drying according to criteria
@@ -281,6 +284,8 @@ contains
         tidalBCValue(iCell) = tidalHeight
 
       end do   ! do iCell = 1, nCells
+
+!      print*, "Tidal heigh = ", tidalHeight ; 
 
    end subroutine ocn_tidal_forcing_build_array !}}}
 

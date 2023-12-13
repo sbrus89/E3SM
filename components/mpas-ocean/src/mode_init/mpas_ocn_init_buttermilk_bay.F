@@ -145,6 +145,7 @@ contains
     type (mpas_pool_type), pointer :: statePool
     type (mpas_pool_type), pointer :: tracersPool
     type (mpas_pool_type), pointer :: verticalMeshPool
+    type (mpas_pool_type), pointer :: forcingPool
 
     ! local variables
     integer :: iCell, iEdge, iVertex, k, idx
@@ -177,8 +178,10 @@ contains
     real (kind=RKIND), dimension(:), pointer :: areaCell
     real (kind=RKIND), dimension(:,:), pointer :: edgeNormalVectors
     real (kind=RKIND), dimension(:,:), pointer :: normalVelocity
+    ! Elevation Bcs
+    real (kind=RKIND), dimension(:), pointer :: tidalInputMask
 
-  
+    
     real (kind=RKIND):: HH, uu, vv
     real (kind=RKIND):: RR, num, den
     real (kind=RKIND):: xshift = 0.0, yshift = 0.0 
@@ -194,16 +197,15 @@ contains
     integer :: c1, c2
     real (kind=RKIND) :: x(3), y(3)
     integer :: slice, nSlice
-    integer :: i,j
     real (kind=RKIND) :: deltaZ
 ! DW
-    integer:: jj
+    integer:: i, j, jj
     integer:: nsubgridCellEdge, iEdgeSegment
     real (kind=RKIND):: pi
     real (kind=RKIND), dimension(:,:), allocatable :: cellEdgeBathymetryValues
     real (kind=RKIND), dimension(:), allocatable:: dsEdge
     real (kind=RKIND), dimension(:), allocatable:: xSubgridCell, ySubgridCell
-
+    real (kind=RKIND):: bathymetryMin, bathymetryMax 
     iErr = 0
 
     call ocn_subgrid_init(domain,iErr)
@@ -258,9 +260,12 @@ contains
     call mpas_dmpar_max_real(domain % dminfo, xMax, xMaxGlobal)
     call mpas_dmpar_min_real(domain % dminfo, dcEdgeMin, dcEdgeMinGlobal)
 
-    pi = acos(-1.0_RKIND) ; 
-    xshift = 0.0_RKIND ;
-    yshift = -(YMin + dcEdgeMin*sin(pi/3.0_RKIND)) ;
+    pi = acos(-1.0_RKIND)  
+ 
+    xshift = xMin  
+    yshift = (3.0_RKIND*yMin + dcEdgeMin*sin(pi/3.0_RKIND))/3.0_RKIND 
+    ! print*, "xMin, yMin = ", xMin, yMin, dcEdgeMin 
+    ! print*, "xshift, yshift = ", xshift, yshift  
 
     !***********************************************************************
     !
@@ -281,11 +286,14 @@ contains
     !--------------------------------------------------------------------
 
     block_ptr => domain % blocklist
-    do while(associated(block_ptr))
+blockptr_doloop:do while(associated(block_ptr))
        call mpas_pool_get_subpool(block_ptr % structs, 'mesh', meshPool)
        call mpas_pool_get_subpool(block_ptr % structs, 'state', statePool)
        call mpas_pool_get_subpool(block_ptr % structs, 'verticalMesh', verticalMeshPool)
        call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
+
+       call mpas_pool_get_subpool(block_ptr % structs, 'forcing', forcingPool)
+       call mpas_pool_get_array(forcingPool, 'tidalInputMask', tidalInputMask)
 
        call mpas_pool_get_dimension(meshPool, 'nVertLevels', nVertLevels) ;
        call mpas_pool_get_dimension(meshPool, 'nCellsSolve', nCellsSolve) ;
@@ -377,6 +385,19 @@ contains
 
           xVertex = xVertex - xshift ;
           yVertex = yVertex - yshift ; 
+
+          ! get min, max coordinates of model domain   !
+          ! after adjusting the coordinates             !
+          yMin = min( yMin, minval(yCell(1:nCellsSolve)))
+          yMax = max( yMax, maxval(yCell(1:nCellsSolve)))
+          xMin = min( xMin, minval(xCell(1:nCellsSolve)))
+          xMax = max( xMax, maxval(xCell(1:nCellsSolve)))
+
+          ! Determine global min and max values.
+          call mpas_dmpar_min_real(domain % dminfo, yMin, yMinGlobal)
+          call mpas_dmpar_max_real(domain % dminfo, yMax, yMaxGlobal)
+          call mpas_dmpar_min_real(domain % dminfo, xMin, xMinGlobal)
+          call mpas_dmpar_max_real(domain % dminfo, xMax, xMaxGlobal)
        end if
 
        ! Initlialze vector
@@ -423,7 +444,14 @@ contains
       allocate(subgridVValues(maxEdges*nSubgridTriPerSlice))
 
 
+      allocate(xSubgridCell(maxEdges*nSubgridTriPerSlice)) 
+      allocate(ySubgridCell(maxEdges*nSubgridTriPErSlice)) 
+      xSubgridCell = 0.0_RKIND  
+      ySubgridCell = 0.0_RKIND 
+
       open( unit = 101, file = 'BM_bathy.dat', action = 'write' ) ; 
+      open( unit = 102, file = 'BM_ssh.dat', action = 'write' ) ; 
+
 
       do iCell = 1,nCellsSolve
         !
@@ -452,21 +480,30 @@ contains
           x(3) = xVertex(v2)
           y(3) = yVertex(v2)
 
-          call ocn_init_evaluate_subgrid_data(x, y, nSubgridTriPerSlice, nSubgridCell, rSubgridPoints, sSubgridPoints, &
-                                              subgridBathymetryValues, subgridAreas, subgridSshValues)
-
+          call ocn_init_evaluate_subgrid_data( x, y, nSubgridTriPerSlice, nSubgridCell, rSubgridPoints, sSubgridPoints, &
+                                         subgridBathymetryValues, subgridAreas, subgridSshValues, &
+                                         subgridUValues, subgridVValues, xSubgridCell, ysubgridCell ) !{{{
         enddo
       
         do jj = 1, nSubgridCell
-           WRITE( 101, '(I6,2F16.8)' ) iCell, subgridBathymetryValues(jj) ;  
+           WRITE( 101, '(I6,3F16.8)' ) iCell, xSubgridCell(jj), ysubgridCell(jj), subgridBathymetryValues(jj) ; 
+           WRITE( 102, '(I6,3F16.8)' ) iCell, xSubgridCell(jj), ysubgridCell(jj), subgridSshValues(jj) ; 
         end do 
 
         ! Evaluate bounds of look-up table range
-        !---------------------------------------------------------------
+        !---------------------------------------------------------------        
+        bathymetryMin = maxval( subgridBathymetryValues(1:nSubgridCell) ) 
+        bathymetryMax = minval( subgridBathymetryValues(1:nSubgridCell) )
 
-        subgridSshCellTableRange(1,iCell) = -maxval(subgridBathymetryValues(1:nSubgridCell)) + config_drying_min_cell_height + eps
-        subgridSshCellTableRange(2,iCell) = -minval(subgridBathymetryValues(1:nSubgridCell))
-       
+        if ( abs(bathymetryMin - bathymetryMax) > 200.0*eps ) then
+            subgridSshCellTableRange(1,iCell) = -maxval(subgridBathymetryValues(1:nSubgridCell)) + config_drying_min_cell_height + eps
+            subgridSshCellTableRange(2,iCell) = -minval(subgridBathymetryValues(1:nSubgridCell))
+        else
+            ! flat bathy !
+            subgridSshCellTableRange(1,iCell) =  -bathymetryMin + config_drying_min_cell_height + eps
+            subgridSshCellTableRange(2,iCell) =  -bathymetryMin + 2.0*config_drying_min_cell_height + eps  
+        endif 
+
         ! Evaluate subgrid bathymetry
         !---------------------------------------------------------------
         ! DW
@@ -481,12 +518,12 @@ contains
 
         ! Evaluate wet layerThickness average
         !---------------------------------------------------------------
-        call ocn_init_wet_average(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, layerThickness(1,iCell))
-
+!!$        call ocn_init_wet_average(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, layerThickness(1,iCell))
         
-!!$        call ocn_init_wet_average_ssh(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, ssh(iCell))!{{{
+        call ocn_init_wet_average_ssh(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, ssh(iCell))!{{{
       enddo
       close( unit = 101 ) ;
+      close( unit = 102 ) ; 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Edges
@@ -500,9 +537,6 @@ contains
       allocate( cellEdgeBathymetryValues(3,nSubgridCellEdge) )   
       allocate( dsEdge(nSubgridCellEdge) ) 
       cellEdgeBathymetryValues = -99999 ; 
-
-      allocate(xSubgridCell(maxEdges*nSubgridTriPerSlice))
-      allocate(ySubgridCell(maxEdges*nSubgridTriPErSlice)) 
 
 
       do iEdge = 1,nEdgesSolve
@@ -704,6 +738,7 @@ vertex:do iVertex = 1,nVerticesSolve
            maxLevelCell(iCell) = nVertLevels ; ! sigma coordinates 
           end do
 
+          open( unit = 103, file = 'ssh_cell.dat', action = 'write') 
           do iCell = 1, nCellsSolve
             !
             ! make sure depth is thick enough via ssh = TOTAL_DEPTH - bottomDepth
@@ -712,17 +747,17 @@ vertex:do iVertex = 1,nVerticesSolve
  
             if (config_use_subgrid_wetting_drying) then
 
-              call ocn_subgrid_ssh_lookup(layerThickness(1,iCell),&
-                                          subgridWetVolumeCellTable(:,iCell),&
-                                          subgridSshCellTableRange(:,iCell),&
-                                          bottomDepth(iCell),&
-                                          subgridCellBathymetryMin(iCell),&
-                                          ssh(iCell))
-!              call ocn_subgrid_layer_thickness_lookup(ssh(iCell), & 
-!                                              subgridWetVolumeCellTable(:,iCell), &
-!                                              subgridSshCellTableRange(:,iCell),&
-!                                              bottomDepth(iCell),&
-!                                              LayerThickness(1,iCell))
+!              call ocn_subgrid_ssh_lookup(layerThickness(1,iCell),&
+!                                          subgridWetVolumeCellTable(:,iCell),&
+!                                          subgridSshCellTableRange(:,iCell),&
+!                                          bottomDepth(iCell),&
+!                                          subgridCellBathymetryMin(iCell),&
+!                                          ssh(iCell))
+              call ocn_subgrid_layer_thickness_lookup(ssh(iCell), & 
+                                              subgridWetVolumeCellTable(:,iCell), &
+                                              subgridSshCellTableRange(:,iCell),&
+                                              bottomDepth(iCell),&
+                                              LayerThickness(1,iCell))
 
             else
               call ocn_init_Buttermilk_bay_bathymetry(xCell(iCell),yCell(iCell),bottomDepth(iCell))
@@ -741,18 +776,22 @@ vertex:do iVertex = 1,nVerticesSolve
                     realArgs=(/layerThickness(k,iCell)/))
                 end if
               end do
-            endif
+           endif
           
           
             do k = 1, maxLevelCell(iCell)
               restingThickness(k,iCell) = bottomDepth(iCell)/maxLevelCell(iCell)
             end do
+
+            write(103,*) iCell, ssh(iCell), LayerThickness(1,iCell) ; 
+
           end do
-          
+          close( unit = 103 ) ;
+
        end if 
 
        block_ptr => block_ptr % next
-    end do
+    end do blockptr_doloop
 
      do iCell = 1,nCellsSolve
          call ocn_subgrid_layer_thickness_lookup(ssh(iCell), & 
@@ -763,6 +802,26 @@ vertex:do iVertex = 1,nVerticesSolve
      enddo
      !
 
+     open( unit = 101, file = 'bcmask.dat', action = 'write' ) ; 
+     ! Set tidal boundary mask
+     do iCell = 1, nCellsSolve
+       tidalInputMask(iCell) = 0.0_RKIND
+       if ( yCell(iCell) < (yMin+(dcEdgeMin*sin(pi/3.0_RKIND)/2.0_RKIND))  &  
+         .and.  yCell(iCell) > (yMin-(dcEDgeMin*sin(pi/3.0_RKIND)/2.0_RKIND)) ) then
+
+          if ( (xCell(iCell) - dcEdgeMin/2.0_RKIND) > 2048.0_RKIND  &
+           .and.  (xCell(iCell) + dcEdgeMin/2.0_RKIND) < 3072.0_RKIND ) then
+              tidalInputMask(iCell) = 1.0_RKIND
+          end if
+        ! spread it over multiple cells
+        ! if (yCell(iCell) > (25.0e3 - 3*dcEdgeMinGlobal)) then
+        !  tidalInputMask(iCell) = exp(-((yCell(iCell)-25.0e3)/dcEdgeMinGlobal)**2.0)
+       end if
+       write(101,'(I10,F16.8)') iCell, tidalInputMask(iCell) ; 
+     end do
+     
+     close( 101 ) ;   
+    !
 
     deallocate(interfaceLocations)
     if (config_global_ocean_topography_source == 'latlon_file') then
@@ -948,7 +1007,7 @@ vertex:do iVertex = 1,nVerticesSolve
         ! Calculate area of sub-triangle
         call ocn_init_tri_area(xSubgridPoints(:), ySubgridPoints(:), subgridAreas(nSubgridCV))
 
-        ! Optionally evalulate ssh 
+        ! Optionally evalulate ssh !
         if (present(subgridsshValues)) then
            call ocn_init_Buttermilk_bay_ssh(xCenter, yCenter, subgridBathymetryValues(nSubgridCV), subgridSshValues(nSubgridCV))
         endif
@@ -1002,6 +1061,7 @@ vertex:do iVertex = 1,nVerticesSolve
       dx = (/ topoLon%array(2) - topoLon%array(1), &
               topoLat%array(2) - topoLat%array(1) /) ;
      
+      ! Bilienar interpolation
       xc = (/ x, y /) ; 
       ix = floor( (xc - x0)/dx ) + 1 ;
          
@@ -1029,7 +1089,7 @@ vertex:do iVertex = 1,nVerticesSolve
 
         depth = sum( bath*f ) ;              
       else
-        ! nearest extrapolation
+        ! nearest extrapolation !
         ix(1) = merge( 1, ix(1), ix(1) < 1 ) ; 
         ix(1) = merge( nLonTopo, ix(1), ix(1) >= nLonTopo ) ; 
         ix(2) = merge( 1, ix(2), ix(2) < 1 )  ;
@@ -1037,7 +1097,7 @@ vertex:do iVertex = 1,nVerticesSolve
       
         depth = TopoIC%array(ix(1),ix(2)) ;
       endif       
-
+            
       return ;       
    end subroutine ocn_init_Buttermilk_bay_bathymetry!}}}
 
@@ -1071,9 +1131,12 @@ vertex:do iVertex = 1,nVerticesSolve
 !      !ssh = - bottomDepth + max(ssh + bottomDepth, config_drying_min_cell_height + eps)
 
       ssh = 0.0_RKIND ;
-      ssh = merge( -bottomDepth + eps, ssh, ssh + bottomDepth < eps ) ;
+      ! ssh = merge( -bottomDepth + eps, ssh, ssh + bottomDepth < eps ) ;
+      ! ssh = - bottomDepth + max( ssh + bottomDepth, config_drying_min_cell_height + eps ) ; 
 
+      ssh = - bottomDepth + max( ssh + bottomDepth, 0.0_RKIND ) ; 
 
+      return 
    !--------------------------------------------------------------------
 
    end subroutine ocn_init_Buttermilk_bay_ssh!}}}
@@ -1397,19 +1460,26 @@ vertex:do iVertex = 1,nVerticesSolve
        topoIC % block => domain % blocklist
        allocate(topoIC % attLists(1))
        allocate(topoIC % array(nLonTopo, nLatTopo))
+       
 
        ! Add topoLat, topoLon, and topoIC fields to stream
        call MPAS_streamAddField(topographyStream, topoLat, iErr)
        call MPAS_streamAddField(topographyStream, topoLon, iErr)
        call MPAS_streamAddField(topographyStream, topoIC, iErr)
-
-
+ 
        ! Read stream
        call MPAS_readStream(topographyStream, 1, iErr)
+       topoIC%array = -topoIC%array ; 
+
 
        ! Close stream
        call MPAS_closeStream(topographyStream)
 
+       if ( config_Buttermilk_bay_topography_latlon_degrees .and. &
+              config_Buttermilk_bay_topography_source == 'latlon_file' ) then
+          topoLat % array(:) = topoLat % array(:) * pii / 180.0_RKIND
+          topoLon % array(:) = topoLon % array(:) * pii / 180.0_RKIND
+       end if
 
     end subroutine ocn_init_setup_Buttermilk_bay_read_topo!}}}
 
@@ -1499,6 +1569,11 @@ vertex:do iVertex = 1,nVerticesSolve
                                 config_Buttermilk_bay_topography_nlon_dimname)
 
 
+      call mpas_log_write( config_Buttermilk_bay_topography_source  )  
+      call mpas_log_write( config_Buttermilk_bay_topography_file ) 
+      call mpas_log_write( config_Buttermilk_bay_topography_nlat_dimname )  
+      call mpas_log_write( config_Buttermilk_bay_topography_nlon_dimname ) 
+
       if (config_Buttermilk_bay_topography_source /= 'latlon_file' .and. &
           config_Buttermilk_bay_topography_source /= 'xy_file') then
          call mpas_log_write( 'Unexpected value for & 
@@ -1520,42 +1595,43 @@ vertex:do iVertex = 1,nVerticesSolve
          return
       end if
 
-!!      call mpas_log_write( ' in ocn_init_validate_buttermilk_bay '//config_Buttermilk_bay_topography_source, MPAS_LOG_CRIT ) 
+      call mpas_log_write( ' in ocn_init_validate_buttermilk_bay '//config_Buttermilk_bay_topography_source ) 
 
       if (config_Buttermilk_bay_topography_source == 'latlon_file' .or. &
            config_Buttermilk_bay_topography_source == 'xy_file'  ) then
 
 !!         call mpas_log_write( ' before io_open', MPAS_LOG_CRIT ) 
           
-         inputFile = MPAS_io_open(config_Buttermilk_bay_topography_file, & 
-                        MPAS_IO_READ, MPAS_IO_NETCDF, iocontext_ptr, ierr=iErr)
-         if (iErr /= 0) then
-            call mpas_log_write( 'could not open file '// &
-     &              trim(config_Buttermilk_bay_topography_file), MPAS_LOG_CRIT)
-            return
-         end if
+!!         inputFile = MPAS_io_open(trim(config_Buttermilk_bay_topography_file), & 
+!!                        MPAS_IO_READ, MPAS_IO_NETCDF, iocontext_ptr, ierr=iErr)
+!!         if (iErr /= 0) then
+!!            call mpas_log_write( 'could not open file '// &
+!!     &              trim(config_Buttermilk_bay_topography_file), MPAS_LOG_CRIT)
+!!            return
+!!         end if
 
-         call mpas_log_write( 'after io_open', MPAS_LOG_CRIT ) 
+!!         call mpas_log_write( 'after io_open', MPAS_LOG_CRIT ) 
 
+         nLatTopo = 3585 ; 
+         nLonTopo = 3585 ; 
+!!         call MPAS_io_inq_dim(inputFile, config_Buttermilk_bay_topography_nlat_dimname, nLatTopo, iErr)
+!!         call MPAS_io_inq_dim(inputFile, config_Buttermilk_bay_topography_nlon_dimname, nLonTopo, iErr)
 
-         call MPAS_io_inq_dim(inputFile, config_Buttermilk_bay_topography_nlat_dimname, nLatTopo, iErr)
-         call MPAS_io_inq_dim(inputFile, config_Buttermilk_bay_topography_nlon_dimname, nLonTopo, iErr)
+!!         call MPAS_io_close(inputFile, iErr)
 
-         call MPAS_io_close(inputFile, iErr)
+!!         call mpas_log_write( ' in ocn_init_validate_buttermilk_bay &
+!!                        after io_close', MPAS_LOG_CRIT ) 
 
-         call mpas_log_write( ' in ocn_init_validate_buttermilk_bay &
-                        after io_close', MPAS_LOG_CRIT ) 
-
-       if ( config_Buttermilk_bay_topography_latlon_degrees .and. &
-              config_Buttermilk_bay_topography_source == 'latlon_file' ) then
-          topoLat % array(:) = topoLat % array(:) * pii / 180.0_RKIND
-          topoLon % array(:) = topoLon % array(:) * pii / 180.0_RKIND
-       end if
+!!       if ( config_Buttermilk_bay_topography_latlon_degrees .and. &
+!!              config_Buttermilk_bay_topography_source == 'latlon_file' ) then
+!!          topoLat % array(:) = topoLat % array(:) * pii / 180.0_RKIND
+!!          topoLon % array(:) = topoLon % array(:) * pii / 180.0_RKIND
+!!       end if
 
       end if
       !----------
 
-      call mpas_log_write( ' Done ocn_init_validate_buttermilk_bay ', MPAS_LOG_CRIT ) 
+      call mpas_log_write( ' Done ocn_init_validate_buttermilk_bay ' ) 
    !--------------------------------------------------------------------
 
    end subroutine ocn_init_validate_ButterMilk_bay!}}}

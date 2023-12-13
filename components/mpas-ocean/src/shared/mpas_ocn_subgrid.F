@@ -134,7 +134,8 @@ contains
         !layerThick = 0.0_RKIND
         layerThick = config_drying_min_cell_height + eps
         !call mpas_log_write('thickness lookup, below table: $r $r $r',realArgs=(/layerThick,zeta,bathymetry/))
-      else 
+      else
+        ! 
         do lev = 1, nSubgridTableLevels-1
           zeta0 = (real(lev,RKIND)-1.0_RKIND)*deltaZ + tableMin
           zeta1 = zeta0 + deltaZ

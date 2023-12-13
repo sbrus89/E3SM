@@ -692,6 +692,9 @@ module ocn_time_integration_rk4
             !$omp end parallel
          end if
 
+!         print*, config_use_tidal_forcing 
+!         print*, trim(config_tidal_forcing_type) 
+
          ! direct application of tidal boundary condition
          if (config_use_tidal_forcing .and. trim(config_tidal_forcing_type) == 'direct') then
            do iCell=1, nCells
@@ -708,6 +711,8 @@ module ocn_time_integration_rk4
                  layerThicknessNew(k, iCell) = tidalInputMask(iCell)*(tidalBCValue(iCell) + bottomDepth(iCell))*(restingThickness(k,iCell)/totalDepth)
                  !(1.0_RKIND - tidalInputMask(iCell))*layerThicknessNew(k, iCell)  ! generalized tappered assumption code
                end do
+
+               print*, iCell, totalDepth, layerThicknessNew(1, iCell) ; 
              end if
            end do
          end if
