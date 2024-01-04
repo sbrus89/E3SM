@@ -2561,15 +2561,15 @@
 			 description="Pre-computed wet volume per unit area for each edge at given ssh value"
 			 packages="subgridWetDryPKG"
 		/>
-		<var name="subgridSshCellTableRange" type="real" dimensions="TWO nCells" units="m"
+		<var name="subgridSshCellTableRange" type="real" dimensions="R3 nCells" units="m"
 			 description="Range of ssh values used for cell lookup table"
 			 packages="subgridWetDryPKG"
 		/>
-		<var name="subgridSshEdgeTableRange" type="real" dimensions="TWO nEdges" units="m"
+		<var name="subgridSshEdgeTableRange" type="real" dimensions="R3 nEdges" units="m"
 			 description="Range of ssh vaules used for edge lookup table"
 			 packages="subgridWetDryPKG"
 		/>
-		<var name="subgridSshVertexTableRange" type="real" dimensions="TWO nVertices" units="m"
+		<var name="subgridSshVertexTableRange" type="real" dimensions="R3 nVertices" units="m"
 			 description="Range of ssh vaules used for vertex lookup table"
 			 packages="subgridWetDryPKG"
 		/>
