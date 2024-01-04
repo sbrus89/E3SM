@@ -122,6 +122,8 @@ contains
 
       type (mpas_pool_iterator_type) :: groupItr
 
+      logical, save::  first = .true. 
+      
       call mpas_pool_get_dimension(block % dimensions, 'nCells', nCells)
       call mpas_pool_get_dimension(block % dimensions, 'nEdges', nEdges)
       call mpas_pool_get_dimension(block % dimensions, 'nVertices', nVertices)
@@ -152,6 +154,15 @@ contains
             indMLD(iCell) = minLevelCell(iCell)
          end do
       end if
+
+      if ( first ) then
+         open( unit = 109, file = 'ssh0_before.dat' )     
+         do iCell = 1, nCells
+            write(109,'(I7,E17.9)')  iCell, ssh( iCell ) ; 
+         end do
+         close(109) ;
+       end if
+
 
 #ifdef MPAS_OPENACC
       !$acc enter data copyin(layerThickness, normalVelocity)
@@ -268,7 +279,15 @@ contains
       err = ior(err, err1)
 
 
+      if ( first ) then
+         open( unit = 109, file = 'ssh0_afer.dat' )     
+         do iCell = 1, nCells
+            write(109,'(I7,E17.9)')  iCell, ssh( iCell ) ; 
+         end do
+         close(109) ;
+      end if
 
+      first = .false. 
    end subroutine ocn_init_routines_block!}}}
 
 

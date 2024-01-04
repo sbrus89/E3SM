@@ -495,13 +495,17 @@ blockptr_doloop:do while(associated(block_ptr))
         bathymetryMin = maxval( subgridBathymetryValues(1:nSubgridCell) ) 
         bathymetryMax = minval( subgridBathymetryValues(1:nSubgridCell) )
 
-        if ( abs(bathymetryMin - bathymetryMax) > 200.0*eps ) then
-            subgridSshCellTableRange(1,iCell) = -maxval(subgridBathymetryValues(1:nSubgridCell)) + config_drying_min_cell_height + eps
+        if ( abs(bathymetryMin - bathymetryMax) > 100.0*eps ) then
+!            subgridSshCellTableRange(1,iCell) = -maxval(subgridBathymetryValues(1:nSubgridCell)) + config_drying_min_cell_height + eps
+!            subgridSshCellTableRange(2,iCell) = -minval(subgridBathymetryValues(1:nSubgridCell))
+            subgridSshCellTableRange(1,iCell) = -maxval(subgridBathymetryValues(1:nSubgridCell))
             subgridSshCellTableRange(2,iCell) = -minval(subgridBathymetryValues(1:nSubgridCell))
         else
             ! flat bathy !
-            subgridSshCellTableRange(1,iCell) =  -bathymetryMin + config_drying_min_cell_height + eps
-            subgridSshCellTableRange(2,iCell) =  -bathymetryMin + 2.0*config_drying_min_cell_height + eps  
+!            subgridSshCellTableRange(1,iCell) =  -bathymetryMin + config_drying_min_cell_height + eps
+!            subgridSshCellTableRange(2,iCell) =  -bathymetryMin + 2.0*config_drying_min_cell_height + eps  
+            subgridSshCellTableRange(1,iCell) =  -bathymetryMin + config_drying_min_cell_height
+            subgridSshCellTableRange(2,iCell) =  -bathymetryMin + 2.0*config_drying_min_cell_height  
         endif 
 
         ! Evaluate subgrid bathymetry
@@ -519,9 +523,12 @@ blockptr_doloop:do while(associated(block_ptr))
         ! Evaluate wet layerThickness average
         !---------------------------------------------------------------
 !!$        call ocn_init_wet_average(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, layerThickness(1,iCell))
-        
         call ocn_init_wet_average_ssh(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, ssh(iCell))!{{{
       enddo
+
+
+      
+
       close( unit = 101 ) ;
       close( unit = 102 ) ; 
 

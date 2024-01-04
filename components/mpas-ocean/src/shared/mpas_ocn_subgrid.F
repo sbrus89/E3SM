@@ -271,6 +271,8 @@ contains
       real (kind=RKIND) :: zeta0, zeta1
       real (kind=RKIND) :: phi0, phi1
 
+      real (kind=RKIND):: zetatmp 
+
       tableMin = subgridTableRange(1)
       tableMax = subgridTableRange(2)
       nSubgridTableLevels = config_subgrid_table_levels_init
@@ -285,17 +287,18 @@ contains
       !  call mpas_log_write('ssh, layerThick: $r $r',realArgs=(/zeta0,layerThick0/))
       !enddo
 
+      zetatmp = zeta ; 
       if (layerThick >= layerThickMax) then
         zeta = layerThick - bathymetryMean
-        !call mpas_log_write('ssh lookup, above table: $r $r $r',realArgs=(/layerThick,zeta,bathymetryMean/))
+!S        call mpas_log_write('ssh lookup, above table: $r $r $r',realArgs=(/layerThick,zeta,bathymetryMean/))
 
       else if (layerThick <= layerThickMin) then
         zeta = config_drying_min_cell_height + eps - bathymetryMin
-        !call mpas_log_write('ssh lookup, below table: $r $r $r',realArgs=(/layerThick,zeta,bathymetryMin/))
+!S        call mpas_log_write('ssh lookup, below table: $r $r $r',realArgs=(/layerThick,zeta,bathymetryMin/))
 
       else        
 
-        do lev = 1, nSubgridTableLevels-1
+       levloop: do lev = 1, nSubgridTableLevels-1
           zeta0 = (real(lev,RKIND)-1.0_RKIND)*deltaZ + tableMin
           zeta1 = zeta0 + deltaZ
   
@@ -310,13 +313,17 @@ contains
             zeta = phi0*zeta0 + phi1*zeta1
 
             !call mpas_log_write('ssh lookup, in table: $r $r $r $r',realArgs=(/layerThick,zeta,bathymetryMean,zeta+bathymetryMean/))
-            return
+            !return
+            exit levloop
           end if
   
-        end do
+        end do levloop
       end if
 
       !call mpas_log_write('$r',realArgs=(/zeta/))
+      call mpas_log_write('$r $r $r $r $r', realArgs=(/ &
+           layerThick,layerThickMin,layerThickMax,zetatmp,zeta /) ) ; 
+
 
    end subroutine ocn_subgrid_ssh_lookup!}}}
 
