@@ -131,8 +131,8 @@ contains
         layerThick = zeta + bathymetry
         !call mpas_log_write('thickness lookup, above table: $r $r $r',realArgs=(/layerThick,zeta,bathymetry/))
       else if (zeta <= tableMin) then
-        !layerThick = 0.0_RKIND
-        layerThick = config_drying_min_cell_height + eps
+        layerThick = 0.0_RKIND
+        ! layerThick = config_drying_min_cell_height + eps
         !call mpas_log_write('thickness lookup, below table: $r $r $r',realArgs=(/layerThick,zeta,bathymetry/))
       else
         ! 
@@ -188,7 +188,7 @@ contains
       !-----------------------------------------------------------------
 
       integer :: lev
-      integer :: nSubgridTableLevels
+      integer :: nSubgrsdTableLevels
 
       real (kind=RKIND) :: tableMin
       real (kind=RKIND) :: tableMax
@@ -293,9 +293,9 @@ contains
 !S        call mpas_log_write('ssh lookup, above table: $r $r $r',realArgs=(/layerThick,zeta,bathymetryMean/))
 
       else if (layerThick <= layerThickMin) then
-        zeta = config_drying_min_cell_height + eps - bathymetryMin
+        zeta = - bathymetryMin ! prevent_drying likely fails to ensure positive water columbn
+!$        zeta = config_drying_min_cell_height + eps - bathymetryMin
 !S        call mpas_log_write('ssh lookup, below table: $r $r $r',realArgs=(/layerThick,zeta,bathymetryMin/))
-
       else        
 
        levloop: do lev = 1, nSubgridTableLevels-1
@@ -321,8 +321,8 @@ contains
       end if
 
       !call mpas_log_write('$r',realArgs=(/zeta/))
-      call mpas_log_write('$r $r $r $r $r', realArgs=(/ &
-           layerThick,layerThickMin,layerThickMax,zetatmp,zeta /) ) ; 
+      !call mpas_log_write('$r $r $r $r $r', realArgs=(/ &
+      !     layerThick,layerThickMin,layerThickMax,zetatmp,zeta /) ) ; 
 
 
    end subroutine ocn_subgrid_ssh_lookup!}}}

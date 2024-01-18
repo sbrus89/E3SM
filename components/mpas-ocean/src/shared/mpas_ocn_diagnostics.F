@@ -719,6 +719,9 @@ contains
          layerThicknessCell1, &
          layerThicknessCell2
 
+      real(kind=RKIND):: eps = 1.0e-10_RKIND  
+     
+      
       ! End preamble
       !-----------------------------------------------------------------
       ! Begin code
@@ -738,12 +741,15 @@ contains
         do iEdge = 1, nEdgesAll
            cell1 = cellsOnEdge(1,iEdge)
            cell2 = cellsOnEdge(2,iEdge)
-           sshMean = 0.5_RKIND * (ssh(cell1) + ssh(cell2))
-           call ocn_subgrid_layer_thickness_lookup(sshMean, &
-                                                   subgridWetVolumeEdgeTable(:,iEdge), &
-                                                   subgridSshEdgeTableRange(:,iEdge), &
-                                                   subgridEdgeBathymetryMean(iEdge), &
-                                                   layerThickEdgeMean(1,iEdge))
+           !sshMean = 0.5_RKIND * (ssh(cell1) + ssh(cell2))
+           !call ocn_subgrid_layer_thickness_lookup(sshMean, &
+           !                                        subgridWetVolumeEdgeTable(:,iEdge), &
+           !                                        subgridSshEdgeTableRange(:,iEdge), &
+           !                                        subgridEdgeBathymetryMean(iEdge), &
+           !                                        layerThickEdgeMean(1,iEdge))
+           layerThickEdgeMean(1,iEdge) = 0.5_RKIND * &
+                                       ( layerThickness(1,cell1) + &
+                                         layerThickness(1,cell2) )
         end do
 #ifndef MPAS_OPENACC
         !$omp end do
@@ -796,12 +802,33 @@ contains
          !$omp parallel
          !$omp do schedule(runtime) private(k)
 #endif
-         do iEdge = 1, nEdgesAll
-         do k = 1,nVertLevels
-            layerThickEdgeFlux(k,iEdge) = &
-            layerThickEdgeMean(k,iEdge)
-         end do
-         end do
+         if ( config_use_subgrid_wetting_drying ) then
+           !      
+           do iEdge = 1, nEdgesAll
+              cell1 = cellsOnEdge(1,iEdge)
+              cell2 = cellsOnEdge(2,iEdge)
+              sshMean = 0.5_RKIND * (ssh(cell1) + ssh(cell2))
+              call ocn_subgrid_layer_thickness_lookup( sshMean, &
+                                                   subgridWetVolumeEdgeTable(:,iEdge), &
+                                                   subgridSshEdgeTableRange(:,iEdge), &
+                                                   subgridEdgeBathymetryMean(iEdge), &
+                                                   layerThickEdgeFlux(1,iEdge) )
+                                           
+              if ( layerThickEdgeFlux(1,iEdge) < eps ) then
+                  layerThickEdgeFlux(1,iEdge) = layerThickEdgeMean(1,iEdge) ;    
+              end if                      
+           end do
+           !
+         else
+
+           do iEdge = 1, nEdgesAll
+             do k = 1,nVertLevels
+               layerThickEdgeFlux(k,iEdge) = &
+               layerThickEdgeMean(k,iEdge)
+             end do
+           end do
+
+         end if  
 #ifndef MPAS_OPENACC
          !$omp end do
          !$omp end parallel
@@ -858,6 +885,16 @@ contains
                                                          subgridEdgeBathymetryMean(iEdge), &
                                                          layerThickEdgeFlux(1,iedge))                   
               end if
+
+              if ( layerThickEdgeFlux(1,iedge) < eps ) then
+                 cell1 = cellsOnEdge(1,iEdge)
+                 cell2 = cellsOnEdge(2,iEdge)
+
+                 layerThickEdgeFlux(1,iEdge) = 0.5_RKIND * &
+                                          ( layerThickness(1,cell1) + &
+                                            layerThickness(1,cell2) ) 
+              end if
+              ! print*, iEdge, layerThickEdgeFlux(1,iedge), layerThickEdgeMean(1,iedge)  
            end do
 #ifndef MPAS_OPENACC
            !$omp end do
@@ -2501,6 +2538,8 @@ contains
       real (kind=RKIND), dimension(:), intent(out) :: &
          ssh
 
+      logical, save:: first = .true.  
+
       !-----------------------------------------------------------------
       !
       ! local variables
@@ -2549,14 +2588,24 @@ contains
                                        bottomDepth(iCell), &
                                        subgridCellBathymetryMin(iCell), & 
                                        ssh(iCell))
+
+!           if ( first ) then
+!                if ( abs(ssh(iCell)) < 1.0e-10_RKIND ) then
+!                   ssh(iCell) = 0.0_RKIND 
+!                end if 
+!           endif
+
            zTop(1,iCell) = ssh(iCell)
-           zMid(1,iCell) = -bottomDepth(iCell) + 0.5_RKIND*layerThickness(1,iCell)
+           zMid(1,iCell) = -bottomDepth(iCell) + 0.5_RKIND*layerThickness(1,iCell)         
          else
            ! copy zTop(1,iCell) into sea-surface height array
            ssh(iCell) = zTop(minLevelCell(iCell),iCell)
          end if
 
       end do
+
+      first = .false. ;
+
 #ifndef MPAS_OPENACC
       !$omp end do
       !$omp end parallel

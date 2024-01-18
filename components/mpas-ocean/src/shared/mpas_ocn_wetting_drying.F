@@ -241,6 +241,9 @@ contains
 
       integer :: iEdge, k
 
+      logical, save:: first = .true. 
+      integer:: iCell, ii
+
       err = 0
 
      call mpas_pool_get_subpool(block % structs, 'tend', tendPool)
@@ -264,8 +267,43 @@ contains
      ! ensure cells stay wet by selectively damping cells with a damping tendency to make 
      ! sure tendency doesn't dry cells
 
+
+!      if ( first ) then
+!        open( unit = 100, file = 'edoncell.dat' ) ;       
+!        do iCell = 1, nCellsAll
+!          write( 100, '(I10)', advance = 'no' ) iCell 
+!          do ii = 1, nEdgesOnCell(iCell)
+!            iEdge = edgesOnCell(ii, iCell) ;
+!
+!             write( 100, '(I10)', advance = 'no' ) iEdge
+!          end do
+!          write( 100, * ) '' ; 
+!        end do
+!        close(100)
+!
+!        !
+!        open( unit = 100, file = 'cellonedge.dat' ) ; 
+!          do iEdge = 1, nEdgesAll
+!              write( 100, '(3I10)', advance = 'no' ) iEdge, cellsOnEdge(1:2,iEdge) ;  
+!          end do
+!        write(100,*) ''  
+!        close(100)
+!        !
+!      end if
+
      call ocn_wetting_drying_wettingVelocity(layerThickEdgeFlux, layerThicknessCur, layerThicknessProvis, &
                                              normalTransportVelocity, rkSubstepWeight, wettingVelocityFactor, err)
+
+!     if ( first ) then
+!        open( unit = 101, file = 'wdfactor.dat' ) 
+!
+!        do iEdge = 1, nEdgesAll
+!           write( 101, '(I10,2F16.8,2I10)' ) iEdge, wettingVelocityFactor(1,iEdge), normalVelocity(1,iEdge), minLevelEdgeTop(iEdge), maxLevelEdgeBot(iEdge)  
+!        end do
+! 
+!        close( 101 ) ;         
+!     end if
+!     first = .false. ; 
 
      ! prevent drying from happening with selective wettingVelocityFactor
      if (config_zero_drying_velocity) then
@@ -302,6 +340,7 @@ contains
 !>  to prevent cells from drying.
 !
 !-----------------------------------------------------------------------
+       
    subroutine ocn_wetting_drying_wettingVelocity(layerThickEdgeFlux, layerThicknessCur, layerThicknessProvis, &
 
        normalVelocity, dt, wettingVelocityFactor, err)!{{{
@@ -357,10 +396,19 @@ contains
       real (kind=RKIND) :: hCrit, hRampMin, hEdgeTotal
 
       character (len=100) :: log_string
+      
+!      logical, save:: first = .true.
+!      integer:: dryflag, ii 
 
       err = 0
 
       hCrit = config_drying_min_cell_height
+
+
+!      if ( first ) then
+!        open( unit = 102, file = 'wddiag.dat' ) ;
+!        open( unit = 103, file = 'wdflaged.dat') ; 
+!      end if
 
       if (.not. config_zero_drying_velocity) return
 
@@ -368,6 +416,7 @@ contains
       !$omp parallel
       !$omp do schedule(runtime) private(i, iEdge, k, divOutFlux, layerThickness)
       do iCell = 1, nCellsAll
+!        dryflag = 0 ; 
         do k = minLevelCell(iCell), maxLevelCell(iCell)
           divOutFlux = 0.0_RKIND
           layerThickness = min(layerThicknessProvis(k, iCell), layerThicknessCur(k, iCell))
@@ -384,6 +433,7 @@ contains
             end if
           end do
           layerThickness = layerThickness + dt * divOutFlux
+   
 
           ! if layer thickness is too small, limit divergence flux outwards with
           ! opposite velocity
@@ -397,6 +447,17 @@ contains
                 end if
               end if
             end do
+!            dryflag = 1 ; 
+
+!            if ( first ) then
+!               write( 103, '(2I10)', advance = 'no') iCell, dryflag ;
+!               do ii = 1,  nEdgesOnCell(iCell)
+!                  iEdge = edgesOnCell(ii, iCell) 
+!                  write( 103, '(I8,F16.8)', advance = 'no' ) iEdge, wettingVelocityFactor(1, iEdge) ;  
+!               end do 
+!               write( 103, *) '' ; 
+!            end if
+
           elseif (config_zero_drying_velocity_ramp .and. &
                  (layerThickness > &
                  hCrit + config_drying_safety_height) .and. &
@@ -414,13 +475,53 @@ contains
                 end if
               end if
             end do
+!            dryflag = -1 
+!            if ( first ) then
+!               write( 103, '(2I10)', advance = 'no') iCell, dryflag ;
+!               do ii = 1,  nEdgesOnCell(iCell)
+!                  iEdge = edgesOnCell(ii, iCell) 
+!                  write( 103, '(I8,F16.8)', advance = 'no' ) iEdge, wettingVelocityFactor(1, iEdge) ;  
+!               end do 
+!               write( 103, *) '' ; 
+!            end if
 
           end if
+!          else
+!
+!            if ( first ) then
+!               write( 103, '(2I10)', advance = 'no') iCell, dryflag ;
+!               do ii = 1,  nEdgesOnCell(iCell)
+!                  iEdge = edgesOnCell(ii, iCell) 
+!                  write( 103, '(I8,F16.8)', advance = 'no' ) iEdge, wettingVelocityFactor(1, iEdge) ;  
+!               end do 
+!               write( 103, *) '' ; 
+!            end if
+!
+!          end if 
+
+!         if ( first ) then
+!           write( 102, '(I10,2F16.8,I5)') iCell, layerThickness, dt*divOutFlux, dryflag  
+!          end if
 
         end do
       end do
       !$omp end do
       !$omp end parallel
+
+!     if ( first ) close(102) ;
+!     if ( first ) close(103) ;
+!
+!     if ( first ) then
+!        open( unit = 101, file = 'wdfactor1.dat' ) 
+!
+!        do iEdge = 1, nEdgesAll
+!           write( 101, '(F16.8)' ) wettingVelocityFactor(1,iEdge)   
+!        end do
+! 
+!        close( 101 ) ;         
+!     end if
+!
+!      first = .false. ;
 
    end subroutine ocn_wetting_drying_wettingVelocity !}}}
 

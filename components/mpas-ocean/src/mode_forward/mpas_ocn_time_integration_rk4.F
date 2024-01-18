@@ -44,6 +44,9 @@ module ocn_time_integration_rk4
    use ocn_surface_land_ice_fluxes
    use ocn_transport_tests
 
+   use ocn_subgrid
+
+
    implicit none
    private
    save
@@ -195,6 +198,10 @@ module ocn_time_integration_rk4
 
       real (kind=RKIND), dimension(:,:,:), pointer :: activeTracersCur, activeTracersNew
 
+      ! DW
+      real(kind=RKIND), dimension(:,:), pointer :: subgridSshCellTableRange, subgridWetVolumeCellTable
+
+
       ! Get config options
       call mpas_pool_get_config(domain % configs, 'config_mom_del4', config_mom_del4)
       call mpas_pool_get_config(domain % configs, 'config_filter_btr_mode', config_filter_btr_mode)
@@ -248,6 +255,13 @@ module ocn_time_integration_rk4
 
          call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
          call mpas_pool_get_array(meshPool, 'maxLevelEdgeTop', maxLevelEdgeTop)
+
+         call mpas_pool_get_array(meshPool, 'subgridWetVolumeCellTable', &
+                                subgridWetVolumeCellTable)
+
+         call mpas_pool_get_array(meshPool, 'subgridSshCellTableRange', &
+                                subgridSshCellTableRange)
+
 
          ! Lower k-loop limit of 1 rather than minLevel* needed in *New = *Cur
          ! assignments below are needed to maintain bit-for-bit results
@@ -692,9 +706,6 @@ module ocn_time_integration_rk4
             !$omp end parallel
          end if
 
-!         print*, config_use_tidal_forcing 
-!         print*, trim(config_tidal_forcing_type) 
-
          ! direct application of tidal boundary condition
          if (config_use_tidal_forcing .and. trim(config_tidal_forcing_type) == 'direct') then
            do iCell=1, nCells
@@ -712,7 +723,17 @@ module ocn_time_integration_rk4
                  !(1.0_RKIND - tidalInputMask(iCell))*layerThicknessNew(k, iCell)  ! generalized tappered assumption code
                end do
 
-               print*, iCell, totalDepth, layerThicknessNew(1, iCell) ; 
+               ! DW
+               if ( config_use_subgrid_wetting_drying ) then
+                  call ocn_subgrid_layer_thickness_lookup( tidalBCValue(iCell), & 
+                                         subgridWetVolumeCellTable(:,iCell), &
+                                         subgridSshCellTableRange(:,iCell),&
+                                         bottomDepth(iCell), &
+                                         LayerThicknessNew(1,iCell) )
+     
+               end if
+               !
+
              end if
            end do
          end if
