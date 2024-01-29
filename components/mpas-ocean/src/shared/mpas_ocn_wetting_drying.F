@@ -294,8 +294,8 @@ contains
 !        !
 !      end if
 
-      if ( config_use_subgrid_wetting_drying .and. &
-             config_pressure_gradient_type == 'ssh_gradient' ) then
+      if ( config_use_modify_wetting_drying_implementation .and. &
+                  config_pressure_gradient_type == 'ssh_gradient' ) then
         call ocn_wetting_drying_wettingVelocity(layerThickEdgeFlux, layerThicknessCur, layerThicknessProvis, &
                                      normalTransportVelocity, rkSubstepWeight, wettingVelocityFactor, err, block)
 
@@ -430,26 +430,6 @@ contains
       hCrit = config_drying_min_cell_height
 
 
-      ! for 1-layer subgrid wetting/dring !
-      if ( config_use_subgrid_wetting_drying .and. &
-             config_pressure_gradient_type == 'ssh_gradient' ) then
-         allocate( layerThicknessCell(nCellsAll) )  
-         allocate( sshCell(nCellsAll) )  
-         layerThickness = 0.0_RKIND  
-         sshCell = 0.0_RKIND 
-
-         call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
-
-         call mpas_pool_get_array( meshPool, 'bottomDepth', bottomDepth) 
-         call mpas_pool_get_array( meshPool, 'subgridWetVolumeCellTable', &
-                                subgridWetVolumeCellTable )  
-         call mpas_pool_get_array( meshPool, 'subgridSshCellTableRange', &
-                                subgridSshCellTableRange )
-         call mpas_pool_get_array( meshPool, 'subgridCellBathymetryMin', &
-                                subgridCellBathymetryMin ) 
-
-      end if
-
       
       if (.not. config_zero_drying_velocity) return
 
@@ -457,7 +437,7 @@ contains
       !$omp parallel
       !$omp do schedule(runtime) private(i, iEdge, k, divOutFlux, layerThickness)
       do iCell = 1, nCellsAll
-!        dryflag = 0 ; 
+
         do k = minLevelCell(iCell), maxLevelCell(iCell)
           divOutFlux = 0.0_RKIND
           layerThickness = min(layerThicknessProvis(k, iCell), layerThicknessCur(k, iCell))
@@ -475,20 +455,6 @@ contains
           end do
           layerThickness = layerThickness + dt * divOutFlux
 
-          !
-          if ( config_use_subgrid_wetting_drying .and. &
-                        config_pressure_gradient_type == 'ssh_gradient' ) then
-             layerThicknessCell(iCell) = layerThickness 
-
-             call ocn_subgrid_ssh_lookup( layerThicknessCell(iCell), &
-                                       subgridWetVolumeCellTable(:,iCell), &
-                                       subgridSshCellTableRange(:,iCell), &
-                                       bottomDepth(iCell), &
-                                       subgridCellBathymetryMin(iCell), & 
-                                       sshCell(iCell) )
-
-          end if    
-          ! 
 
           ! if layer thickness is too small, limit divergence flux outwards with
           ! opposite velocity
@@ -528,18 +494,72 @@ contains
       !$omp end parallel
 
 
-      ! DW implementation !
-      if ( config_use_modify_wetting_drying_implementation ) then
+      ! DW implementation 
+      !  - For onle layer only
+      if ( config_use_modify_wetting_drying_implementation .and. & 
+                     config_pressure_gradient_type == 'ssh_gradient') then
         !
-        if ( config_use_subgrid_wetting_drying .and. &
-                config_pressure_gradient_type == 'ssh_gradient' ) then
-          !
-          wettingVelocityFactor = 0.0_RKIND
-          !
-          cellLoop: do iCell = 1, nCellsAll
-             ! if layer thickness is too small, limit divergence flux outwards with
-             ! opposite velocity
-             ifDryCell: if ( layerThicknessCell(iCell) <= &
+        allocate( layerThicknessCell(nCellsAll) )  
+        allocate( sshCell(nCellsAll) )  
+        layerThickness = 0.0_RKIND  
+        sshCell = 0.0_RKIND 
+
+        call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+        call mpas_pool_get_array( meshPool, 'bottomDepth', bottomDepth) 
+
+        ! for 1-layer subgrid wetting/dring !
+        if ( config_use_subgrid_wetting_drying ) then
+           call mpas_pool_get_array( meshPool, &
+              'subgridWetVolumeCellTable', subgridWetVolumeCellTable )  
+           call mpas_pool_get_array( meshPool, &
+              'subgridSshCellTableRange', subgridSshCellTableRange )
+           call mpas_pool_get_array( meshPool, &
+              'subgridCellBathymetryMin', subgridCellBathymetryMin ) 
+
+        end if
+      
+        wettingVelocityFactor = 0.0_RKIND
+        !
+        layerLoop: do iCell = 1, nCellsAll
+           do k = minLevelCell(iCell), maxLevelCell(iCell)
+             divOutFlux = 0.0_RKIND
+             layerThickness = min(layerThicknessProvis(k, iCell), layerThicknessCur(k, iCell))
+             do i = 1, nEdgesOnCell(iCell)
+               iEdge = edgesOnCell(i, iCell)
+               if (k <= maxLevelEdgeTop(iEdge) .and. k >= minLevelEdgeBot(iEdge)) then
+                 ! only consider divergence flux leaving the cell
+                 if ( normalVelocity(k, iEdge) * edgeSignOnCell(i, iCell) < 0.0_RKIND ) then
+                   divOutFlux = divOutFlux + &
+                                normalVelocity(k, iEdge) * edgeSignOnCell(i, iCell) * &
+                                layerThickEdgeFlux(k, iEdge) * dvEdge(iEdge) * &
+                                invAreaCell(iCell)
+                  end if
+               end if
+             end do
+             layerThickness = layerThickness + dt * divOutFlux
+           end do
+
+           layerThicknessCell(iCell) = layerThickness 
+           !
+           if ( config_use_subgrid_wetting_drying  ) then
+
+              call ocn_subgrid_ssh_lookup( layerThicknessCell(iCell), &
+                                       subgridWetVolumeCellTable(:,iCell), &
+                                       subgridSshCellTableRange(:,iCell), &
+                                       bottomDepth(iCell), &
+                                       subgridCellBathymetryMin(iCell), & 
+                                       sshCell(iCell) )
+           else
+              sshCell(iCell) = layerThicknessCell(iCell) - bottomDepth(iCell)      
+           end if
+           !
+           ! Check with Steven if updating hao is needed 
+        end do layerLoop
+
+        cellLoop: do iCell = 1, nCellsAll
+            ! if layer thickness is too small, limit divergence flux outwards with
+            ! opposite velocity
+            ifDryCell: if ( layerThicknessCell(iCell) <= &
                     hCrit + config_drying_safety_height ) then
   
                edgeLoop: do i = 1, nEdgesOnCell(iCell)
@@ -573,14 +593,14 @@ contains
                  end if
                end do edgeLoop
                
-              end if ifDryCell
-           end do cellLoop
+            end if ifDryCell
+        end do cellLoop
   
-           ! Ramping 
-           hRampMin = config_zero_drying_velocity_ramp_hmin
-           cellLoopRamp: do iCell = 1, nCellsAll
-             !
-             ifRampCell: if ( config_zero_drying_velocity_ramp .and. &
+        ! Ramping 
+        hRampMin = config_zero_drying_velocity_ramp_hmin
+        cellLoopRamp: do iCell = 1, nCellsAll
+            !
+            ifRampCell: if ( config_zero_drying_velocity_ramp .and. &
                   (layerThicknessCell(iCell)  > &
                    hCrit + config_drying_safety_height) .and. &
                   (layerThicknessCell(iCell) <= config_zero_drying_velocity_ramp_hmax) ) then
@@ -616,15 +636,15 @@ contains
                     !
                  end do edgeLoopRamp
                  !
-              end if ifRampCell
-             !
-           end do cellLoopRamp
+            end if ifRampCell
+            !
+        end do cellLoopRamp
            !
-        end if
+        ! end if
         !
       end if
 
-      if ( config_use_subgrid_wetting_drying .and. &
+      if (  config_use_modify_wetting_drying_implementation .and. &
                config_pressure_gradient_type == 'ssh_gradient' ) then
          deallocate( layerThicknessCell ) ; 
          deallocate( sshCell ) ;

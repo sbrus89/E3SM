@@ -376,7 +376,6 @@ blockptr_doloop:do while(associated(block_ptr))
        call mpas_pool_get_array(meshPool, 'subgridLayerThicknessDebug', &
                                 subgridLayerThicknessDebug)
 
-
        ! if config_parabolic_bowl_adjust_domain_center == .true.,
        ! Adjust center of the mesh so that its center is located at (0,0)
        if ( config_Buttermilk_bay_adjust_domain ) then
@@ -454,7 +453,6 @@ blockptr_doloop:do while(associated(block_ptr))
       open( unit = 101, file = 'BM_bathy.dat', action = 'write' ) ; 
       open( unit = 102, file = 'BM_ssh.dat', action = 'write' ) ; 
 
-
       do iCell = 1,nCellsSolve
         !
         ! Evaluate subgrid bathymetry at centers of sub-triangles for cell slices 
@@ -498,14 +496,10 @@ blockptr_doloop:do while(associated(block_ptr))
         bathymetryMax = minval( subgridBathymetryValues(1:nSubgridCell) )
 
         if ( abs(bathymetryMin - bathymetryMax) > 100.0*eps ) then
-!            subgridSshCellTableRange(1,iCell) = -maxval(subgridBathymetryValues(1:nSubgridCell)) + config_drying_min_cell_height + eps
-!            subgridSshCellTableRange(2,iCell) = -minval(subgridBathymetryValues(1:nSubgridCell))
             subgridSshCellTableRange(1,iCell) = -maxval(subgridBathymetryValues(1:nSubgridCell))
             subgridSshCellTableRange(2,iCell) = -minval(subgridBathymetryValues(1:nSubgridCell))
         else
             ! flat bathy !
-!            subgridSshCellTableRange(1,iCell) =  -bathymetryMin + config_drying_min_cell_height + eps
-!            subgridSshCellTableRange(2,iCell) =  -bathymetryMin + 2.0*config_drying_min_cell_height + eps  
             subgridSshCellTableRange(1,iCell) =  -bathymetryMin 
             subgridSshCellTableRange(2,iCell) =  -bathymetryMin + 2.0*config_drying_min_cell_height  
         endif 
@@ -537,7 +531,7 @@ blockptr_doloop:do while(associated(block_ptr))
                                        subgridSShCellTableRange(3,iCell) )
 
          if ( ssh(iCell) < subgridSshCellTableRange(3,iCell) ) then
-                ssh(iCell) = subgridSshCellTableRange(3,iCell) ;  
+            ssh(iCell) = subgridSshCellTableRange(3,iCell) ;  
          end if 
       end do
 
@@ -795,14 +789,9 @@ vertex:do iVertex = 1,nVerticesSolve
             ! add a thin layer of nlayer*config_drying_min_cellhight 
             ! 
  
-            if (config_use_subgrid_wetting_drying) then
-
-!              call ocn_subgrid_ssh_lookup(layerThickness(1,iCell),&
-!                                          subgridWetVolumeCellTable(:,iCell),&
-!                                          subgridSshCellTableRange(:,iCell),&
-!                                          bottomDepth(iCell),&
-!                                          subgridCellBathymetryMin(iCell),&
-!                                          ssh(iCell))
+!            if (config_use_subgrid_wetting_drying) then
+            if ( config_Buttermilk_bay_subgrid_setup ) then
+              ! Intical contion for a subgrid run
               call ocn_subgrid_layer_thickness_lookup(ssh(iCell), & 
                                              subgridWetVolumeCellTable(:,iCell), &
                                              subgridSshCellTableRange(:,iCell),&
@@ -810,25 +799,25 @@ vertex:do iVertex = 1,nVerticesSolve
                                              LayerThickness(1,iCell))
 
             else
-!              call ocn_init_Buttermilk_bay_bathymetry(xCell(iCell),yCell(iCell),bottomDepth(iCell))
-!              call ocn_init_Buttermilk_bay_ssh(xCell(iCell),yCell(iCell),bottomDepth(iCell),ssh(iCell))
-              ssh(iCell) = - bottomDepth(iCell) + &
-                max(ssh(iCell) + bottomDepth(iCell), &
-                maxLevelCell(iCell)*(config_drying_min_cell_height + eps))
-
+              ! Initial condition for a standard run
+              ssh(iCell) = -bottomDepth(iCell) ; 
               do k = 1, maxLevelCell(iCell)
-                layerThickness(k,iCell) = max(config_drying_min_cell_height + eps, &
-                  (ssh(iCell) + bottomDepth(iCell))/real(maxLevelCell(iCell),RKIND))
-               
+                !
+                layerThickness(k,iCell) = max( config_drying_min_cell_height, &
+                    bottomDepth(iCell)/real(maxLevelCell(iCell),RKIND) )
+              
+
                 if (layerThickness(k,iCell) < config_drying_min_cell_height) then
                   call mpas_log_write('layerThickness($i,$i)=$r', MPAS_LOG_CRIT, &
                     intArgs=(/k,iCell/), &
                     realArgs=(/layerThickness(k,iCell)/))
                 end if
+
+                ssh(iCell) = ssh(iCell) + layerThickness(k,iCell) ; 
               end do
-           endif
-          
-          
+              !
+            endif
+                    
             do k = 1, maxLevelCell(iCell)
               restingThickness(k,iCell) = bottomDepth(iCell)/maxLevelCell(iCell)
             end do
