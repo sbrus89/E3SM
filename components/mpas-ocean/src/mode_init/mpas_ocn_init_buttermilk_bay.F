@@ -495,7 +495,7 @@ blockptr_doloop:do while(associated(block_ptr))
         bathymetryMin = maxval( subgridBathymetryValues(1:nSubgridCell) ) 
         bathymetryMax = minval( subgridBathymetryValues(1:nSubgridCell) )
 
-        if ( abs(bathymetryMin - bathymetryMax) > 100.0*eps ) then
+        if ( abs(bathymetrymin - bathymetrymax) > 100.0*eps ) then
             subgridSshCellTableRange(1,iCell) = -maxval(subgridBathymetryValues(1:nSubgridCell))
             subgridSshCellTableRange(2,iCell) = -minval(subgridBathymetryValues(1:nSubgridCell))
         else

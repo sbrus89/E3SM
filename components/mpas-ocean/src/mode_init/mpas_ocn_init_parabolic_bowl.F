@@ -189,6 +189,7 @@ contains
     real (kind=RKIND), dimension(:), allocatable:: dsEdge
     integer:: jj
     real (kind=RKIND), dimension(:), allocatable:: xSubgridCell, ySubgridCell
+    real (kind=RKIND):: bathymetryMin, bathymetryMax 
 
 
 
@@ -449,9 +450,20 @@ contains
 
         ! Evaluate bounds of look-up table range
         !---------------------------------------------------------------
+        bathymetryMin = maxval( subgridBathymetryValues(1:nSubgridCell) ) 
+        bathymetryMax = minval( subgridBathymetryValues(1:nSubgridCell) )
 
-        subgridSshCellTableRange(1,iCell) = -maxval(subgridBathymetryValues(1:nSubgridCell)) + config_drying_min_cell_height + eps
-        subgridSshCellTableRange(2,iCell) = -minval(subgridBathymetryValues(1:nSubgridCell))
+        if ( abs(bathymetryMin - bathymetryMax) > 100.0*eps ) then
+            subgridSshCellTableRange(1,iCell) = -maxval(subgridBathymetryValues(1:nSubgridCell))
+            subgridSshCellTableRange(2,iCell) = -minval(subgridBathymetryValues(1:nSubgridCell))
+        else
+            ! flat bathy !
+            subgridSshCellTableRange(1,iCell) =  -bathymetryMin 
+            subgridSshCellTableRange(2,iCell) =  -bathymetryMin + 2.0*config_drying_min_cell_height  
+        endif 
+
+!       subgridSshCellTableRange(1,iCell) = -maxval(subgridBathymetryValues(1:nSubgridCell)) + config_drying_min_cell_height + eps
+!       subgridSshCellTableRange(2,iCell) = -minval(subgridBathymetryValues(1:nSubgridCell))
        
         ! Evaluate subgrid bathymetry
         !---------------------------------------------------------------
@@ -467,15 +479,26 @@ contains
 
         ! Evaluate wet layerThickness average
         !---------------------------------------------------------------
-        call ocn_init_wet_average(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, layerThickness(1,iCell))
+!!$        call ocn_init_wet_average(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, layerThickness(1,iCell))
 
         
-!!$        call ocn_init_wet_average_ssh(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, ssh(iCell))!{{{
-
-
+        call ocn_init_wet_average_ssh(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, ssh(iCell))!{{{
       enddo
 
+      if (config_use_subgrid_wetting_drying) then
+         do iCell = 1, nCellsSolve
+            call ocn_subgrid_ssh_lookup( config_drying_min_cell_height, & 
+                                       subgridWetVolumeCellTable(:,iCell), &
+                                       subgridSshCellTableRange(:,iCell), &
+                                       bottomDepth(iCell), &
+                                       subgridCellBathymetryMin(iCell), &
+                                       subgridSShCellTableRange(3,iCell) )
 
+            if ( ssh(iCell) < subgridSshCellTableRange(3,iCell) ) then
+              ssh(iCell) = subgridSshCellTableRange(3,iCell) ;  
+            end if 
+         end do
+      end if
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Edges
@@ -538,10 +561,18 @@ contains
         if ( .NOT. config_parabolic_bowl_subgrid_edge_bathymetry_max_pixel ) then
            ! Evaluate bounds of look-up table range
            !---------------------------------------------------------------
+           bathymetryMin = maxval( subgridBathymetryValues(1:nSubgridCell) ) 
+           bathymetryMax = minval( subgridBathymetryValues(1:nSubgridCell) )
 
-           subgridSshEdgeTableRange(1,iEdge) = -maxval(subgridBathymetryValues(1:nSubgridEdge)) + config_drying_min_cell_height + eps
-           subgridSshEdgeTableRange(2,iEdge) = -minval(subgridBathymetryValues(1:nSubgridEdge))
 
+           if ( abs(bathymetrymin - bathymetrymax) > 100.0*eps ) then
+              subgridSshEdgeTableRange(1,iEdge) = -maxval(subgridBathymetryValues(1:nSubgridEdge))
+              subgridSshEdgeTableRange(2,iEdge) = -minval(subgridBathymetryValues(1:nSubgridEdge))
+           else
+              ! flat bathy !
+              subgridSshEdgeTableRange(1,iCell) =  -bathymetryMin 
+              subgridSshEdgeTableRange(2,iCell) =  -bathymetryMin + 2.0*config_drying_min_cell_height  
+           endif
 
            ! Evaluate subgrid bathymetry
            !---------------------------------------------------------------
@@ -573,9 +604,17 @@ contains
 
            ! Evaluate bounds of look-up table range
            !---------------------------------------------------------------
+           bathymetryMin = maxval( cellEdgeBathymetryValues(3,1:nSubgridCellEdge) ) 
+           bathymetryMax = minval( cellEdgeBathymetryValues(3,1:nSubgridCellEdge) )
 
-           subgridSshEdgeTableRange(1,iEdge) = -maxval(CellEdgeBathymetryValues(3,1:nSubgridCellEdge)) + config_drying_min_cell_height + eps
-           subgridSshEdgeTableRange(2,iEdge) = -minval(CellEdgeBathymetryValues(3,1:nSubgridCellEdge))
+           if ( abs(bathymetrymin - bathymetrymax) > 100.0*eps ) then
+              subgridSshEdgeTableRange(1,iEdge) = -maxval(CellEdgeBathymetryValues(3,1:nSubgridCellEdge))
+              subgridSshEdgeTableRange(2,iEdge) = -minval(CellEdgeBathymetryValues(3,1:nSubgridCellEdge))
+           else 
+              ! flat bathy !
+              subgridSshEdgeTableRange(1,iCell) =  -bathymetryMin 
+              subgridSshEdgeTableRange(2,iCell) =  -bathymetryMin + 2.0*config_drying_min_cell_height  
+           endif
 
            ! Evaluate bounds of look-up table range
            !---------------------------------------------------------------
@@ -586,10 +625,25 @@ contains
            ! Vertical integration of wet fraction
            !---------------------------------------------------------------
            call ocn_init_vertical_integration( iEdge, subgridSshEdgeTableRange, &
-                      nSubgridCellEdge, cellEdgeBathymetryValues(3,:), dsEdge, subgridWetVolumeEdgeTable, subgridWetFractionEdgeTable )
+                   nSubgridCellEdge, cellEdgeBathymetryValues(3,:), dsEdge, & 
+                   subgridWetVolumeEdgeTable, subgridWetFractionEdgeTable )
         endif
 
       end do
+
+      !
+      ! find an ssh value corresponding to drying_min_cell-height 
+      ! of each edge 
+      if (config_use_subgrid_wetting_drying) then
+         do iEdge = 1,nEdgesSolve
+           call ocn_subgrid_ssh_lookup( config_drying_min_cell_height, & 
+                                    subgridWetVolumeEdgeTable(:,iEdge), &
+                                    subgridSshEdgeTableRange(:,iEdge), &
+                                    subgridEdgeBathymetryMean(iEdge), &
+                                    subgridEdgeBathymetryMin(iEdge), &
+                                    subgridSshEdgeTableRange(3,iEdge) )
+         end do
+      end if
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Vertex
@@ -690,9 +744,9 @@ vertex:do iVertex = 1,nVerticesSolve
        ! Set layer thickness and ssh
        if (config_use_wetting_drying) then
 
-         do iCell = 1, nCellsSolve
-           ! Set up vertical grid
-           maxLevelCell(iCell) = nVertLevels ; ! sigma coordinates 
+          do iCell = 1, nCellsSolve
+            ! Set up vertical grid
+            maxLevelCell(iCell) = nVertLevels ; ! sigma coordinates 
           end do
 
           do iCell = 1, nCellsSolve
@@ -703,27 +757,28 @@ vertex:do iVertex = 1,nVerticesSolve
  
             if (config_use_subgrid_wetting_drying) then
 
-              call ocn_subgrid_ssh_lookup(layerThickness(1,iCell),&
-                                          subgridWetVolumeCellTable(:,iCell),&
-                                          subgridSshCellTableRange(:,iCell),&
-                                          bottomDepth(iCell),&
-                                          subgridCellBathymetryMin(iCell),&
-                                          ssh(iCell))
-!              call ocn_subgrid_layer_thickness_lookup(ssh(iCell), & 
-!                                              subgridWetVolumeCellTable(:,iCell), &
-!                                              subgridSshCellTableRange(:,iCell),&
-!                                              bottomDepth(iCell),&
-!                                              LayerThickness(1,iCell))
+!              call ocn_subgrid_ssh_lookup(layerThickness(1,iCell),&
+!                                          subgridWetVolumeCellTable(:,iCell),&
+!                                          subgridSshCellTableRange(:,iCell),&
+!                                          bottomDepth(iCell),&
+!                                          subgridCellBathymetryMin(iCell),&
+!                                          ssh(iCell))
+
+              call ocn_subgrid_layer_thickness_lookup(ssh(iCell), & 
+                                             subgridWetVolumeCellTable(:,iCell), &
+                                             subgridSshCellTableRange(:,iCell),&
+                                             bottomDepth(iCell),&
+                                             LayerThickness(1,iCell))
 
             else
-              call ocn_init_parabolic_bowl_bathymetry(xCell(iCell),yCell(iCell),bottomDepth(iCell))
-              call ocn_init_parabolic_bowl_ssh(xCell(iCell),yCell(iCell),bottomDepth(iCell),ssh(iCell))
+              !call ocn_init_parabolic_bowl_bathymetry(xCell(iCell),yCell(iCell),bottomDepth(iCell))
+              !call ocn_init_parabolic_bowl_ssh(xCell(iCell),yCell(iCell),bottomDepth(iCell),ssh(iCell))
               ssh(iCell) = - bottomDepth(iCell) + &
                 max(ssh(iCell) + bottomDepth(iCell), &
-                maxLevelCell(iCell)*(config_drying_min_cell_height + eps))
-
+                maxLevelCell(iCell)*(config_drying_min_cell_height+eps*0.0))
+              
               do k = 1, maxLevelCell(iCell)
-                layerThickness(k,iCell) = max(config_drying_min_cell_height + eps, &
+                layerThickness(k,iCell) = max(config_drying_min_cell_height + eps*0.0, &
                   (ssh(iCell) + bottomDepth(iCell))/real(maxLevelCell(iCell),RKIND))
                
                 if (layerThickness(k,iCell) < config_drying_min_cell_height) then
@@ -745,14 +800,14 @@ vertex:do iVertex = 1,nVerticesSolve
        block_ptr => block_ptr % next
     end do
 
-     do iCell = 1,nCellsSolve
+    do iCell = 1,nCellsSolve
          call ocn_subgrid_layer_thickness_lookup(ssh(iCell), & 
                                               subgridWetVolumeCellTable(:,iCell), &
                                               subgridSshCellTableRange(:,iCell),&
                                               bottomDepth(iCell),&
                                               subgridLayerThicknessDebug(iCell))
-     enddo
-     !
+    enddo
+    !
 
 
     deallocate(interfaceLocations)
@@ -1147,7 +1202,9 @@ vertex:do iVertex = 1,nVerticesSolve
    
       deltaZ = (subgridSshTableRange(2,iCV)-subgridSshTableRange(1,iCV))/real(nSubgridTableLevels-1,RKIND);
 
-      subgridWetVolumeTable(1,iCV) = config_drying_min_cell_height + eps 
+!      subgridWetVolumeTable(1,iCV) = config_drying_min_cell_height + eps
+
+      subgridWetVolumeTable(1,iCV) = 0.0_RKIND     
       ssh = subgridSshTableRange(1,iCV) + deltaZ
       subgridWetVolumeTable(2,iCV) = subgridWetVolumeTable(1,iCV)*sum(subgridAreas(1:nSubgridCV))
       subgridWetFractionTable(1,iCV) = 0.0_RKIND
@@ -1273,7 +1330,8 @@ vertex:do iVertex = 1,nVerticesSolve
       do tri = 1, nsubgridCV
         layerThicknessValue = subgridBathymetryValues(tri) + subgridSshValues(tri)
 
-        if (layerThicknessValue > config_drying_min_cell_height + eps ) then
+!        if (layerThicknessValue > config_drying_min_cell_height + eps ) then
+        if ( layerThicknessValue > config_drying_min_cell_height  ) then
            sshWetAverage = sshWetAverage + subgridSshValues(tri)*subgridAreas(tri)
            wetArea = wetArea + subgridAreas(tri)
         endif
