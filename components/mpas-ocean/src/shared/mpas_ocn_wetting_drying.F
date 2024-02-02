@@ -34,6 +34,9 @@ module ocn_wetting_drying
    use ocn_gm
    use ocn_mesh
 
+  ! DW
+  use ocn_subgrid 
+
    implicit none
    private
    save
@@ -241,6 +244,9 @@ contains
 
       integer :: iEdge, k
 
+      logical, save:: first = .true. 
+      integer:: iCell, ii
+
       err = 0
 
      call mpas_pool_get_subpool(block % structs, 'tend', tendPool)
@@ -264,8 +270,49 @@ contains
      ! ensure cells stay wet by selectively damping cells with a damping tendency to make 
      ! sure tendency doesn't dry cells
 
-     call ocn_wetting_drying_wettingVelocity(layerThickEdgeFlux, layerThicknessCur, layerThicknessProvis, &
-                                             normalTransportVelocity, rkSubstepWeight, wettingVelocityFactor, err)
+
+!      if ( first ) then
+!        open( unit = 100, file = 'edoncell.dat' ) ;       
+!        do iCell = 1, nCellsAll
+!          write( 100, '(I10)', advance = 'no' ) iCell 
+!          do ii = 1, nEdgesOnCell(iCell)
+!            iEdge = edgesOnCell(ii, iCell) ;
+!
+!             write( 100, '(I10)', advance = 'no' ) iEdge
+!          end do
+!          write( 100, * ) '' ; 
+!        end do
+!        close(100)
+!
+!        !
+!        open( unit = 100, file = 'cellonedge.dat' ) ; 
+!          do iEdge = 1, nEdgesAll
+!              write( 100, '(3I10)', advance = 'no' ) iEdge, cellsOnEdge(1:2,iEdge) ;  
+!          end do
+!        write(100,*) ''  
+!        close(100)
+!        !
+!      end if
+
+      if ( config_use_modify_wetting_drying_implementation .and. &
+                  config_pressure_gradient_type == 'ssh_gradient' ) then
+        call ocn_wetting_drying_wettingVelocity(layerThickEdgeFlux, layerThicknessCur, layerThicknessProvis, &
+                                     normalTransportVelocity, rkSubstepWeight, wettingVelocityFactor, err, block)
+
+      else       
+        call ocn_wetting_drying_wettingVelocity(layerThickEdgeFlux, layerThicknessCur, layerThicknessProvis, &
+                                            normalTransportVelocity, rkSubstepWeight, wettingVelocityFactor, err)
+      end if
+!     if ( first ) then
+!        open( unit = 101, file = 'wdfactor.dat' ) 
+!
+!        do iEdge = 1, nEdgesAll
+!           write( 101, '(I10,2F16.8,2I10)' ) iEdge, wettingVelocityFactor(1,iEdge), normalVelocity(1,iEdge), minLevelEdgeTop(iEdge), maxLevelEdgeBot(iEdge)  
+!        end do
+! 
+!        close( 101 ) ;         
+!     end if
+!     first = .false. ; 
 
      ! prevent drying from happening with selective wettingVelocityFactor
      if (config_zero_drying_velocity) then
@@ -302,9 +349,10 @@ contains
 !>  to prevent cells from drying.
 !
 !-----------------------------------------------------------------------
+       
    subroutine ocn_wetting_drying_wettingVelocity(layerThickEdgeFlux, layerThicknessCur, layerThicknessProvis, &
 
-       normalVelocity, dt, wettingVelocityFactor, err)!{{{
+       normalVelocity, dt, wettingVelocityFactor, err, block )!{{{
 
       !-----------------------------------------------------------------
       !
@@ -326,6 +374,10 @@ contains
 
       real (kind=RKIND), intent(in) :: &
          dt     !< Input: time step
+
+      ! optional
+      type (block_type), optional, intent(in) :: block
+
 
       !-----------------------------------------------------------------
       !
@@ -358,16 +410,34 @@ contains
 
       character (len=100) :: log_string
 
+      !
+      type (mpas_pool_type), pointer :: meshPool
+      
+      ! array pointers for subgrid look-up tables
+      real (kind=RKIND), dimension(:), pointer :: bottomDepth
+      real(kind=RKIND), dimension(:,:), pointer :: subgridSshCellTableRange, subgridWetVolumeCellTable
+      real(kind=RKIND), dimension(:), pointer :: subgridCellBathymetryMin
+   
+      !
+      integer:: cellDummy(2), cellCur, CellNei, sshCur, sshNei
+      real (kind=RKIND), allocatable:: layerThicknessCell(:), sshCell(:) 
+
+!      logical, save:: first = .true.
+!      integer:: dryflag, ii 
+
       err = 0
 
       hCrit = config_drying_min_cell_height
 
+
+      
       if (.not. config_zero_drying_velocity) return
 
       ! need predicted transport velocity to limit drying flux
       !$omp parallel
       !$omp do schedule(runtime) private(i, iEdge, k, divOutFlux, layerThickness)
       do iCell = 1, nCellsAll
+
         do k = minLevelCell(iCell), maxLevelCell(iCell)
           divOutFlux = 0.0_RKIND
           layerThickness = min(layerThicknessProvis(k, iCell), layerThicknessCur(k, iCell))
@@ -385,6 +455,7 @@ contains
           end do
           layerThickness = layerThickness + dt * divOutFlux
 
+
           ! if layer thickness is too small, limit divergence flux outwards with
           ! opposite velocity
           if (layerThickness <= &
@@ -397,6 +468,7 @@ contains
                 end if
               end if
             end do
+
           elseif (config_zero_drying_velocity_ramp .and. &
                  (layerThickness > &
                  hCrit + config_drying_safety_height) .and. &
@@ -414,7 +486,6 @@ contains
                 end if
               end if
             end do
-
           end if
 
         end do
@@ -422,6 +493,163 @@ contains
       !$omp end do
       !$omp end parallel
 
+
+      ! DW implementation 
+      !  - For onle layer only
+      if ( config_use_modify_wetting_drying_implementation .and. & 
+                     config_pressure_gradient_type == 'ssh_gradient') then
+        !
+        allocate( layerThicknessCell(nCellsAll) )  
+        allocate( sshCell(nCellsAll) )  
+        layerThickness = 0.0_RKIND  
+        sshCell = 0.0_RKIND 
+
+        call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+        call mpas_pool_get_array( meshPool, 'bottomDepth', bottomDepth) 
+
+        ! for 1-layer subgrid wetting/dring !
+        if ( config_use_subgrid_wetting_drying ) then
+           call mpas_pool_get_array( meshPool, &
+              'subgridWetVolumeCellTable', subgridWetVolumeCellTable )  
+           call mpas_pool_get_array( meshPool, &
+              'subgridSshCellTableRange', subgridSshCellTableRange )
+           call mpas_pool_get_array( meshPool, &
+              'subgridCellBathymetryMin', subgridCellBathymetryMin ) 
+
+        end if
+      
+        wettingVelocityFactor = 0.0_RKIND
+        !
+        layerLoop: do iCell = 1, nCellsAll
+           do k = minLevelCell(iCell), maxLevelCell(iCell)
+             divOutFlux = 0.0_RKIND
+             layerThickness = min(layerThicknessProvis(k, iCell), layerThicknessCur(k, iCell))
+             do i = 1, nEdgesOnCell(iCell)
+               iEdge = edgesOnCell(i, iCell)
+               if (k <= maxLevelEdgeTop(iEdge) .and. k >= minLevelEdgeBot(iEdge)) then
+                 ! only consider divergence flux leaving the cell
+                 if ( normalVelocity(k, iEdge) * edgeSignOnCell(i, iCell) < 0.0_RKIND ) then
+                   divOutFlux = divOutFlux + &
+                                normalVelocity(k, iEdge) * edgeSignOnCell(i, iCell) * &
+                                layerThickEdgeFlux(k, iEdge) * dvEdge(iEdge) * &
+                                invAreaCell(iCell)
+                  end if
+               end if
+             end do
+             layerThickness = layerThickness + dt * divOutFlux
+           end do
+
+           layerThicknessCell(iCell) = layerThickness 
+           !
+           if ( config_use_subgrid_wetting_drying  ) then
+
+              call ocn_subgrid_ssh_lookup( layerThicknessCell(iCell), &
+                                       subgridWetVolumeCellTable(:,iCell), &
+                                       subgridSshCellTableRange(:,iCell), &
+                                       bottomDepth(iCell), &
+                                       subgridCellBathymetryMin(iCell), & 
+                                       sshCell(iCell) )
+           else
+              sshCell(iCell) = layerThicknessCell(iCell) - bottomDepth(iCell)      
+           end if
+           !
+           ! Check with Steven if updating hao is needed 
+        end do layerLoop
+
+        cellLoop: do iCell = 1, nCellsAll
+            ! if layer thickness is too small, limit divergence flux outwards with
+            ! opposite velocity
+            ifDryCell: if ( layerThicknessCell(iCell) <= &
+                    hCrit + config_drying_safety_height ) then
+  
+               edgeLoop: do i = 1, nEdgesOnCell(iCell)
+                 iEdge = edgesOnCell(i, iCell)
+                 !
+                 if ( normalVelocity(1,iEdge)*edgeSignOnCell(i, iCell) < 0.0_RKIND ) then 
+                    !
+                    wettingVelocityFactor(1,iEdge) = 1.0_RKIND
+                    
+                 else if ( normalVelocity(1,iEdge)*edgeSignOnCell(i, iCell) == 0.0_RKIND ) then
+                    !     
+                    wettingVelocityFactor(1,iEdge) = 1.0_RKIND 
+  
+                    cellDummy(1:2) = cellsOnEdge(1:2,iEdge) 
+                   
+                    cellCur = iCell 
+                    cellNei = merge( cellDummy(2), cellDummy(1), iCell == cellDummy(1) )
+                    if ( cellNei > nCellsAll ) cellNei = cellCur ! check with Steven on how to handle this index 
+               
+                    sshCur = sshCell(cellCur) ;
+                    sshNei = sshCell(cellNei) ; 
+  
+                    ! if the neigbor cell is anticiapted wet !
+                    if ( layerThicknessCell(cellNei) >  &
+                            hCrit + config_drying_safety_height ) then  
+                      if ( sshCur < sshNei ) then
+                         wettingVelocityFactor(1,iEdge) = 0.0_RKIND
+                      end if    
+                    end if     
+                    !
+                 end if
+               end do edgeLoop
+               
+            end if ifDryCell
+        end do cellLoop
+  
+        ! Ramping 
+        hRampMin = config_zero_drying_velocity_ramp_hmin
+        cellLoopRamp: do iCell = 1, nCellsAll
+            !
+            ifRampCell: if ( config_zero_drying_velocity_ramp .and. &
+                  (layerThicknessCell(iCell)  > &
+                   hCrit + config_drying_safety_height) .and. &
+                  (layerThicknessCell(iCell) <= config_zero_drying_velocity_ramp_hmax) ) then
+  
+                 !
+                 ! Following O'Dea et al. (2021), if total upwinded wct is less than
+                 ! 2*critical thickness, apply damping at each edge
+                 edgeLoopRamp: do i = 1, nEdgesOnCell(iCell)
+                    iEdge = edgesOnCell(i, iCell)
+                    if ( normalVelocity(1, iEdge) * edgeSignOnCell(i, iCell) <= 0.0_RKIND ) then
+                      wettingVelocityFactor(1, iEdge) = 1.0_RKIND - &
+                          tanh(50.0_RKIND * (layerThicknessCell(iCell) - hRampMin)/hRampMin)
+                    end if
+                    ! 
+                    if ( normalVelocity(1, iEdge) * edgeSignOnCell(i,iCell) == 0.0_RKIND ) then
+                      cellDummy(1:2) = cellsOnEdge(1:2,iEdge) 
+  
+                      cellCur = iCell ; 
+                      cellNei = merge( cellDummy(2), cellDummy(1), iCell == cellDummy(1) )
+                      if ( cellNei > nCellsAll ) cellNei = cellCur ! check
+                                                                   ! with Steven on how to handle this  
+  
+                      sshCur = sshCell(cellCur) ;
+                      sshNei = sshCell(cellNei) ; 
+                      ! if the neigbor cell is anticiapted dry !
+                      if ( layerThicknessCell(cellNei) <=  &
+                          hCrit + config_drying_safety_height ) then  
+                         if ( sshCur < sshNei ) then
+                             wettingVelocityFactor(1,iEdge) = 1.0_RKIND
+                         end if    
+                      end if     
+                    end if
+                    !
+                 end do edgeLoopRamp
+                 !
+            end if ifRampCell
+            !
+        end do cellLoopRamp
+           !
+        ! end if
+        !
+      end if
+
+      if (  config_use_modify_wetting_drying_implementation .and. &
+               config_pressure_gradient_type == 'ssh_gradient' ) then
+         deallocate( layerThicknessCell ) ; 
+         deallocate( sshCell ) ;
+      end if
+    
    end subroutine ocn_wetting_drying_wettingVelocity !}}}
 
 

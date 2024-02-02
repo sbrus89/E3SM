@@ -166,9 +166,13 @@ contains
            absorb = transCoeffTop - transCoeffBot
            remainingStress = remainingStress - absorb
 
+           !
+           ! print*, iEdge, layerThickEdgeMean(k,iEdge) ;
+           !
            tend(k,iEdge) =  tend(k,iEdge) + &
                             edgeMask(k,iEdge)*sfcStress(iEdge) * &
                             absorb/rho_sw/layerThickEdgeMean(k,iEdge)
+
 
            zTop = zBot
            transCoeffTop = transCoeffBot
