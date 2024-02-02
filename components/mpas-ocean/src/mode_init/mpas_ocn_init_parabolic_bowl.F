@@ -391,7 +391,7 @@ contains
          fVertex(iVertex) =  config_parabolic_bowl_coriolis_parameter ;
       end do
 
-
+      if (config_use_subgrid_wetting_drying) then
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Cells
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -592,6 +592,7 @@ vertex:do iVertex = 1,nVerticesSolve
                                            subgridWetVolumeVertexTable, subgridWetFractionVertexTable)
 
       enddo vertex
+      endif !subgrid calcs
 
        ! Find max bottom depth
        maxBottomDepth = maxval( bottomDepth ) ; 
@@ -675,6 +676,7 @@ vertex:do iVertex = 1,nVerticesSolve
        block_ptr => block_ptr % next
     end do
 
+    if (config_use_subgrid_wetting_drying) then
     do iCell = 1,nCellsSolve
       call ocn_subgrid_layer_thickness_lookup(ssh(iCell), & 
                                               subgridWetVolumeCellTable(:,iCell), &
@@ -682,6 +684,7 @@ vertex:do iVertex = 1,nVerticesSolve
                                               bottomDepth(iCell),&
                                               subgridLayerThicknessDebug(iCell))
     enddo
+    endif
 
     deallocate(interfaceLocations)
     !--------------------------------------------------------------------
