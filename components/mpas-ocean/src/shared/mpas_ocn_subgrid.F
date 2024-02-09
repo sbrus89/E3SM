@@ -346,7 +346,7 @@ contains
         return
       end if
 
-      if (nVertLevels .ne. 1) then
+      if ((config_ocean_run_mode == 'forward') .and. (nVertLevels .ne. 1)) then
         call mpas_log_write('config_config_use_subgrid_wetting_drying = .true. requires single layer' , MPAS_LOG_CRIT)
       end if 
 
