@@ -29,6 +29,7 @@ module ocn_tidal_forcing
    use ocn_config
    use ocn_mesh
    use ocn_diagnostics_variables
+   use ocn_subgrid
 
    implicit none
    private

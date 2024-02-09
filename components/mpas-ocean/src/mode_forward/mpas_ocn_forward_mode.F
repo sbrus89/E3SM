@@ -299,6 +299,8 @@ module ocn_forward_mode
       ierr = ior(ierr, err_tmp)
       call ocn_diagnostics_init(domain, err_tmp)
       ierr = ior(ierr,err_tmp)
+      call ocn_subgrid_init(domain, err_tmp)
+      ierr = ior(ierr,err_tmp)
 
       if(ierr.eq.1) then
           call mpas_log_write('An error was encountered while initializing the MPAS-Ocean forward mode', MPAS_LOG_CRIT)
@@ -499,7 +501,6 @@ module ocn_forward_mode
       if ( configVertAdvMethod == vertAdvRemap ) &
          call ocn_vertical_remap_init(err_tmp)
       call ocn_stokes_drift_init(err_tmp)
-      call ocn_subgrid_init(domain, err_tmp)
       ierr = ior(ierr,err_tmp)
 
       if (ierr /= 0) then

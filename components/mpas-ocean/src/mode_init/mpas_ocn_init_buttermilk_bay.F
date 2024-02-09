@@ -85,28 +85,6 @@ module ocn_init_Buttermilk_bay
    !
    !--------------------------------------------------------------------
 
-!   real (kind=RKIND):: LL, CC
-!   real (kind=RKIND):: oneMC2, sqrtOneMC2, oneMC
-!   real (kind=RKIND),  parameter :: eps=1.0e-10
-   real(kind=RKIND), dimension(:,:), pointer :: &
-      subgridWetVolumeCellTable, &
-      subgridWetVolumeEdgeTable, &
-      subgridWetVolumeVertexTable, &
-      subgridSshCellTableRange, &
-      subgridSshEdgeTableRange, &
-      subgridSshVertexTableRange, &
-      subgridWetFractionCellTable, &
-      subgridWetFractionEdgeTable, &
-      subgridWetFractionVertexTable
-   real(kind=RKIND), dimension(:), pointer :: &
-      subgridEdgeBathymetryMean, &
-      subgridVertexBathymetryMean, &
-      subgridCellBathymetryMin, &
-      subgridEdgeBathymetryMin, &
-      subgridVertexBathymetryMin, &
-      subgridLayerThicknessDebug
-   integer, pointer :: nSubgridTableLevels
-
    ! For netcdf topobathy input variables
    integer :: nLatTopo, nLonTopo
 
