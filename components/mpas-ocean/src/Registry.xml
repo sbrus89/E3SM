@@ -1554,7 +1554,6 @@
 		<package name="timeVaryingAtmosphericForcingPKG" description="This package includes variables required for time varying atmospheric forcing"/>
 		<package name="timeVaryingLandIceForcingPKG" description="This package includes variavles required for time varying land-ice forcing"/>
 		<package name="variableShortwave" description="This package includes variables required to compute spatially variable shortwave extinction coefficients"/>
-
 		<package name="splitTimeIntegrator" description="This package includes variables required for either the split or unsplit explicit time integrators."/>
 		<package name="semiImplicitTimePKG" description="This package includes variables required for split-implicit time integrators."/>
 		<package name="thicknessFilter" description="This package includes variables required for frequency filtered thickness."/>
@@ -2930,7 +2929,7 @@
 			 missing_value="FILLVAL" missing_value_mask="cellMask"
 			 packages="forwardMode;analysisMode"
 		/>
-		<var name="barotropicForcing" type="real" dimensions="nEdges Time" units="m s^-2"
+		<var name="barotropicForcing" type="real" dimensions="nEdges Time" uWCCM 2024 minisymposiumnits="m s^-2"
 			 description="Barotropic tendency computed from the baroclinic equations in stage 1 of the split-explicit algorithm."
 			 packages="forwardMode;analysisMode"
 		/>
@@ -3423,6 +3422,14 @@
 		<var name="ssh_sal_grad" type="real" dimensions="nEdges Time" units=""
 			description="gradient of sea surface height perturbation from self-attraction and loading"
 			packages="tidalPotentialForcingPKG"
+		/>
+		<var name="layerThicknessCellWetDry" type="real" dimensions="nCells Time" units="m"
+			description="intermediate estimate total layer thickness for wetting/drying purpose"
+			packages="forwardMode"
+		/>	
+		<var name="sshCellWetDry" type="real" dimensions="nCells Time" units="m"
+			description="intermediate estimate ssh for wetting/drying purpose"
+			packages="forwardMode"
 		/>
 	</var_struct>
 	<var_struct name="shortwave" time_levs="1">

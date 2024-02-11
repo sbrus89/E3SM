@@ -494,10 +494,15 @@ module ocn_time_integration_rk4
              ! compute wetting velocity to prevent drying of cell (sets up start of next iterate to not dry)
              if (config_prevent_drying) then
                block => domain % blocklist
-                 do while (associated(block))
-                   call ocn_prevent_drying_rk4(block, dt, rk_substep_weights(rk_step), config_zero_drying_velocity, err)
-                   block => block % next
-                 end do
+               do while (associated(block))
+                  ! call ocn_prevent_drying_rk4(block, dt, rk_substep_weights(rk_step), config_zero_drying_velocity, err)
+                  call ocn_prevent_drying_rk4( domain = domain, &
+                        block = block, dt = dt, &
+                        rkSubstepWeight = rk_substep_weights(rk_step), &
+                        config_zero_drying_velocity = config_zero_drying_velocity, err = err)
+
+                  block => block % next
+               end do
                ! exchange fields for parallelization
                call mpas_pool_get_field(statePool, 'normalVelocity', normalVelocityField, 1)
                call mpas_dmpar_exch_halo_field(normalVelocityField)

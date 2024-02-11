@@ -692,9 +692,12 @@ vertex:do iVertex = 1,nVerticesSolve
 
         ! Evaluate bounds of look-up table range
         !---------------------------------------------------------------
-
-        subgridSshVertexTableRange(1,iVertex) = -maxval(subgridBathymetryValues(1:nSubgridVertex)) + config_drying_min_cell_height + eps
+        subgridSshVertexTableRange(1,iVertex) = -maxval(subgridBathymetryValues(1:nSubgridVertex))
         subgridSshVertexTableRange(2,iVertex) = -minval(subgridBathymetryValues(1:nSubgridVertex))
+
+
+        ! subgridSshVertexTableRange(1,iVertex) = -maxval(subgridBathymetryValues(1:nSubgridVertex)) + config_drying_min_cell_height + eps
+        ! subgridSshVertexTableRange(2,iVertex) = -minval(subgridBathymetryValues(1:nSubgridVertex))
 
         ! Evaluate subgrid bathymetry
         !---------------------------------------------------------------
@@ -709,6 +712,21 @@ vertex:do iVertex = 1,nVerticesSolve
                                            subgridWetVolumeVertexTable, subgridWetFractionVertexTable)
 
       enddo vertex
+
+      !
+      ! find an ssh value corresponding to drying_min_cell-height 
+      ! of each edge 
+      if (config_use_subgrid_wetting_drying) then
+         do iEdge = 1,nEdgesSolve
+           call ocn_subgrid_ssh_lookup( config_drying_min_cell_height, & 
+                                    subgridWetVolumeVertexTable(:,iEdge), &
+                                    subgridSshVertexTableRange(:,iEdge), &
+                                    subgridVertexBathymetryMean(iEdge), &
+                                    subgridVertexBathymetryMin(iEdge), &
+                                    subgridSshVertexTableRange(3,iEdge) )
+         end do
+      end if
+
 
        ! Find max bottom depth
        maxBottomDepth = maxval( bottomDepth ) ; 
@@ -1285,8 +1303,8 @@ vertex:do iVertex = 1,nVerticesSolve
       do tri = 1,nSubgridCV
 
         layerThicknessValue = subgridBathymetryValues(tri) + subgridSshValues(tri)
-        if (layerThicknessValue < config_drying_min_cell_height + eps) then
-          layerThicknessValue = config_drying_min_cell_height + eps
+        if (layerThicknessValue < config_drying_min_cell_height + 0.0*eps) then
+          layerThicknessValue = config_drying_min_cell_height + 0.0*eps
         endif
         H_int = H_int + layerThicknessValue*subgridAreas(tri)
         wetArea = wetArea + subgridAreas(tri)
@@ -1298,12 +1316,16 @@ vertex:do iVertex = 1,nVerticesSolve
       enddo
 
       if (computeVelAverage) then
-         subgridUAverage = HU_int/H_int
-         subgridVAverage = HV_int/H_int
+         subgridUAverage = 0.0_RKIND  
+         subgridVAverage = 0.0_RKIND 
+
+         if ( H_int > config_drying_min_cell_height*wetArea ) then 
+           subgridUAverage = HU_int/H_int
+           subgridVAverage = HV_int/H_int
+         end if
       endif
       subgridThicknessAverage = H_int/wetArea
       
-
    !--------------------------------------------------------------------
 
    end subroutine ocn_init_wet_average!}}}
@@ -1340,8 +1362,9 @@ vertex:do iVertex = 1,nVerticesSolve
       if ( WetArea > 0.0_RKIND ) then
           sshWetAverage = sshWetAverage/WetArea ;
       else
-          sshWetAverage = -maxval(subgridBathymetryValues(1:nsubgridCV)) & 
-              + config_drying_min_cell_height ;
+          !sshWetAverage = -maxval(subgridBathymetryValues(1:nsubgridCV)) & 
+          !    + config_drying_min_cell_height ;
+          sshWetAverage = -maxval(subgridBathymetryValues(1:nsubgridCV)) ;
       endif
 
       return ;

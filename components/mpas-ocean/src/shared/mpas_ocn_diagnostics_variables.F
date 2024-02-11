@@ -141,6 +141,9 @@ module ocn_diagnostics_variables
    real (kind=RKIND), dimension(:,:), pointer :: wettingVelocityFactor
    type (field2DReal), pointer :: wettingVelocityField
 
+   real (kind=RKIND), dimension(:), pointer :: layerThicknessCellWetDry
+   real (kind=RKIND), dimension(:), pointer :: sshCellWetDry
+
    real (kind=RKIND), dimension(:,:), pointer :: vertDiffTopOfCell
    real (kind=RKIND), dimension(:,:,:), pointer :: vertNonLocalFlux
    integer, dimension(:,:), pointer :: rediLimiterCount
@@ -260,6 +263,12 @@ contains
                    wettingVelocityFactor)
          call mpas_pool_get_field(diagnosticsPool, 'wettingVelocityFactor', &
                    wettingVelocityField)
+         ! dw
+         call mpas_pool_get_array(diagnosticsPool,  &
+               'layerThicknessCellWetDry', layerThicknessCellWetDry ) 
+         
+         call mpas_pool_get_array(diagnosticsPool,  &
+                                     'sshCellWetDry', sshCellWetDry )  
       end if
 
       if (config_use_GM.or.config_use_Redi) then
@@ -1225,6 +1234,8 @@ contains
       end if
       if ( trim(config_ocean_run_mode) == 'forward' ) then
          nullify(wettingVelocityFactor)
+         nullify(layerThicknessCellWetDry) ! dw
+         nullify(sshCellWetDry)
       end if
       if (config_use_GM.or.config_use_Redi) then
          nullify(RediKappa,         &

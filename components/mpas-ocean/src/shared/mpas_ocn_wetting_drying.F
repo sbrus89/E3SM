@@ -201,7 +201,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_prevent_drying_rk4(block, dt, rkSubstepWeight, config_zero_drying_velocity, err) !{{{
+   subroutine ocn_prevent_drying_rk4( domain, block, dt, rkSubstepWeight, config_zero_drying_velocity, err ) !{{{
 
      !-----------------------------------------------------------------
      !
@@ -214,6 +214,8 @@ contains
      real (kind=RKIND), intent(in) :: rkSubstepWeight
      logical, pointer :: config_zero_drying_velocity
 
+     type (domain_type), intent(inout) :: domain !< Input/Output: domain information
+ 
      !-----------------------------------------------------------------
      !
      ! input/output variables
@@ -296,8 +298,15 @@ contains
 
       if ( config_use_modify_wetting_drying_implementation .and. &
                   config_pressure_gradient_type == 'ssh_gradient' ) then
-        call ocn_wetting_drying_wettingVelocity(layerThickEdgeFlux, layerThicknessCur, layerThicknessProvis, &
-                                     normalTransportVelocity, rkSubstepWeight, wettingVelocityFactor, err, block)
+
+         call ocn_wetting_drying_wettingVelocity( domain = domain, &
+              block= block, &  
+              layerThickEdgeFlux = layerThickEdgeFlux, & 
+              layerThicknessCur = layerThicknessCur, &
+              layerThicknessProvis = layerThicknessProvis, &
+              normalVelocity = normalTransportVelocity, &
+              dt = rkSubstepWeight, &
+              wettingVelocityFactor = wettingVelocityFactor, err = err )
 
       else       
         call ocn_wetting_drying_wettingVelocity(layerThickEdgeFlux, layerThicknessCur, layerThicknessProvis, &
@@ -351,8 +360,7 @@ contains
 !-----------------------------------------------------------------------
        
    subroutine ocn_wetting_drying_wettingVelocity(layerThickEdgeFlux, layerThicknessCur, layerThicknessProvis, &
-
-       normalVelocity, dt, wettingVelocityFactor, err, block )!{{{
+         normalVelocity, dt, wettingVelocityFactor, err, block, domain )!{{{
 
       !-----------------------------------------------------------------
       !
@@ -377,6 +385,7 @@ contains
 
       ! optional
       type (block_type), optional, intent(in) :: block
+      type (domain_type), optional, intent(inout) :: domain !< Input/Output: domain information
 
 
       !-----------------------------------------------------------------
@@ -415,12 +424,14 @@ contains
       
       ! array pointers for subgrid look-up tables
       real (kind=RKIND), dimension(:), pointer :: bottomDepth
-      real(kind=RKIND), dimension(:,:), pointer :: subgridSshCellTableRange, subgridWetVolumeCellTable
-      real(kind=RKIND), dimension(:), pointer :: subgridCellBathymetryMin
+      real (kind=RKIND), dimension(:,:), pointer :: subgridSshCellTableRange, subgridWetVolumeCellTable
+      real (kind=RKIND), dimension(:), pointer :: subgridCellBathymetryMin
    
       !
       integer:: cellDummy(2), cellCur, CellNei, sshCur, sshNei
-      real (kind=RKIND), allocatable:: layerThicknessCell(:), sshCell(:) 
+      real (kind=RKIND), dimension(:), pointer:: layerThicknessCell, sshCell
+!      real (kind=RKIND), allocatable:: layerThicknessCell(:), sshCell(:) 
+
 
 !      logical, save:: first = .true.
 !      integer:: dryflag, ii 
@@ -495,17 +506,20 @@ contains
 
 
       ! DW implementation 
-      !  - For onle layer only
+      !  - For a single-layer mode only
       if ( config_use_modify_wetting_drying_implementation .and. & 
-                     config_pressure_gradient_type == 'ssh_gradient') then
+                     config_pressure_gradient_type == 'ssh_gradient' ) then
         !
-        allocate( layerThicknessCell(nCellsAll) )  
-        allocate( sshCell(nCellsAll) )  
-        layerThickness = 0.0_RKIND  
+!        allocate( layerThicknessCell(nCellsAll) )  
+!        allocate( sshCell(nCellsAll) )  
+        layerThicknessCell => layerThicknessCellWetDry 
+        sshCell => sshCellWetDry  
+
+        layerThicknessCell = 0.0_RKIND  
         sshCell = 0.0_RKIND 
 
         call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
-        call mpas_pool_get_array( meshPool, 'bottomDepth', bottomDepth) 
+        call mpas_pool_get_array(meshPool, 'bottomDepth', bottomDepth) 
 
         ! for 1-layer subgrid wetting/dring !
         if ( config_use_subgrid_wetting_drying ) then
@@ -541,8 +555,30 @@ contains
 
            layerThicknessCell(iCell) = layerThickness 
            !
-           if ( config_use_subgrid_wetting_drying  ) then
+           !if ( config_use_subgrid_wetting_drying  ) then
+           ! 
+           !   call ocn_subgrid_ssh_lookup( layerThicknessCell(iCell), &
+           !                           subgridWetVolumeCellTable(:,iCell), &
+           !                            subgridSshCellTableRange(:,iCell), &
+           !                            bottomDepth(iCell), &
+           !                            subgridCellBathymetryMin(iCell), & 
+           !                            sshCell(iCell) )
+           !else
+           !   sshCell(iCell) = layerThicknessCell(iCell) - bottomDepth(iCell) 
+           !end if
+           !
+           ! Check with Steven if updating halo is needed 
+        end do layerLoop
 
+        ! update halo
+        ! call mpas_dmpar_field_halo_exch( domain, 'sshCellWetDry')
+        call mpas_dmpar_field_halo_exch( domain, &
+                                      'layerThicknessCellWetDry')
+
+        sshLoop: do iCell = 1, nCellsAll
+           
+           if ( config_use_subgrid_wetting_drying  ) then
+            
               call ocn_subgrid_ssh_lookup( layerThicknessCell(iCell), &
                                        subgridWetVolumeCellTable(:,iCell), &
                                        subgridSshCellTableRange(:,iCell), &
@@ -550,19 +586,18 @@ contains
                                        subgridCellBathymetryMin(iCell), & 
                                        sshCell(iCell) )
            else
-              sshCell(iCell) = layerThicknessCell(iCell) - bottomDepth(iCell)      
-           end if
-           !
-           ! Check with Steven if updating hao is needed 
-        end do layerLoop
+              sshCell(iCell) = layerThicknessCell(iCell) - bottomDepth(iCell) 
+           end if  
 
+        end do sshLoop     
+                              
         cellLoop: do iCell = 1, nCellsAll
-            ! if layer thickness is too small, limit divergence flux outwards with
-            ! opposite velocity
-            ifDryCell: if ( layerThicknessCell(iCell) <= &
-                    hCrit + config_drying_safety_height ) then
+           ! if layer thickness is too small, limit divergence flux outwards with
+           ! opposite velocity
+           ifDryCell: if ( layerThicknessCell(iCell) <= &
+                   hCrit + config_drying_safety_height ) then
   
-               edgeLoop: do i = 1, nEdgesOnCell(iCell)
+              edgeLoop: do i = 1, nEdgesOnCell(iCell)
                  iEdge = edgesOnCell(i, iCell)
                  !
                  if ( normalVelocity(1,iEdge)*edgeSignOnCell(i, iCell) < 0.0_RKIND ) then 
@@ -591,9 +626,9 @@ contains
                     end if     
                     !
                  end if
-               end do edgeLoop
+              end do edgeLoop
                
-            end if ifDryCell
+           end if ifDryCell
         end do cellLoop
   
         ! Ramping 
@@ -625,7 +660,7 @@ contains
   
                       sshCur = sshCell(cellCur) ;
                       sshNei = sshCell(cellNei) ; 
-                      ! if the neigbor cell is anticiapted dry !
+                      ! if the neigbor cell is anticipated dry !
                       if ( layerThicknessCell(cellNei) <=  &
                           hCrit + config_drying_safety_height ) then  
                          if ( sshCur < sshNei ) then
@@ -644,11 +679,11 @@ contains
         !
       end if
 
-      if (  config_use_modify_wetting_drying_implementation .and. &
-               config_pressure_gradient_type == 'ssh_gradient' ) then
-         deallocate( layerThicknessCell ) ; 
-         deallocate( sshCell ) ;
-      end if
+!      if (  config_use_modify_wetting_drying_implementation .and. &
+!               config_pressure_gradient_type == 'ssh_gradient' ) then
+!         deallocate( layerThicknessCell ) ; 
+!         deallocate( sshCell ) ;
+!      end if
     
    end subroutine ocn_wetting_drying_wettingVelocity !}}}
 

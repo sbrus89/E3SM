@@ -450,8 +450,8 @@ blockptr_doloop:do while(associated(block_ptr))
       xSubgridCell = 0.0_RKIND  
       ySubgridCell = 0.0_RKIND 
 
-      open( unit = 101, file = 'BM_bathy.dat', action = 'write' ) ; 
-      open( unit = 102, file = 'BM_ssh.dat', action = 'write' ) ; 
+!      open( unit = 103, file = 'BM_bathy.dat', action = 'write' ) ; 
+!      open( unit = 102, file = 'BM_ssh.dat', action = 'write' ) ; 
 
       do iCell = 1,nCellsSolve
         !
@@ -485,10 +485,10 @@ blockptr_doloop:do while(associated(block_ptr))
                                          subgridUValues, subgridVValues, xSubgridCell, ysubgridCell ) !{{{
         enddo
       
-        do jj = 1, nSubgridCell
-           WRITE( 101, '(I6,3F16.8)' ) iCell, xSubgridCell(jj), ysubgridCell(jj), subgridBathymetryValues(jj) ; 
-           WRITE( 102, '(I6,3F16.8)' ) iCell, xSubgridCell(jj), ysubgridCell(jj), subgridSshValues(jj) ; 
-        end do 
+!        do jj = 1, nSubgridCell
+!           WRITE( 101, '(I6,3F16.8)' ) iCell, xSubgridCell(jj), ysubgridCell(jj), subgridBathymetryValues(jj) ; 
+!           WRITE( 102, '(I6,3F16.8)' ) iCell, xSubgridCell(jj), ysubgridCell(jj), subgridSshValues(jj) ; 
+!        end do 
 
         ! Evaluate bounds of look-up table range
         !---------------------------------------------------------------        
@@ -522,6 +522,7 @@ blockptr_doloop:do while(associated(block_ptr))
         call ocn_init_wet_average_ssh(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, ssh(iCell))!{{{
       enddo
 
+      ! Find ssh corresponding to the min layer thickness ! 
       do iCell = 1, nCellsSolve
           call ocn_subgrid_ssh_lookup( config_drying_min_cell_height, & 
                                        subgridWetVolumeCellTable(:,iCell), &
@@ -535,8 +536,8 @@ blockptr_doloop:do while(associated(block_ptr))
          end if 
       end do
 
-      close( unit = 101 ) ;
-      close( unit = 102 ) ; 
+!      close( unit = 101 ) ;
+!      close( unit = 102 ) ; 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Edges
@@ -782,7 +783,7 @@ vertex:do iVertex = 1,nVerticesSolve
            maxLevelCell(iCell) = nVertLevels ; ! sigma coordinates 
           end do
 
-          open( unit = 103, file = 'ssh_cell.dat', action = 'write') 
+!!$          open( unit = 103, file = 'ssh_cell.dat', action = 'write') 
           do iCell = 1, nCellsSolve
             !
             ! make sure depth is thick enough via ssh = TOTAL_DEPTH - bottomDepth
@@ -822,10 +823,10 @@ vertex:do iVertex = 1,nVerticesSolve
               restingThickness(k,iCell) = bottomDepth(iCell)/maxLevelCell(iCell)
             end do
 
-            write(103,*) iCell, ssh(iCell), LayerThickness(1,iCell) ; 
+!!$            write(103,*) iCell, ssh(iCell), LayerThickness(1,iCell) ; 
 
           end do
-          close( unit = 103 ) ;
+!!$          close( unit = 103 ) ;
 
        end if 
 
@@ -841,7 +842,7 @@ vertex:do iVertex = 1,nVerticesSolve
      enddo
      !
 
-     open( unit = 101, file = 'bcmask.dat', action = 'write' ) ; 
+     ! open( unit = 101, file = 'bcmask.dat', action = 'write' ) ; 
      ! Set tidal boundary mask
      do iCell = 1, nCellsSolve
        tidalInputMask(iCell) = 0.0_RKIND
@@ -856,10 +857,10 @@ vertex:do iVertex = 1,nVerticesSolve
         ! if (yCell(iCell) > (25.0e3 - 3*dcEdgeMinGlobal)) then
         !  tidalInputMask(iCell) = exp(-((yCell(iCell)-25.0e3)/dcEdgeMinGlobal)**2.0)
        end if
-       write(101,'(I10,F16.8)') iCell, tidalInputMask(iCell) ; 
+       ! write(101,'(I10,F16.8)') iCell, tidalInputMask(iCell) ; 
      end do
      
-     close( 101 ) ;   
+    ! close( 101 ) ;   
     !
 
     deallocate(interfaceLocations)
