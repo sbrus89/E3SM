@@ -381,6 +381,8 @@ contains
                                subgridEdgeBathymetryMin)
       call mpas_pool_get_array(meshPool, 'subgridVertexBathymetryMin', &
                                subgridVertexBathymetryMin)
+      call mpas_pool_get_array(meshPool, 'subgridLayerThicknessDebug', &
+                               subgridLayerThicknessDebug)
  
       call mpas_pool_get_dimension(meshPool, 'nSubgridTableLevels', &
                                      nSubgridTableLevels)
