@@ -479,10 +479,10 @@ contains
 
         ! Evaluate wet layerThickness average
         !---------------------------------------------------------------
-!!$        call ocn_init_wet_average(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, layerThickness(1,iCell))
+        call ocn_init_wet_average(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, layerThickness(1,iCell))
 
         
-        call ocn_init_wet_average_ssh(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, ssh(iCell))!{{{
+!!$        call ocn_init_wet_average_ssh(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, ssh(iCell))!{{{
       enddo
 
       if (config_use_subgrid_wetting_drying) then
@@ -494,9 +494,10 @@ contains
                                        subgridCellBathymetryMin(iCell), &
                                        subgridSShCellTableRange(3,iCell) )
 
-            if ( ssh(iCell) < subgridSshCellTableRange(3,iCell) ) then
-              ssh(iCell) = subgridSshCellTableRange(3,iCell) ;  
-            end if 
+!!$            if ( ssh(iCell) < subgridSshCellTableRange(3,iCell) ) then
+!!$              ssh(iCell) = subgridSshCellTableRange(3,iCell) ;  
+!!$            end if 
+
          end do
       end if
 
@@ -775,18 +776,18 @@ vertex:do iVertex = 1,nVerticesSolve
  
             if (config_use_subgrid_wetting_drying) then
 
-!              call ocn_subgrid_ssh_lookup(layerThickness(1,iCell),&
-!                                          subgridWetVolumeCellTable(:,iCell),&
-!                                          subgridSshCellTableRange(:,iCell),&
-!                                          bottomDepth(iCell),&
-!                                          subgridCellBathymetryMin(iCell),&
-!                                          ssh(iCell))
+              call ocn_subgrid_ssh_lookup(layerThickness(1,iCell),&
+                                          subgridWetVolumeCellTable(:,iCell),&
+                                          subgridSshCellTableRange(:,iCell),&
+                                          bottomDepth(iCell),&
+                                          subgridCellBathymetryMin(iCell),&
+                                          ssh(iCell))
 
-              call ocn_subgrid_layer_thickness_lookup(ssh(iCell), & 
-                                             subgridWetVolumeCellTable(:,iCell), &
-                                             subgridSshCellTableRange(:,iCell),&
-                                             bottomDepth(iCell),&
-                                             LayerThickness(1,iCell))
+!             call ocn_subgrid_layer_thickness_lookup(ssh(iCell), & 
+!                                             subgridWetVolumeCellTable(:,iCell), &
+!                                             subgridSshCellTableRange(:,iCell),&
+!                                             bottomDepth(iCell),&
+!                                             LayerThickness(1,iCell))
 
             else
               !call ocn_init_parabolic_bowl_bathymetry(xCell(iCell),yCell(iCell),bottomDepth(iCell))
@@ -1303,8 +1304,8 @@ vertex:do iVertex = 1,nVerticesSolve
       do tri = 1,nSubgridCV
 
         layerThicknessValue = subgridBathymetryValues(tri) + subgridSshValues(tri)
-        if (layerThicknessValue < config_drying_min_cell_height + 0.0*eps) then
-          layerThicknessValue = config_drying_min_cell_height + 0.0*eps
+        if (layerThicknessValue < config_drying_min_cell_height + 1.0*eps) then
+          layerThicknessValue = config_drying_min_cell_height + 1.0*eps
         endif
         H_int = H_int + layerThicknessValue*subgridAreas(tri)
         wetArea = wetArea + subgridAreas(tri)
@@ -1316,13 +1317,13 @@ vertex:do iVertex = 1,nVerticesSolve
       enddo
 
       if (computeVelAverage) then
-         subgridUAverage = 0.0_RKIND  
-         subgridVAverage = 0.0_RKIND 
+         !subgridUAverage = 0.0_RKIND  
+         !subgridVAverage = 0.0_RKIND 
 
-         if ( H_int > config_drying_min_cell_height*wetArea ) then 
+         !if ( H_int > config_drying_min_cell_height*wetArea ) then 
            subgridUAverage = HU_int/H_int
            subgridVAverage = HV_int/H_int
-         end if
+         !end if
       endif
       subgridThicknessAverage = H_int/wetArea
       
