@@ -589,7 +589,9 @@ blockptr_doloop:do while(associated(block_ptr))
 
         ! Evaluate velocity average
         !---------------------------------------------------------------
-        call ocn_init_wet_average(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, layerThicknessEdgeAverage, &
+!        call ocn_init_wet_average(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, layerThicknessEdgeAverage, &
+!                                  subgridUValues, subgridVValues, uVelocityAverage(iEdge), vVelocityAverage(iEdge))
+        call ocn_init_wet_average( nSubgridEdge, subgridBathymetryValues, subgridSshValues, subgridAreas, layerThicknessEdgeAverage, &
                                   subgridUValues, subgridVValues, uVelocityAverage(iEdge), vVelocityAverage(iEdge))
 
         if ( .NOT. config_Buttermilk_bay_subgrid_edge_bathymetry_max_pixel ) then
