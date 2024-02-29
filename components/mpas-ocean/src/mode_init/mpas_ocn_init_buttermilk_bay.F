@@ -803,7 +803,7 @@ contains
 
    !--------------------------------------------------------------------
       type (mpas_pool_type), intent(inout) :: configPool, packagePool
-      type (mpas_io_context_type), intent(inout) :: iocontext
+      type (mpas_io_context_type), intent(inout), target :: iocontext
 
       integer, intent(out) :: iErr
 
@@ -820,6 +820,7 @@ contains
                                           config_Buttermilk_bay_topography_nlon_dimname 
 
       iErr = 0
+      iocontext_ptr => iocontext
 
       call mpas_pool_get_config(configPool, 'config_init_configuration', config_init_configuration)
 
@@ -863,7 +864,6 @@ contains
          return
       end if
 
-      ! print*, "message ",  config_Buttermilk_bay_topography_file, config_Buttermilk_bay_topography_source     
       if (config_Buttermilk_bay_topography_file == 'none' .and. &
           (config_Buttermilk_bay_topography_source == 'latlon_file' .or. &
           config_Buttermilk_bay_topography_source == 'xy_file') ) then
@@ -880,33 +880,18 @@ contains
       if (config_Buttermilk_bay_topography_source == 'latlon_file' .or. &
            config_Buttermilk_bay_topography_source == 'xy_file'  ) then
 
-!!         call mpas_log_write( ' before io_open', MPAS_LOG_CRIT ) 
-          
-!!         inputFile = MPAS_io_open(trim(config_Buttermilk_bay_topography_file), & 
-!!                        MPAS_IO_READ, MPAS_IO_NETCDF, iocontext_ptr, ierr=iErr)
-!!         if (iErr /= 0) then
-!!            call mpas_log_write( 'could not open file '// &
-!!     &              trim(config_Buttermilk_bay_topography_file), MPAS_LOG_CRIT)
-!!            return
-!!         end if
+         inputFile = MPAS_io_open(trim(config_Buttermilk_bay_topography_file), & 
+                        MPAS_IO_READ, MPAS_IO_NETCDF, iocontext_ptr, ierr=iErr)
+         if (iErr /= 0) then
+            call mpas_log_write( 'could not open file '// &
+     &              trim(config_Buttermilk_bay_topography_file), MPAS_LOG_CRIT)
+            return
+         end if
 
-!!         call mpas_log_write( 'after io_open', MPAS_LOG_CRIT ) 
+         call MPAS_io_inq_dim(inputFile, config_Buttermilk_bay_topography_nlat_dimname, nLatTopo, iErr)
+         call MPAS_io_inq_dim(inputFile, config_Buttermilk_bay_topography_nlon_dimname, nLonTopo, iErr)
 
-         nLatTopo = 3585 ; 
-         nLonTopo = 3585 ; 
-!!         call MPAS_io_inq_dim(inputFile, config_Buttermilk_bay_topography_nlat_dimname, nLatTopo, iErr)
-!!         call MPAS_io_inq_dim(inputFile, config_Buttermilk_bay_topography_nlon_dimname, nLonTopo, iErr)
-
-!!         call MPAS_io_close(inputFile, iErr)
-
-!!         call mpas_log_write( ' in ocn_init_validate_buttermilk_bay &
-!!                        after io_close', MPAS_LOG_CRIT ) 
-
-!!       if ( config_Buttermilk_bay_topography_latlon_degrees .and. &
-!!              config_Buttermilk_bay_topography_source == 'latlon_file' ) then
-!!          topoLat % array(:) = topoLat % array(:) * pii / 180.0_RKIND
-!!          topoLon % array(:) = topoLon % array(:) * pii / 180.0_RKIND
-!!       end if
+         call MPAS_io_close(inputFile, iErr)
 
       end if
       !----------
