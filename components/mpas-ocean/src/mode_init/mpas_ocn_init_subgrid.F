@@ -286,7 +286,7 @@ contains
           subgridSshCellTableRange(2,iCell) = -minval(subgridBathymetryValues(1:nSubgridCell))
       else
           ! flat bathy !
-          subgridSshCellTableRange(1,iCell) =  -bathymetryMin 
+          subgridSshCellTableRange(1,iCell) =  -bathymetryMin + subgrid_thin_layer
           subgridSshCellTableRange(2,iCell) =  -bathymetryMin + 2.0*config_drying_min_cell_height  
       endif 
 
@@ -304,7 +304,7 @@ contains
       ! Evaluate wet layerThickness average
       !---------------------------------------------------------------
         call ocn_init_grid_average(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, layerThickness(1,iCell))
-!!$        call ocn_init_wet_average_ssh(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, ssh(iCell))!{{{
+!        call ocn_init_wet_average_ssh(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, ssh(iCell))!{{{
     enddo
 
     do iCell = 1, nCellsSolve
@@ -877,7 +877,7 @@ vertex: do iVertex = 1,nVerticesSolve
       do tri = 1,nSubgridCV
 
         layerThicknessValue = subgridBathymetryValues(tri) + subgridSshValues(tri)
-        if (layerThicknessValue < config_drying_min_cell_height + eps) then
+        if (layerThicknessValue <= config_drying_min_cell_height + eps) then
           layerThicknessValue = config_drying_min_cell_height + eps
         endif
         H_int = H_int + layerThicknessValue*subgridAreas(tri)

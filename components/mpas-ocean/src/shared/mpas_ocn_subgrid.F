@@ -387,7 +387,7 @@ contains
       call mpas_pool_get_dimension(meshPool, 'nSubgridTableLevels', &
                                      nSubgridTableLevels)
 
-      nSubgridTableLevels = config_subgrid_table_levels_init
+      !nSubgridTableLevels = config_subgrid_table_levels_init
 
    end subroutine ocn_subgrid_init!}}}
 

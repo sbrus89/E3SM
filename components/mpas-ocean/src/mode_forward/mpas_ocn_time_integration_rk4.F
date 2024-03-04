@@ -495,7 +495,7 @@ module ocn_time_integration_rk4
              if (config_prevent_drying) then
                block => domain % blocklist
                  do while (associated(block))
-                   call ocn_prevent_drying_rk4(block, dt, rk_substep_weights(rk_step), config_zero_drying_velocity, err)
+                   call ocn_prevent_drying_rk4(domain, block, dt, rk_substep_weights(rk_step), config_zero_drying_velocity, err)
                    block => block % next
                  end do
                ! exchange fields for parallelization
@@ -723,7 +723,6 @@ module ocn_time_integration_rk4
                  !(1.0_RKIND - tidalInputMask(iCell))*layerThicknessNew(k, iCell)  ! generalized tappered assumption code
                end do
 
-               ! DW
                if ( config_use_subgrid_wetting_drying ) then
                   call ocn_subgrid_layer_thickness_lookup( tidalBCValue(iCell), & 
                                          subgridWetVolumeCellTable(:,iCell), &
@@ -732,7 +731,6 @@ module ocn_time_integration_rk4
                                          LayerThicknessNew(1,iCell) )
      
                end if
-               !
 
              end if
            end do

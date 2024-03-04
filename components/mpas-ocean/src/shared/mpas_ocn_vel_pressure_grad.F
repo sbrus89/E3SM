@@ -40,6 +40,19 @@ module ocn_vel_pressure_grad
    !
    !--------------------------------------------------------------------
 
+   integer, public :: &
+      pGradType   ! id for pressure gradient method selected
+
+   integer, parameter, public :: &! ids for supported methods
+      pGradTypeNone        = 0, &! none selected
+      pGradTypeSSHgrad     = 1, &! ssh gradient
+      pGradTypePZmid       = 2, &! pressure and zMid
+      pGradTypeMontPot     = 3, &! Montgomery potential
+      pGradTypeMontPotDens = 4, &! Montgomery potential and density
+      pGradTypeJacobDens   = 5, &! Jacobian from density
+      pGradTypeJacobTS     = 6, &! Jacobian from T,S
+      pGradTypeConstForced = 7   ! constant forced
+
    !--------------------------------------------------------------------
    !
    ! Public member functions
@@ -57,19 +70,6 @@ module ocn_vel_pressure_grad
 
    logical :: &
       pGradOff    ! flag for turning pressure gradient on/off
-
-   integer :: &
-      pGradType   ! id for pressure gradient method selected
-
-   integer, parameter ::        &! ids for supported methods
-      pGradTypeNone        = 0, &! none selected
-      pGradTypeSSHgrad     = 1, &! ssh gradient
-      pGradTypePZmid       = 2, &! pressure and zMid
-      pGradTypeMontPot     = 3, &! Montgomery potential
-      pGradTypeMontPotDens = 4, &! Montgomery potential and density
-      pGradTypeJacobDens   = 5, &! Jacobian from density
-      pGradTypeJacobTS     = 6, &! Jacobian from T,S
-      pGradTypeConstForced = 7   ! constant forced
 
    real (kind=RKIND) :: &! precomputed constants for efficiency
       density0Inv,      &! 1/density0
@@ -170,9 +170,6 @@ contains
          meridSshGrad,     &! config_meridional_ssh_grad
          zonalSshGrad       ! config_zonal_ssh_grad
 
-      real (kind=RKIND) :: &
-         wetFraction
-
       ! End preamble
       !-----------------------------------------------------------------
       ! Begin code
@@ -211,17 +208,9 @@ contains
             kMin = minLevelEdgeBot(iEdge)
             kMax = maxLevelEdgeTop(iEdge)
 
-            wetFraction = 1.0_RKIND
-            !if (config_use_subgrid_wetting_drying) then
-            !   call ocn_subgrid_wet_fraction_lookup(0.5_RKIND*(ssh(cell2)+ssh(cell1)), &
-            !                                        subgridWetFractionEdgeTable(:,iEdge), &
-            !                                        subgridSshEdgeTableRange(:,iEdge), &
-            !                                        wetFraction)
-            !endif
-
             do k=kMin,kMax
                tend(k,iEdge) = tend(k,iEdge) - &
-                               edgeMask(k,iEdge)*invdcEdge*wetFraction* &
+                               edgeMask(k,iEdge)*invdcEdge* &
                                (  gravity*(ssh(cell2) - ssh(cell1)) &
                                 + density0Inv*(  surfacePressure(cell2) &
                                                - surfacePressure(cell1)) )

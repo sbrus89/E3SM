@@ -3436,6 +3436,14 @@
 			description="gradient of sea surface height perturbation from self-attraction and loading"
 			packages="tidalPotentialForcingPKG"
 		/>
+		<var name="layerThicknessCellWetDry" type="real" dimensions="nCells Time" units="m"
+			description="intermediate estimate total layer thickness for wetting/drying purposes"
+			packages="forwardMode"
+		/>
+		<var name="sshCellWetDry" type="real" dimensions="nCells Time" units="m"
+			description="intermediate estimate ssh for wetting/drying purposes"
+			packages="forwardMode"
+		/>
 	</var_struct>
 	<var_struct name="shortwave" time_levs="1">
 		<!-- **********************************************************************
