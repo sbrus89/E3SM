@@ -166,7 +166,7 @@ contains
     integer :: slice, nSlice
     integer :: i,j
     real (kind=RKIND) :: deltaZ
-! DW
+
     integer:: nsubgridCellEdge, iEdgeSegment
     real (kind=RKIND), dimension(:,:), allocatable :: cellEdgeBathymetryValues
     real (kind=RKIND), dimension(:), allocatable:: dsEdge
@@ -175,9 +175,8 @@ contains
 
     iErr = 0
 
-    call ocn_subgrid_init(domain,iErr)
-
     if(config_init_configuration .ne. trim('parabolic_bowl')) return
+
 
     ! Determine vertical grid for configuration
     call mpas_pool_get_subpool(domain % blocklist % structs, 'mesh', meshPool)
@@ -190,7 +189,6 @@ contains
 
     allocate(interfaceLocations(nVertLevelsP1))
     call ocn_generate_vertical_grid( config_vertical_grid, interfaceLocations, ocnConfigs ) ;
-    !! Mental note: interfaceLocatons = (k-1)/N ;
 
     ! Initalize min/max values to large positive and negative values
     yMin = 1.0E10_RKIND
@@ -349,10 +347,15 @@ contains
     allocate(vVelocityAverage(nEdgesSolve))
     
     if (config_use_subgrid_wetting_drying) then
+
+       call ocn_subgrid_init(domain,iErr)
        call ocn_init_subgrid_calculations(domain, &
                                           ocn_init_parabolic_bowl_bathymetry, &
                                           ocn_init_parabolic_bowl_velocity, &
                                           ocn_init_parabolic_bowl_ssh, &
+                                          config_parabolic_bowl_subgrid_refinement_level, &
+                                          config_parabolic_bowl_subgrid_edge_bathymetry_max_pixel, &
+                                          config_parabolic_bowl_subgrid_use_thin_layer, &
                                           uVelocityAverage, &
                                           vVelocityAverage, &
                                           iErr)
@@ -592,6 +595,7 @@ contains
 
       character (len=StrKIND), pointer :: config_init_configuration
       integer, pointer :: config_vert_levels, config_parabolic_bowl_vert_levels
+      integer, pointer :: config_subgrid_table_levels, config_parabolic_bowl_subgrid_table_levels
    
       iErr = 0
 
@@ -605,7 +609,17 @@ contains
       if(config_vert_levels <= 0 .and. config_parabolic_bowl_vert_levels > 0) then
          config_vert_levels = config_parabolic_bowl_vert_levels
       else if (config_vert_levels <= 0) then
-         call mpas_log_write( 'Validation failed for para_bowl. Not given a usable value for vertical levels.', MPAS_LOG_CRIT)
+         call mpas_log_write( 'Validation failed for parabolic_bowl. Not given a usable value for vertical levels.', MPAS_LOG_CRIT)
+         iErr = 1
+      end if
+
+      call mpas_pool_get_config(configPool, 'config_subgrid_table_levels', config_subgrid_table_levels)
+      call mpas_pool_get_config(configPool, 'config_parabolic_bowl_subgrid_table_levels', config_parabolic_bowl_subgrid_table_levels)
+
+      if (config_subgrid_table_levels <= 0 .and. config_parabolic_bowl_subgrid_table_levels > 0) then
+         config_subgrid_table_levels = config_parabolic_bowl_subgrid_table_levels  
+      else if (config_subgrid_table_levels <= 0) then
+         call mpas_log_write( 'Validation failed for parabolic_bowl. Not given a usable value for subgrid table levels.', MPAS_LOG_CRIT)
          iErr = 1
       end if
 

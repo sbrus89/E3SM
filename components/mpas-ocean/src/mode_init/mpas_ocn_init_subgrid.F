@@ -9,34 +9,13 @@
 !
 !  ocn_init_subgrid
 !
-!> \brief MPAS ocean initialize case -- TEMPLATE
+!> \brief  Calculate the subgrid information 
 !> \author D. Wirasaet, S. Brus
 !> \date   May-June 2022
 !> \details
-!>  This module contains the routines for initializing the
-!>  parabolic_bowl initial condition (Thacker's problem)
+!>  This module contains the routines for calculating the information
+!>  needed to use subgrid corrctions within a forward model run.
 !>
-!>
-!.......................................................................
-!-----------------------------------------------------------------------
-!
-!>  In order to add a new initial condition, do the following:
-!>  1. In src/core_ocean/mode_init, copy these to your new initial condition name:
-!>     cp mpas_ocn_init_TEMPLATE.F mpas_ocn_init_your_new_name.F
-!>     cp Registry_TEMPLATE.xml Registry_ocn_your_new_name.xml
-!>
-!>  2. In those two new files, replace the following text:
-!>     TEMPLATE, FILL_IN_AUTHOR, FILL_IN_DATE
-!>     TEMPLATE uses underscores (subroutine names), like your_new_name.
-!>
-!>  3. Add a #include line for your registry to
-!>     src/core_ocean/mode_init/Registry.xml
-!>
-!>  4. Copy and change TEMPLATE lines in src/core_ocean/mode_init/mpas_ocn_init_mode.F
-!>
-!>  5. Add these dependency lines by following TEMPLATE examples in:
-!>     in src/core_ocean/mode_init/Makefile
-!
 !-----------------------------------------------------------------------
 
 module ocn_init_subgrid
@@ -119,16 +98,22 @@ contains
 !
 !  routine ocn_init_subgrid_calculations
 !
-!> \brief   Setup for this initial condition
+!> \brief   Calculations for subgrid look-up tables 
 !> \author  D. Wirasaet and S. Brus
 !> \date    May-June 2022
 !> \details
-!>  This routine sets up the initial conditions for this case.
-!>   To be run in sigma vertical coordinates and single-layer
+!>    This routine performs the vertical integration of the wet fraction
+!>    over the cell, edge, and vertex control volumes to create
+!>    lookup tables for the relationship between ssh and wet volume per
+!>    unit area.
 !
 !-----------------------------------------------------------------------
 
-  subroutine ocn_init_subgrid_calculations(domain, problem_bathymetry, problem_velocity, problem_ssh, uVelocityAverage, vVelocityAverage, iErr)!{{{
+  subroutine ocn_init_subgrid_calculations(domain, problem_bathymetry, problem_velocity, problem_ssh, &
+                                           subgrid_refinement_level, &
+                                           subgrid_edge_bathymetry_max_pixel, &
+                                           subgrid_use_thin_layer, &
+                                           uVelocityAverage, vVelocityAverage, iErr)!{{{
     
     implicit none
     !--------------------------------------------------------------------
@@ -138,6 +123,10 @@ contains
     procedure(bathymetry_function) :: problem_bathymetry
     procedure(velocity_function) :: problem_velocity
     procedure(ssh_function) :: problem_ssh
+    integer, intent(in) :: subgrid_refinement_level
+    logical, intent(in) :: subgrid_edge_bathymetry_max_pixel
+    logical, intent(in) :: subgrid_use_thin_layer
+    
     real (kind=RKIND), dimension(:), intent(out) :: uVelocityAverage, vVelocityAverage
 
     type (block_type), pointer :: block_ptr
@@ -219,7 +208,7 @@ contains
     call mpas_pool_get_array(statePool, 'normalVelocity', normalVelocity ) ; 
     call mpas_pool_get_array(statePool, 'layerThickness', layerThickness) ; 
 
-    if (config_subgrid_thin_layer_init) then
+    if (subgrid_use_thin_layer) then
        subgrid_thin_layer = config_drying_min_cell_height + eps
     else
        subgrid_thin_layer = 0.0_RKIND
@@ -230,9 +219,9 @@ contains
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     print*, "Begin cells", nCellsSolve
 
-    nSubgridTriPerSlice = config_subgrid_refinement_level_init**2
+    nSubgridTriPerSlice = subgrid_refinement_level**2
     allocate(rSubgridPoints(3,maxEdges*nSubgridTriPerSlice), sSubgridPoints(3,maxEdges*nSubgridTriPerSlice))
-    call ocn_init_define_subgrid_points(config_subgrid_refinement_level_init, rSubgridPoints, sSubgridPoints)
+    call ocn_init_define_subgrid_points(subgrid_refinement_level, rSubgridPoints, sSubgridPoints)
     allocate(subgridBathymetryValues(maxEdges*nSubgridTriPerSlice), subgridAreas(maxEdges*nSubgridTriPerSlice))
     allocate(subgridSshValues(maxEdges*nSubgridTriPerSlice))
     allocate(subgridUValues(maxEdges*nSubgridTriPerSlice))
@@ -325,7 +314,7 @@ contains
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     print*, "Begin edges", nEdgesSolve
 
-    nSubgridCellEdge=config_subgrid_refinement_level_init 
+    nSubgridCellEdge=subgrid_refinement_level 
     allocate( cellEdgeBathymetryValues(3,nSubgridCellEdge) )   
     allocate( dsEdge(nSubgridCellEdge) ) 
     cellEdgeBathymetryValues = -99999 ; 
@@ -371,7 +360,7 @@ contains
       call ocn_init_grid_average(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, layerThicknessEdgeAverage, &
                                 subgridUValues, subgridVValues, uVelocityAverage(iEdge), vVelocityAverage(iEdge))
 
-      if ( .NOT. config_subgrid_edge_bathymetry_max_pixel_init) then
+      if ( .NOT. subgrid_edge_bathymetry_max_pixel) then
          ! Evaluate bounds of look-up table range
          !---------------------------------------------------------------
          subgridSshEdgeTableRange(1,iEdge) = -maxval(subgridBathymetryValues(1:nSubgridEdge)) + subgrid_thin_layer

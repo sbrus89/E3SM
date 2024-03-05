@@ -7,36 +7,15 @@
 !
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !
-!  ocn_init_parabolic_bowl
+!  ocn_init_buttermilk_bay
 !
-!> \brief MPAS ocean initialize case -- TEMPLATE
+!> \brief  initialize the Buttermilk Bay case
 !> \author D. Wirasaet, S. Brus
 !> \date   May-June 2022
 !> \details
-!>  This module contains the routines for initializing the
-!>  parabolic_bowl initial condition (Thacker's problem)
+!>  This module contains the routines for initializing the Buttermilk
+!>  Bay test case with or without subgrid corrections
 !>
-!>
-!.......................................................................
-!-----------------------------------------------------------------------
-!
-!>  In order to add a new initial condition, do the following:
-!>  1. In src/core_ocean/mode_init, copy these to your new initial condition name:
-!>     cp mpas_ocn_init_TEMPLATE.F mpas_ocn_init_your_new_name.F
-!>     cp Registry_TEMPLATE.xml Registry_ocn_your_new_name.xml
-!>
-!>  2. In those two new files, replace the following text:
-!>     TEMPLATE, FILL_IN_AUTHOR, FILL_IN_DATE
-!>     TEMPLATE uses underscores (subroutine names), like your_new_name.
-!>
-!>  3. Add a #include line for your registry to
-!>     src/core_ocean/mode_init/Registry.xml
-!>
-!>  4. Copy and change TEMPLATE lines in src/core_ocean/mode_init/mpas_ocn_init_mode.F
-!>
-!>  5. Add these dependency lines by following TEMPLATE examples in:
-!>     in src/core_ocean/mode_init/Makefile
-!
 !-----------------------------------------------------------------------
 
 module ocn_init_Buttermilk_bay
@@ -99,7 +78,7 @@ contains
 
 !***********************************************************************
 !
-!  routine ocn_init_setup_parabolic_bowl
+!  routine ocn_init_setup_Buttermilk_bay
 !
 !> \brief   Setup for this initial condition
 !> \author  D. Wirasaet and S. Brus
@@ -179,8 +158,6 @@ contains
     real (kind=RKIND) :: deltaZ
 
 
-
-! DW
     integer:: i, j, jj
     integer:: nsubgridCellEdge, iEdgeSegment
     real (kind=RKIND):: pi
@@ -189,8 +166,6 @@ contains
     real (kind=RKIND), dimension(:), allocatable:: xSubgridCell, ySubgridCell
     real (kind=RKIND):: bathymetryMin, bathymetryMax
     iErr = 0
-
-    call ocn_subgrid_init(domain,iErr)
 
     if(config_init_configuration .ne. trim('buttermilk_bay')) return
 
@@ -413,10 +388,15 @@ contains
     allocate(vVelocityAverage(nEdgesSolve))
 
     if (config_use_subgrid_wetting_drying) then
+
+       call ocn_subgrid_init(domain,iErr)
        call ocn_init_subgrid_calculations(domain, &
                                           ocn_init_Buttermilk_bay_bathymetry, &
                                           ocn_init_Buttermilk_bay_velocity, &
                                           ocn_init_Buttermilk_bay_ssh, &
+                                          config_Buttermilk_bay_subgrid_refinement_level, &
+                                          config_Buttermilk_bay_subgrid_edge_bathymetry_max_pixel, &
+                                          config_Buttermilk_bay_subgrid_use_thin_layer, &
                                           uVelocityAverage, &
                                           vVelocityAverage, &
                                           iErr)
@@ -552,9 +532,9 @@ contains
 
 !***********************************************************************
 !
-!  routine ocn_init_parabolic_bowl_bathymetry
+!  routine ocn_init_Buttermilk_bay_bathymetry
 !
-!> \brief   Compute bathymetry
+!> \brief   Interpolate bathymetry
 !> \author  Steven Brus, D. Wirasaet
 !> \date    November 2022
 !> \details Return the value of the bathymetry at a given x,y point
@@ -624,7 +604,7 @@ contains
 
 !***********************************************************************
 !
-!  routine ocn_init_parabolic_bowl_ssh
+!  routine ocn_init_Buttermilk_bay_ssh
 !
 !> \brief   Compute initial ssh field
 !> \author  Steven Brus, D. Wirasaet
@@ -655,7 +635,7 @@ contains
 
 !***********************************************************************
 !
-!  routine ocn_init_parabolic_bowl_velocity
+!  routine ocn_init_Buttermilk_bay_velocity
 !
 !> \brief   Compute initial velocity field
 !> \author  Steven Brus, D. Wirasaet
@@ -811,6 +791,7 @@ contains
 
       ! character (len=StrKIND), pointer :: config_init_configuration
       integer, pointer :: config_vert_levels, config_Buttermilk_bay_vert_levels
+      integer, pointer :: config_subgrid_table_levels, config_Buttermilk_bay_subgrid_table_levels 
 
 
       type (mpas_io_context_type), pointer :: iocontext_ptr
@@ -830,13 +811,26 @@ contains
 
       call mpas_pool_get_config(configPool, 'config_vert_levels', config_vert_levels)
       call mpas_pool_get_config(configPool,  &
-     &      'config_Buttermilk_bay_vert_levels', config_Buttermilk_bay_vert_levels)
+                                'config_Buttermilk_bay_vert_levels', &
+                                config_Buttermilk_bay_vert_levels)
 
       if(config_vert_levels <= 0 .and. config_Buttermilk_bay_vert_levels > 0) then
          config_vert_levels = config_Buttermilk_bay_vert_levels
       else if (config_vert_levels <= 0) then
          call mpas_log_write( 'Validation failed for Buttermilk bay.'// &
-     &     'Not given a usable value for vertical levels.', MPAS_LOG_CRIT)
+           'Not given a usable value for vertical levels.', MPAS_LOG_CRIT)
+         iErr = 1
+      end if
+
+      call mpas_pool_get_config(configPool, 'config_subgrid_table_levels', config_subgrid_table_levels)
+      call mpas_pool_get_config(configPool, &
+                                'config_Buttermilk_bay_subgrid_table_levels', &
+                                config_Buttermilk_bay_subgrid_table_levels)
+      if (config_subgrid_table_levels <=0 .and. config_Buttermilk_bay_subgrid_table_levels >0) then
+         config_subgrid_table_levels = config_Buttermilk_bay_subgrid_table_levels
+      else if (config_subgrid_table_levels <=0) then
+         call mpas_log_write( 'Validation failed for Buttermilk bay.'// &
+           'Not given a usable value for subgrid table levels.', MPAS_LOG_CRIT)
          iErr = 1
       end if
 
@@ -860,7 +854,7 @@ contains
       if (config_Buttermilk_bay_topography_source /= 'latlon_file' .and. &
           config_Buttermilk_bay_topography_source /= 'xy_file') then
          call mpas_log_write( 'Unexpected value for &
-    &               config_Buttermilk_bay_topography_source: ' &
+                   config_Buttermilk_bay_topography_source: ' &
              // trim(config_Buttermilk_bay_topography_source), MPAS_LOG_CRIT)
          iErr = 1
          return
@@ -886,7 +880,7 @@ contains
                         MPAS_IO_READ, MPAS_IO_NETCDF, iocontext_ptr, ierr=iErr)
          if (iErr /= 0) then
             call mpas_log_write( 'could not open file '// &
-     &              trim(config_Buttermilk_bay_topography_file), MPAS_LOG_CRIT)
+                   trim(config_Buttermilk_bay_topography_file), MPAS_LOG_CRIT)
             return
          end if
 
