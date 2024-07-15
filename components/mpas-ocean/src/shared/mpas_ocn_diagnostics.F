@@ -2591,6 +2591,7 @@ contains
       integer :: nCells
       integer :: iCell
       integer :: k
+      logical, save:: first = .true. 
 
       nCells = nCellsAll
 
@@ -2603,6 +2604,12 @@ contains
       !$omp parallel
       !$omp do schedule(runtime) private(k)
 #endif
+
+!      if ( first ) then 
+!          write(*,*) "Enter  ssh calcuation " 
+!          first = .false. ;
+!      end if
+
       do iCell = 1, nCells
 
          ! Compute zMid, the z-coordinate of the middle of the layer.
@@ -2629,7 +2636,6 @@ contains
                                         subgridCellBathymetryMin(iCell), & 
                                         ssh(iCell))
 
-
             zTop(1,iCell) = ssh(iCell)
             zMid(1,iCell) = -bottomDepth(iCell) + 0.5_RKIND*layerThickness(1,iCell)         
          else
@@ -2638,6 +2644,8 @@ contains
          end if
 
       end do
+
+!      first = .false. ;
 #ifndef MPAS_OPENACC
       !$omp end do
       !$omp end parallel
