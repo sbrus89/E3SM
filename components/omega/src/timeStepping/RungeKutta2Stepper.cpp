@@ -14,8 +14,8 @@ RungeKutta2Stepper::RungeKutta2Stepper(const std::string &Name,
 // Advance the state by one step of the midpoint Runge Kutta scheme
 void RungeKutta2Stepper::doStep(OceanState *State, TimeInstant Time) const {
 
-   const int CurLevel  = 0;
-   const int NextLevel = 1;
+   const int CurLevel  = -1;
+   const int NextLevel = 0;
 
    // q = (h,u)
    // R_q^{n} = RHS_q(u^{n}, h^{n}, t^{n})

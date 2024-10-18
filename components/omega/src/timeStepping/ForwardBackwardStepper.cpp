@@ -14,8 +14,8 @@ ForwardBackwardStepper::ForwardBackwardStepper(const std::string &Name,
 // Advance the state by one step of the forward-backward scheme
 void ForwardBackwardStepper::doStep(OceanState *State, TimeInstant Time) const {
 
-   const int CurLevel  = 0;
-   const int NextLevel = 1;
+   const int CurLevel  = -1;
+   const int NextLevel = 0;
 
    // R_h^{n} = RHS_h(u^{n}, h^{n}, t^{n})
    Tend->computeThicknessTendencies(State, AuxState, CurLevel, CurLevel, Time);
