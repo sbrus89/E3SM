@@ -32,10 +32,17 @@ if(OMEGA_SINGLE_PRECISION)
   )
 endif()
 
+
 target_link_options(
     OmegaLibFlags
     INTERFACE
     ${OMEGA_LINK_OPTIONS}
+)
+
+target_link_directories(
+	OmegaLibFlags
+	INTERFACE
+	${OMEGA_BUILD_DIR}/external/GSW-C
 )
 
 target_link_libraries(
@@ -51,6 +58,7 @@ target_link_libraries(
     pacer
     stdc++fs
     gsw_c
+    gswteos-10
 )
 
 if(GKlib_FOUND)
@@ -65,6 +73,8 @@ endif()
 file(GLOB_RECURSE _LIBSRC_FILES infra/*.cpp base/*.cpp ocn/*.cpp timeStepping/*.cpp)
 
 add_library(${OMEGA_LIB_NAME} ${_LIBSRC_FILES})
+
+add_dependencies(${OMEGA_LIB_NAME} LibGSW_C)
 
 target_link_libraries(
     ${OMEGA_LIB_NAME}

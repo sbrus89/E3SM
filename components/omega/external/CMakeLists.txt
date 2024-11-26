@@ -2,24 +2,33 @@
 
 include(ExternalProject)
 
+file(COPY
+    ${OMEGA_SOURCE_DIR}/external/GSW-C/gsw_oceanographic_toolbox.c
+    ${OMEGA_SOURCE_DIR}/external/GSW-C/gsw_saar.c
+    ${OMEGA_SOURCE_DIR}/external/GSW-C/gswteos-10.h
+    ${OMEGA_SOURCE_DIR}/external/GSW-C/gsw_internal_const.h
+    ${OMEGA_SOURCE_DIR}/external/GSW-C/gsw_saar_data.h
+    ${OMEGA_SOURCE_DIR}/external/GSW-C/TOOLS.gcc
+    ${OMEGA_SOURCE_DIR}/external/GSW-C/Makefile
+    DESTINATION ${OMEGA_BUILD_DIR}/external/GSW-C
+)
+
 ExternalProject_Add(
     LibGSW_C
     SOURCE_DIR ${OMEGA_SOURCE_DIR}/external/GSW-C
-#    BINARY_DIR ${OMEGA_BUILD_DIR}/external/GSW-C
-    BUILD_IN_SOURCE TRUE
+    BINARY_DIR ${OMEGA_BUILD_DIR}/external/GSW-C
     CONFIGURE_COMMAND ""
     #BUILD_COMMAND "${MAKE} CC=${CMAKE_C_COMPILER} library"  # command to build the external library
-    BUILD_COMMAND "${MAKE}"  # command to build the external library
-    INSTALL_COMMAND ""   # leave blank if the library doesn’t support installation
-    #BUILD_BYPRODUCTS ${OMEGA_BUILD_DIR}/external/GSW-C/libgswteos-10.so
-    BUILD_BYPRODUCTS ${OMEGA_SOURCE_DIR}/external/GSW-C/libgswteos-10.so
+    BUILD_COMMAND make -f Makefile library # command to build the external library
+    INSTALL_COMMAND ""
+    BUILD_BYPRODUCTS ${OMEGA_BUILD_DIR}/external/GSW-C/libgswteos-10.so
 )
 
 # Link the built library to your project
 #add_library(gsw_c STATIC IMPORTED)
-add_library(gsw_c SHARED IMPORTED)
-set_target_properties(gsw_c PROPERTIES
-    IMPORTED_LOCATION ${CMAKE_BINARY_DIR}/external/GSW-C/libgswteos-10.so
+add_library(gswteos-10 SHARED IMPORTED)
+set_target_properties(gswteos-10 PROPERTIES
+    IMPORTED_LOCATION ${OMEGA_BUILD_DIR}/external/GSW-C/libgswteos-10.so
 )
 
 # Add the spdlog library
