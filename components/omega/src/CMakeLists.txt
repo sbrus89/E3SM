@@ -74,7 +74,7 @@ file(GLOB_RECURSE _LIBSRC_FILES infra/*.cpp base/*.cpp ocn/*.cpp timeStepping/*.
 
 add_library(${OMEGA_LIB_NAME} ${_LIBSRC_FILES})
 
-add_dependencies(${OMEGA_LIB_NAME} LibGSW_C)
+add_dependencies(${OMEGA_LIB_NAME} gswteos)
 
 target_link_libraries(
     ${OMEGA_LIB_NAME}

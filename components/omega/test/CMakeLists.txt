@@ -405,3 +405,11 @@ add_omega_test(
     ocn/TracersTest.cpp
     "-n;8"
 )
+
+##################
+# GSW-C test
+##################
+
+add_test(NAME GSWC_TEST
+    COMMAND ${OMEGA_BUILD_DIR}/external/GSW-C/gsw_check
+)
