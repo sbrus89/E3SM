@@ -15,6 +15,7 @@ target_include_directories(
     ${PIOC_SOURCE_DIR}
     ${PIOC_BINARY_DIR}
     ${Parmetis_INCLUDE_DIRS}
+    ${OMEGA_BUILD_DIR}/external/GSW-C
 )
 
 target_compile_definitions(
