@@ -407,9 +407,16 @@ add_omega_test(
 )
 
 ##################
-# GSW-C test
+# GSW-C tests
 ##################
 
-add_test(NAME GSWC_TEST
+add_test(NAME GSWC_CALL_TEST
     COMMAND ${OMEGA_BUILD_DIR}/external/GSW-C/gsw_check
+)
+
+add_omega_test(
+    GSWC_SPECVOL_TEST
+    testGswcSpecVol.exe
+    ocn/GswcSpecVolTest.cpp
+    "-n;1"
 )
