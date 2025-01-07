@@ -20,6 +20,7 @@
 #include "OmegaKokkos.h"
 #include "TimeStepper.h"
 #include "mpi.h"
+#include "EosConstants.h"
 
 #include <iostream>
 #include <gswteos-10.h>
@@ -88,6 +89,23 @@ int test_specvol_value() {
    return Err;
 }
 
+int test_fetch_coeff() {
+   int Err = 0;
+   double ExpVal = 0.0010769995862;
+   const Real RTol = 1e-10;
+   GSW_SPECVOL_COEFFICIENTS;
+   LOG_INFO("EosTest: called GSW_SPECVOL_COEFFICIENTS");
+   LOG_INFO("Value of V000: {}", V000);
+   if (!isApprox(V000, ExpVal, RTol)) {
+      Err++;
+      LOG_ERROR("EosTest: Coeff V000 isApprox FAIL, expected {}, got {}",
+                ExpVal, V000);
+   }
+   if (Err == 0) {
+      LOG_INFO("GswcTeosTest: check PASS");
+   }
+   return Err;
+}
 
 //------------------------------------------------------------------------------
 // The test driver for Teos10 library testing -> this tests calls the library 
@@ -101,6 +119,7 @@ int main(int argc, char *argv[]) {
    Kokkos::initialize(argc, argv);
 
    RetVal += test_specvol_value();
+   RetVal += test_fetch_coeff();
 
    Kokkos::finalize();
    MPI_Finalize();
