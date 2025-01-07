@@ -21,6 +21,7 @@
 #include "TimeStepper.h"
 #include "mpi.h"
 #include "EosConstants.h"
+#include "Eos.h"
 
 #include <iostream>
 #include <gswteos-10.h>
@@ -107,6 +108,51 @@ int test_fetch_coeff() {
    return Err;
 }
 
+int test_poly75t_delta() {
+   int Err = 0;
+   const Real RTol = 1e-10;
+   Real Sa = 30.;
+   Real Ct = 10.;
+   Real P = 1000.;
+   
+   TEOS10Poly75t specvolpoly75t;
+   Real Delta = specvolpoly75t.calcdelta(Sa, Ct, P);
+   LOG_INFO("Teos10Test: produced delta from poly75t");
+   LOG_INFO("Value of Delta: {}", Delta);
+   bool Check = isApprox(Delta, DeltaRefReal, RTol);
+   if (!Check) {
+      Err++;
+      LOG_ERROR("Teos10Test: Delta isApprox FAIL, expected {}, got {}",
+                DeltaRefReal, Delta);
+   }
+   if (Err == 0) {
+      LOG_INFO("Teos10Test: Delta check PASS");
+   }
+   return Err;
+}
+
+int test_poly75t_specvol() {
+   int Err = 0;
+   const Real RTol = 1e-10;
+   Real Sa = 30.;
+   Real Ct = 10.;
+   Real P = 1000.;
+   
+   TEOS10Poly75t specvolpoly75t;
+   Real SpecVol = specvolpoly75t(Sa, Ct, P);
+   LOG_INFO("Teos10Test: produced SpecVol from poly75t");
+   LOG_INFO("Value of SpecVol: {}", SpecVol);
+   bool Check = isApprox(SpecVol, VolRefReal, RTol);
+   if (!Check) {
+      Err++;
+      LOG_ERROR("Teos10Test: SpecVol isApprox FAIL, expected {}, got {}",
+                VolRefReal, SpecVol);
+   }
+   if (Err == 0) {
+      LOG_INFO("Teos10Test: SpecVol check PASS");
+   }
+   return Err;
+}
 //------------------------------------------------------------------------------
 // The test driver for Teos10 library testing -> this tests calls the library 
 // and compares the specific volume to the published value
@@ -120,6 +166,8 @@ int main(int argc, char *argv[]) {
 
    RetVal += test_specvol_value();
    RetVal += test_fetch_coeff();
+   RetVal += test_poly75t_delta();
+   RetVal += test_poly75t_specvol();
 
    Kokkos::finalize();
    MPI_Finalize();

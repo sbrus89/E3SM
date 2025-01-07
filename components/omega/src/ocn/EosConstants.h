@@ -1,5 +1,5 @@
-#ifndef OMEGA_EOS_H
-#define OMEGA_EOS_H
+#ifndef OMEGA_EOSCONSTANTS_H
+#define OMEGA_EOSCONSTANTS_H
 //===-- ocn/Eos.h - Equation of State --------------------*- C++ -*-===//
 //
 /// \file
