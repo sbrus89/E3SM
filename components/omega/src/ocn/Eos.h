@@ -19,7 +19,7 @@
 #include "Tracers.h"
 #include "EosConstants.h"
 
-#include <cmath>
+#include "OmegaKokkos.h"
 
 namespace OMEGA {
 
@@ -43,7 +43,7 @@ class TEOS10Poly75t {
       const Real Pu = 1e4;
       const Real DeltaS = 24.;
       GSW_SPECVOL_COEFFICIENTS;
-      const Real ss = sqrt ( (Sa+DeltaS)/SAu );
+      const Real ss = Kokkos::sqrt ( (Sa+DeltaS)/SAu );
       Real tt = Ct/CTu;
       Real pp = P/Pu;
       Real vp5 = V005;
