@@ -86,51 +86,25 @@ class TEOS10Poly75t {
 };
 
 /// Linear Equation of State
-// class LinearEOS {
-//  public:
-//    bool Enabled;
-// 
-//    /// constructor declaration
-//    LinearEOS();
-// 
-//    /// The functor takes edge index, vertical chunk index, and arrays for
-//    /// normalized relative vorticity, normalized planetary vorticity, layer
-//    /// thickness on edges, and normal velocity on edges as inputs,
-//    /// outputs the tendency array
-//    KOKKOS_FUNCTION Real operator()(const Array2DReal &Tend, I4 IEdge, I4 KChunk,
-//                                    const Array2DReal &NormRVortEdge,
-//                                    const Array2DReal &NormFEdge,
-//                                    const Array2DReal &FluxLayerThickEdge,
-//                                    const Array2DReal &NormVelEdge) const {
-// 
-//       const I4 KStart         = KChunk * VecLength;
-//       Real VortTmp[VecLength] = {0};
-// 
-//       for (int J = 0; J < NEdgesOnEdge(IEdge); ++J) {
-//          I4 JEdge = EdgesOnEdge(IEdge, J);
-//          for (int KVec = 0; KVec < VecLength; ++KVec) {
-//             const I4 K    = KStart + KVec;
-//             Real NormVort = (NormRVortEdge(IEdge, K) + NormFEdge(IEdge, K) +
-//                              NormRVortEdge(JEdge, K) + NormFEdge(JEdge, K)) *
-//                             0.5_Real;
-// 
-//             VortTmp[KVec] += WeightsOnEdge(IEdge, J) *
-//                              FluxLayerThickEdge(JEdge, K) *
-//                              NormVelEdge(JEdge, K) * NormVort;
-//          }
-//       }
-// 
-//       for (int KVec = 0; KVec < VecLength; ++KVec) {
-//          const I4 K = KStart + KVec;
-//          Tend(IEdge, K) += VortTmp[KVec];
-//       }
-//    }
-// 
-//  private:
-//    Array1DI4 NEdgesOnEdge;
-//    Array2DI4 EdgesOnEdge;
-//    Array2DReal WeightsOnEdge;
-// };
+class LinearEOS {
+ public:
+//   bool Enabled;
+   Real dRho_dT = -0.2; // alpha in kg.m-3 degC-1
+   Real dRho_dS = 0.8; // beta in kg m-3 
+   Real Rho_T0_S0 = 1000.0; // density at (T,S)=(0,0) in kg.m-3
+
+   /// constructor declaration
+   LinearEOS();
+
+   /// The functor takes edge index, vertical chunk index, and arrays for
+   /// normalized relative vorticity, normalized planetary vorticity, layer
+   /// thickness on edges, and normal velocity on edges as inputs,
+   /// outputs the tendency array
+   KOKKOS_FUNCTION Real operator()(Real S, Real T, Real P) const {
+      Real SpecVol = 1.0 / (Rho_T0_S0 + (dRho_dT*T + dRho_dS*S)); 
+      return SpecVol;
+      }
+};
 
 } // namespace OMEGA
 #endif

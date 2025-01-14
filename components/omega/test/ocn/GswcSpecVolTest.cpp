@@ -153,6 +153,32 @@ int test_poly75t_specvol() {
    }
    return Err;
 }
+
+int test_linear_specvol() {
+   int Err = 0;
+   const Real RTol = 1e-10;
+   Real Sa = 30.;
+   Real Ct = 10.;
+   Real P = 1000.;
+   
+   LinearEOS specvollinear;
+   Real SpecVol = specvollinear(Sa, Ct, P);
+   LOG_INFO("LinearEOSTest: produced SpecVol from linear EOS");
+   LOG_INFO("Value of SpecVol: {}", SpecVol);
+   bool Check = isApprox(SpecVol, VolRefReal, RTol);
+   if (Check) {
+      Err++;
+      LOG_ERROR("LinearEOSTest: SpecVol Linear is undistinguishable from TEOS10 Ref Value");
+   }
+   else if (!Check) {
+      LOG_INFO("LinearEOSTest: SpecVol TEOS10 {}, got {} with Linear",
+                VolRefReal, SpecVol);
+   }
+   if (Err == 0) {
+      LOG_INFO("LinearEOSTest: SpecVol check PASS");
+   }
+   return Err;
+}
 //------------------------------------------------------------------------------
 // The test driver for Teos10 library testing -> this tests calls the library 
 // and compares the specific volume to the published value
@@ -168,6 +194,7 @@ int main(int argc, char *argv[]) {
    RetVal += test_fetch_coeff();
    RetVal += test_poly75t_delta();
    RetVal += test_poly75t_specvol();
+   RetVal += test_linear_specvol();
 
    Kokkos::finalize();
    MPI_Finalize();
