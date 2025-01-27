@@ -74,7 +74,7 @@ int test_specvol_value() {
    double Sa = 30.;
    double Ct = 10.;
    double P = 1000.;
-   
+
    double SpecVol = gsw_specvol(Sa, Ct, P);
    LOG_INFO("GswcTeosTest: produced SpecVol from GSW-C module");
    LOG_INFO("Value of SpecVol: {}", SpecVol);
@@ -114,7 +114,7 @@ int test_poly75t_delta() {
    Real Sa = 30.;
    Real Ct = 10.;
    Real P = 1000.;
-   
+
    TEOS10Poly75t specvolpoly75t;
    Real Delta = specvolpoly75t.calcdelta(Sa, Ct, P);
    LOG_INFO("Teos10Test: produced delta from poly75t");
@@ -137,7 +137,7 @@ int test_poly75t_specvol() {
    Real Sa = 30.;
    Real Ct = 10.;
    Real P = 1000.;
-   
+
    TEOS10Poly75t specvolpoly75t;
    Real SpecVol = specvolpoly75t(Sa, Ct, P);
    LOG_INFO("Teos10Test: produced SpecVol from poly75t");
@@ -160,7 +160,7 @@ int check_linear_specvol() {
    Real Sa = 30.;
    Real Ct = 10.;
    Real P = 1000.;
-   
+
    LinearEOS specvollinear;
    Real SpecVol = specvollinear(Sa, Ct, P);
    LOG_INFO("LinearEOSTest: produced SpecVol from linear EOS");
@@ -188,7 +188,7 @@ int test_linear_specvol() {
    Real P = 1000.;
    Real Sa2 = 33.;
    Real Ct2 = 10.;
-   
+
    LinearEOS specvollinear;
    Real DRhoS = 1./specvollinear(Sa2, Ct1, P) - 1./specvollinear(Sa1, Ct1, P);
    Real DRhoT = 1./specvollinear(Sa1, Ct2, P) - 1./specvollinear(Sa1, Ct1, P);
@@ -210,7 +210,7 @@ int test_linear_specvol() {
 }
 
 //------------------------------------------------------------------------------
-// The test driver for Teos10 library testing -> this tests calls the library 
+// The test driver for Teos10 library testing -> this tests calls the library
 // and compares the specific volume to the published value
 //
 int main(int argc, char *argv[]) {

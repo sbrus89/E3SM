@@ -29,7 +29,7 @@ class TEOS10Poly75t {
    // bool Enabled;
 
    /// constructor declaration
-   TEOS10Poly75t(); 
+   TEOS10Poly75t();
 
    /// The functor takes point-wise conservative temperature, absolute salinity
    // and pressure as inputs and outputs the specific volume
@@ -48,30 +48,30 @@ class TEOS10Poly75t {
       Real pp = P/Pu;
       Real vp5 = V005;
 
-      Real vp4 = V014 * tt + V104 * ss + V004; 
-      Real vp3 = ( V023 * tt + V113 * ss + V013 ) * tt  
+      Real vp4 = V014 * tt + V104 * ss + V004;
+      Real vp3 = ( V023 * tt + V113 * ss + V013 ) * tt
 	      + ( V203 * ss + V103 ) * ss + V003;
-      Real vp2 = ( ( ( V042 * tt + V132 * ss + V032 ) * tt  
-                 + ( V222 * ss + V122 ) * ss + V022 ) * tt  
-		 + ( ( V312 * ss + V212 ) * ss + V112 ) * ss + V012 ) * tt  
+      Real vp2 = ( ( ( V042 * tt + V132 * ss + V032 ) * tt
+                 + ( V222 * ss + V122 ) * ss + V022 ) * tt
+		 + ( ( V312 * ss + V212 ) * ss + V112 ) * ss + V012 ) * tt
 	         + ( ( ( V402 * ss + V302 ) * ss + V202 ) * ss + V102 ) * ss + V002;
-      Real vp1 = ( ( ( ( V051 * tt + V141 * ss + V041 ) * tt  + ( V231 * ss + V131 ) * ss + V031 ) * tt  
-                 + ( ( V321 * ss + V221 ) * ss + V121 ) * ss + V021 ) * tt  
-		 + ( ( ( V411 * ss + V311 ) * ss + V211 ) * ss + V111 ) * ss + V011 ) * tt  
+      Real vp1 = ( ( ( ( V051 * tt + V141 * ss + V041 ) * tt  + ( V231 * ss + V131 ) * ss + V031 ) * tt
+                 + ( ( V321 * ss + V221 ) * ss + V121 ) * ss + V021 ) * tt
+		 + ( ( ( V411 * ss + V311 ) * ss + V211 ) * ss + V111 ) * ss + V011 ) * tt
 	         + ( ( ( ( V501 * ss + V401 ) * ss + V301 ) * ss + V201 ) * ss + V101 ) * ss + V001;
       Real vp0 = ( ( ( ( ( V060 * tt + V150 * ss + V050 ) * tt  + ( V240 * ss + V140 ) * ss + V040 ) * tt
-                 + ( ( V330 * ss + V230 ) * ss + V130 ) * ss + V030 ) * tt  
-                 + ( ( ( V420 * ss + V320 ) * ss + V220 ) * ss + V120 ) * ss + V020 ) * tt  
-		 + ( ( ( ( V510 * ss + V410 ) * ss + V310 ) * ss + V210 ) * ss + V110 ) * ss + V010 ) * tt 
+                 + ( ( V330 * ss + V230 ) * ss + V130 ) * ss + V030 ) * tt
+                 + ( ( ( V420 * ss + V320 ) * ss + V220 ) * ss + V120 ) * ss + V020 ) * tt
+		 + ( ( ( ( V510 * ss + V410 ) * ss + V310 ) * ss + V210 ) * ss + V110 ) * ss + V010 ) * tt
 	      + ((((( V600 * ss + V500 ) * ss + V400 ) * ss + V300 ) * ss + V200 ) * ss + V100 ) * ss + V000;
-    
+
       Real delta = ( ( ( ( vp5 * pp + vp4 ) * pp + vp3 ) * pp + vp2 ) * pp + vp1 ) * pp + vp0;
       return delta;
    }
    KOKKOS_FUNCTION Real refprofile(Real P) const {
       const Real Pu = 1e4;
       const Real V00 = -4.4015007269e-05;
-      const Real V01 = 6.9232335784e-06; 
+      const Real V01 = 6.9232335784e-06;
       const Real V02 = -7.5004675975e-07;
       const Real V03 = 1.7009109288e-08;
       const Real V04 = -1.6884162004e-08;
@@ -80,7 +80,7 @@ class TEOS10Poly75t {
 
       Real v0 = (((((V05 * pp+V04) * pp+V03 ) * pp+V02 ) * pp+V01) * pp+V00) * pp;
       return v0;
-   } 
+   }
 
 
 };
@@ -90,7 +90,7 @@ class LinearEOS {
  public:
 //   bool Enabled;
    Real dRho_dT = -0.2; // alpha in kg.m-3 degC-1
-   Real dRho_dS = 0.8; // beta in kg m-3 
+   Real dRho_dS = 0.8; // beta in kg m-3
    Real Rho_T0_S0 = 1000.0; // density at (T,S)=(0,0) in kg.m-3
 
    /// constructor declaration
@@ -101,7 +101,7 @@ class LinearEOS {
    /// thickness on edges, and normal velocity on edges as inputs,
    /// outputs the tendency array
    KOKKOS_FUNCTION Real operator()(Real S, Real T, Real P) const {
-      Real SpecVol = 1.0 / (Rho_T0_S0 + (dRho_dT*T + dRho_dS*S)); 
+      Real SpecVol = 1.0 / (Rho_T0_S0 + (dRho_dT*T + dRho_dS*S));
       return SpecVol;
       }
 };
