@@ -154,7 +154,7 @@ int test_poly75t_specvol() {
    return Err;
 }
 
-int test_linear_specvol() {
+int check_linear_specvol() {
    int Err = 0;
    const Real RTol = 1e-10;
    Real Sa = 30.;
@@ -179,6 +179,36 @@ int test_linear_specvol() {
    }
    return Err;
 }
+
+int test_linear_specvol() {
+   int Err = 0;
+   const Real RTol = 1e-10;
+   Real Sa1 = 30.;
+   Real Ct1 = 15.;
+   Real P = 1000.;
+   Real Sa2 = 33.;
+   Real Ct2 = 10.;
+   
+   LinearEOS specvollinear;
+   Real DRhoS = 1./specvollinear(Sa2, Ct1, P) - 1./specvollinear(Sa1, Ct1, P);
+   Real DRhoT = 1./specvollinear(Sa1, Ct2, P) - 1./specvollinear(Sa1, Ct1, P);
+   Real DRhoTS = 1./specvollinear(Sa2, Ct2, P) - 1./specvollinear(Sa1, Ct1, P);
+   LOG_INFO("LinearEOSTest: produced SpecVol from linear EOS");
+   LOG_INFO("Value of drhodS: {}", DRhoS);
+   LOG_INFO("Value of drhodT: {}", DRhoT);
+   bool Check = isApprox(DRhoTS, DRhoS + DRhoT, RTol);
+   if (!Check) {
+      Err++;
+      LOG_ERROR("LinearEOSTest: Sum(DRho) {}, DRhoTS {}",
+		 DRhoS + DRhoT, DRhoTS);
+   }
+   LOG_INFO("LinearEOSTest: Sum(DRho) is undistinguishable from DRhoTS");
+   if (Err == 0) {
+      LOG_INFO("LinearEOSTest: Density linear check PASS");
+   }
+   return Err;
+}
+
 //------------------------------------------------------------------------------
 // The test driver for Teos10 library testing -> this tests calls the library 
 // and compares the specific volume to the published value
@@ -194,6 +224,7 @@ int main(int argc, char *argv[]) {
    RetVal += test_fetch_coeff();
    RetVal += test_poly75t_delta();
    RetVal += test_poly75t_specvol();
+   RetVal += check_linear_specvol();
    RetVal += test_linear_specvol();
 
    Kokkos::finalize();
