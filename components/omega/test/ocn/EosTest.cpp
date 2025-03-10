@@ -28,15 +28,18 @@
 
 using namespace OMEGA;
 
-// misc. variables for testing
+// published values (TEOS-10) to test against
 const Real DeltaRefReal = 0.0009776149797;
 const Real VolRefReal = 0.0009732819628;
+double Sa = 30.;
+double Ct = 10.;
+double P = 1000.;
 
 //------------------------------------------------------------------------------
-// The initialization routine for Teos10 testing. It calls various
+// The initialization routine for Eos testing. It calls various
 // init routines, including the creation of the default decomposition.
-
-I4 initTeosTest() {
+// Not used now
+I4 initEosTest() {
 
    I4 Err = 0;
 
@@ -53,14 +56,14 @@ I4 initTeosTest() {
    Config("Omega");
    Err = Config::readAll("omega.yml");
    if (Err != 0) {
-      LOG_ERROR("Teos: Error reading config file");
+      LOG_ERROR("Eos: Error reading config file");
       return Err;
    }
 
    // Initialize the IO system
    Err = IO::init(DefComm);
    if (Err != 0) {
-      LOG_ERROR("Teos: error initializing parallel IO");
+      LOG_ERROR("Eos: error initializing parallel IO");
       return Err;
    }
 
@@ -68,28 +71,26 @@ I4 initTeosTest() {
 }
 
 
-int test_specvol_value() {
+int gswcSpecVolCheckValue() {
    int Err = 0;
    const Real RTol = 1e-10;
-   double Sa = 30.;
-   double Ct = 10.;
-   double P = 1000.;
 
    double SpecVol = gsw_specvol(Sa, Ct, P);
-   LOG_INFO("GswcTeosTest: produced SpecVol from GSW-C module");
+   LOG_INFO("gswcSpecVolCheckValue: produced SpecVol from GSW-C module");
    LOG_INFO("Value of SpecVol: {}", SpecVol);
    bool Check = isApprox(SpecVol, VolRefReal, RTol);
    if (!Check) {
       Err++;
-      LOG_ERROR("GswcTeosTest: SpecVol isApprox FAIL, expected {}, got {}",
+      LOG_ERROR("gswcSpecVolCheckValue: SpecVol isApprox FAIL, expected {}, got {}",
                 VolRefReal, SpecVol);
    }
    if (Err == 0) {
-      LOG_INFO("GswcTeosTest: check PASS");
+      LOG_INFO("gswcSpecVolCheckValue: PASS");
    }
    return Err;
 }
 
+// intermediate test: not used for now
 int test_fetch_coeff() {
    int Err = 0;
    double ExpVal = 0.0010769995862;
@@ -108,84 +109,87 @@ int test_fetch_coeff() {
    return Err;
 }
 
-int test_poly75t_delta() {
+int poly75tDeltaCheckValue() {
    int Err = 0;
    const Real RTol = 1e-10;
-   Real Sa = 30.;
-   Real Ct = 10.;
-   Real P = 1000.;
 
    TEOS10Poly75t specvolpoly75t;
    Real Delta = specvolpoly75t.calcdelta(Sa, Ct, P);
-   LOG_INFO("Teos10Test: produced delta from poly75t");
+   LOG_INFO("Teos10 poly75tDeltaCheckValue: produced delta from poly75t");
    LOG_INFO("Value of Delta: {}", Delta);
    bool Check = isApprox(Delta, DeltaRefReal, RTol);
    if (!Check) {
       Err++;
-      LOG_ERROR("Teos10Test: Delta isApprox FAIL, expected {}, got {}",
+      LOG_ERROR("Teos10 poly75tDeltaCheckValue: Delta isApprox FAIL, expected {}, got {}",
                 DeltaRefReal, Delta);
    }
    if (Err == 0) {
-      LOG_INFO("Teos10Test: Delta check PASS");
+      LOG_INFO("Teos10 poly75tDeltaCheckValue: PASS");
    }
    return Err;
 }
 
-int test_poly75t_specvol() {
+int poly75tSpecVolCheckValue() {
    int Err = 0;
    const Real RTol = 1e-10;
-   Real Sa = 30.;
-   Real Ct = 10.;
-   Real P = 1000.;
 
    TEOS10Poly75t specvolpoly75t;
    Real SpecVol = specvolpoly75t(Sa, Ct, P);
-   LOG_INFO("Teos10Test: produced SpecVol from poly75t");
+   LOG_INFO("Teos10 poly75tSpecVolCheckValue: produced SpecVol from poly75t");
    LOG_INFO("Value of SpecVol: {}", SpecVol);
    bool Check = isApprox(SpecVol, VolRefReal, RTol);
    if (!Check) {
       Err++;
-      LOG_ERROR("Teos10Test: SpecVol isApprox FAIL, expected {}, got {}",
+      LOG_ERROR("Teos10 poly75tSpecVolCheckValue: SpecVol isApprox FAIL, expected {}, got {}",
                 VolRefReal, SpecVol);
    }
    if (Err == 0) {
-      LOG_INFO("Teos10Test: SpecVol check PASS");
+      LOG_INFO("Teos10 poly75tSpecVolCheckValue: PASS");
    }
    return Err;
 }
 
-int check_linear_specvol() {
+int linearSpecVolCheckValue() {
    int Err = 0;
    const Real RTol = 1e-10;
+   const Real RTol2 = 1e-2; // >>machine prection
    Real Sa = 30.;
    Real Ct = 10.;
    Real P = 1000.;
 
    LinearEOS specvollinear;
    Real SpecVol = specvollinear(Sa, Ct, P);
-   LOG_INFO("LinearEOSTest: produced SpecVol from linear EOS");
+   LOG_INFO("linearSpecVolCheckValue: produced SpecVol from linear EOS");
    LOG_INFO("Value of SpecVol: {}", SpecVol);
-   bool Check = isApprox(SpecVol, VolRefReal, RTol);
+   bool Check = isApprox(SpecVol, VolRefReal, RTol); // expect False
+   bool CheckClose = isApprox(SpecVol, VolRefReal, RTol2); // expect True
    if (Check) {
       Err++;
-      LOG_ERROR("LinearEOSTest: SpecVol Linear is undistinguishable from TEOS10 Ref Value");
+      LOG_ERROR("linearSpecVolCheckValue: SpecVol Linear is undistinguishable from TEOS10 Ref Value");
    }
    else if (!Check) {
-      LOG_INFO("LinearEOSTest: SpecVol TEOS10 {}, got {} with Linear",
+      LOG_INFO("linearSpecVolCheckValue: SpecVol TEOS10 {}, got {} with Linear",
                 VolRefReal, SpecVol);
    }
+   if (CheckClose) {
+      LOG_INFO("linearSpecVolCheckValue: SpecVol TEOS10 and Linear are within {}",
+		RTol2);
+   }
+   else if (!CheckClose) {
+      Err++;
+      LOG_ERROR("linearSpecVolCheckValue: SpecVol TEOS10 and Linear are NOT close. Check input values");
+   }
    if (Err == 0) {
-      LOG_INFO("LinearEOSTest: SpecVol check PASS");
+      LOG_INFO("linearSpecVolCheckValue: PASS");
    }
    return Err;
 }
 
-int test_linear_specvol() {
+int linearDensityLinearityTest() {
    int Err = 0;
    const Real RTol = 1e-10;
    Real Sa1 = 30.;
    Real Ct1 = 15.;
-   Real P = 1000.;
    Real Sa2 = 33.;
    Real Ct2 = 10.;
 
@@ -193,26 +197,28 @@ int test_linear_specvol() {
    Real DRhoS = 1./specvollinear(Sa2, Ct1, P) - 1./specvollinear(Sa1, Ct1, P);
    Real DRhoT = 1./specvollinear(Sa1, Ct2, P) - 1./specvollinear(Sa1, Ct1, P);
    Real DRhoTS = 1./specvollinear(Sa2, Ct2, P) - 1./specvollinear(Sa1, Ct1, P);
-   LOG_INFO("LinearEOSTest: produced SpecVol from linear EOS");
+   LOG_INFO("linearDensityLinearityTest: produced SpecVol from linear EOS");
    LOG_INFO("Value of drhodS: {}", DRhoS);
    LOG_INFO("Value of drhodT: {}", DRhoT);
    bool Check = isApprox(DRhoTS, DRhoS + DRhoT, RTol);
    if (!Check) {
       Err++;
-      LOG_ERROR("LinearEOSTest: Sum(DRho) {}, DRhoTS {}",
+      LOG_ERROR("linearDensityLinearityTest: Sum(DRho) {}, DRhoTS {}",
 		 DRhoS + DRhoT, DRhoTS);
    }
-   LOG_INFO("LinearEOSTest: Sum(DRho) is undistinguishable from DRhoTS");
+   LOG_INFO("linearDensityLinearityTest: Sum(DRho) is undistinguishable from DRhoTS");
    if (Err == 0) {
-      LOG_INFO("LinearEOSTest: Density linear check PASS");
+      LOG_INFO("linearDensityLinearityTest: PASS");
    }
    return Err;
 }
 
 //------------------------------------------------------------------------------
-// The test driver for Teos10 library testing -> this tests calls the library
+// The test driver for Eos testing
+// --> one test calls the external GSW-C library
 // and compares the specific volume to the published value
-//
+// --> next tests call the local POly75t TEOS-10 calc
+// --> next tests call the linear Eos
 int main(int argc, char *argv[]) {
 
    int RetVal = 0;
@@ -220,12 +226,11 @@ int main(int argc, char *argv[]) {
    MPI_Init(&argc, &argv);
    Kokkos::initialize(argc, argv);
 
-   RetVal += test_specvol_value();
-   RetVal += test_fetch_coeff();
-   RetVal += test_poly75t_delta();
-   RetVal += test_poly75t_specvol();
-   RetVal += check_linear_specvol();
-   RetVal += test_linear_specvol();
+   RetVal += gswcSpecVolCheckValue();
+   RetVal += poly75tDeltaCheckValue();
+   RetVal += poly75tSpecVolCheckValue();
+   RetVal += linearSpecVolCheckValue();
+   RetVal += linearDensityLinearityTest();
 
    Kokkos::finalize();
    MPI_Finalize();
