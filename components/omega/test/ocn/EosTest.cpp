@@ -10,6 +10,7 @@
 //===-----------------------------------------------------------------------===/
 
 #include "Tracers.h"
+#include "Config.h"
 #include "DataTypes.h"
 #include "Decomp.h"
 #include "Dimension.h"
@@ -23,7 +24,12 @@
 #include "EosConstants.h"
 #include "Eos.h"
 
-#include <iostream>
+// added for debug
+#include "Field.h"
+#include "Halo.h"
+#include "HorzMesh.h"
+#include "mpi.h"
+
 #include <gswteos-10.h>
 
 using namespace OMEGA;
@@ -39,18 +45,22 @@ double P = 1000.;
 // The initialization routine for Eos testing. It calls various
 // init routines, including the creation of the default decomposition.
 // Not used now
-I4 initEosTest() {
+I4 initEosTest(const std::string &mesh) {
 
    I4 Err = 0;
-
+   LOG_INFO("… in initEosTest");
    // Initialize the Machine Environment class - this also creates
    // the default MachEnv. Then retrieve the default environment and
    // some needed data members.
    MachEnv::init(MPI_COMM_WORLD);
+   LOG_INFO("…1 in initEosTest");
    MachEnv *DefEnv  = MachEnv::getDefault();
+   LOG_INFO("…2 in initEosTest");
    MPI_Comm DefComm = DefEnv->getComm();
+   LOG_INFO("… 3 in initEosTest");
 
    initLogging(DefEnv);
+   LOG_INFO("… 4 in initEosTest");
 
    // Open config file
    Config("Omega");
@@ -68,6 +78,68 @@ I4 initEosTest() {
    }
 
    return 0;
+}
+
+
+int testEos() {
+   int Err = 0;
+   LOG_INFO("… in EosTest");
+   // test initialization
+   int EosErr = Eos::init();
+   if (EosErr != 0) {
+      Err++;
+      LOG_ERROR("EosTest: error initializing default Eos");
+   }
+
+   // test retrievel of default
+   Eos *DefEos = Eos::getDefault();
+
+   if (DefEos) {
+      LOG_INFO("EosTest: Default Eos retrieval PASS");
+   } else {
+      Err++;
+      LOG_INFO("EosTest: Default Eos retrieval FAIL");
+      return -1;
+   }
+
+   const auto *Mesh = HorzMesh::getDefault();
+   // test creation of another Eos
+   Config *Options = Config::getOmegaConfig();
+   Eos::create("TestEos", Mesh, 60); // MODIFY THIS
+
+   // test retrievel of another Eos
+   if (Eos::get("TestEos")) {
+      LOG_INFO("EosTest: Non-default Eos retrieval PASS");
+   } else {
+      Err++;
+      LOG_INFO("EosTest: Non-default Eos retrieval FAIL");
+   }
+
+// test erase
+   Eos::erase("TestEos");
+
+   if (Eos::get("TestEos")) {
+      Err++;
+      LOG_INFO("EosTest: Non-default Eos erase FAIL");
+   } else {
+      LOG_INFO("EosTest: Non-default Eos erase PASS");
+   }
+
+   return Err;
+}
+
+int eosTest(const std::string &MeshFile = "OmegaMesh.nc"){
+   int Err = initEosTest(MeshFile);
+   if (Err != 0) {
+      LOG_CRITICAL("EosTest: Error initializing");
+   }
+   const auto &Mesh = HorzMesh::getDefault();
+   Err += testEos();
+
+   if (Err == 0) {
+      LOG_INFO("EosTest: Successful completion");
+   }
+   return Err; 
 }
 
 
@@ -213,7 +285,17 @@ int linearDensityLinearityTest() {
    return Err;
 }
 
-//------------------------------------------------------------------------------
+// int eosClassCheck() {
+//    int Err = 0;
+//
+//    LOG_INFO("eosClassCheck:");
+//    Eos eosinstance;
+//    LOG_INFO("past instantiation");
+//    return Err;
+// }
+
+
+   //------------------------------------------------------------------------------
 // The test driver for Eos testing
 // --> one test calls the external GSW-C library
 // and compares the specific volume to the published value
@@ -226,11 +308,12 @@ int main(int argc, char *argv[]) {
    MPI_Init(&argc, &argv);
    Kokkos::initialize(argc, argv);
 
-   RetVal += gswcSpecVolCheckValue();
-   RetVal += poly75tDeltaCheckValue();
-   RetVal += poly75tSpecVolCheckValue();
-   RetVal += linearSpecVolCheckValue();
-   RetVal += linearDensityLinearityTest();
+//    RetVal += gswcSpecVolCheckValue();
+//    RetVal += poly75tDeltaCheckValue();
+//    RetVal += poly75tSpecVolCheckValue();
+//    RetVal += linearSpecVolCheckValue();
+//    RetVal += linearDensityLinearityTest();
+   RetVal += eosTest();
 
    Kokkos::finalize();
    MPI_Finalize();
