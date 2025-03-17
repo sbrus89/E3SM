@@ -36,6 +36,8 @@ Omega:
   Tracers:
     Base: [Temperature, Salinity]
     Debug: [Debug1, Debug2, Debug3]
+  Eos:
+    EosType: Linear
   IOStreams:
     # InitialState should only be used when starting from scratch.
     # For restart runs, the frequency units should be changed from

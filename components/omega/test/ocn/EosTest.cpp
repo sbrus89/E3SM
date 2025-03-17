@@ -28,12 +28,27 @@
 #include "Field.h"
 #include "Halo.h"
 #include "HorzMesh.h"
-#include "mpi.h"
+#include "AuxiliaryState.h"
 
 #include <gswteos-10.h>
 
 using namespace OMEGA;
 
+
+// struct TestSetup {
+//    Real Radius = 6371220;
+//
+//    KOKKOS_FUNCTION Real layerThickness(Real Lon, Real Lat) const {
+//       return (2 + std::cos(Lon) * std::pow(std::cos(Lat), 4));
+//    }
+//
+//    KOKKOS_FUNCTION Real tracer(Real Lon, Real Lat) const {
+//       return (2 - std::cos(Lon) * std::pow(std::cos(Lat), 4));
+//    }
+// };
+
+constexpr Geometry Geom   = Geometry::Spherical;
+constexpr int NVertLevels = 60;
 // published values (TEOS-10) to test against
 const Real DeltaRefReal = 0.0009776149797;
 const Real VolRefReal = 0.0009732819628;
@@ -48,16 +63,13 @@ double P = 1000.;
 I4 initEosTest(const std::string &mesh) {
 
    I4 Err = 0;
-   LOG_INFO("… in initEosTest");
+
    // Initialize the Machine Environment class - this also creates
    // the default MachEnv. Then retrieve the default environment and
    // some needed data members.
    MachEnv::init(MPI_COMM_WORLD);
-   LOG_INFO("…1 in initEosTest");
    MachEnv *DefEnv  = MachEnv::getDefault();
-   LOG_INFO("…2 in initEosTest");
    MPI_Comm DefComm = DefEnv->getComm();
-   LOG_INFO("… 3 in initEosTest");
 
    initLogging(DefEnv);
    LOG_INFO("… 4 in initEosTest");
@@ -70,14 +82,48 @@ I4 initEosTest(const std::string &mesh) {
       return Err;
    }
 
-   // Initialize the IO system
-   Err = IO::init(DefComm);
-   if (Err != 0) {
-      LOG_ERROR("Eos: error initializing parallel IO");
-      return Err;
+   int TimeStepperErr = TimeStepper::init1();
+   if (TimeStepperErr != 0) {
+      Err++;
+      LOG_ERROR("TendenciesTest: error initializing default time stepper");
    }
 
-   return 0;
+   int IOErr = IO::init(DefComm);
+   if (IOErr != 0) {
+      Err++;
+      LOG_ERROR("TendenciesTest: error initializing parallel IO");
+   }
+
+   int DecompErr = Decomp::init(mesh);
+   if (DecompErr != 0) {
+      Err++;
+      LOG_ERROR("TendenciesTest: error initializing default decomposition");
+   }
+
+   int HaloErr = Halo::init();
+   if (HaloErr != 0) {
+      Err++;
+      LOG_ERROR("TendenciesTest: error initializing default halo");
+   }
+
+   int MeshErr = HorzMesh::init();
+   if (MeshErr != 0) {
+      Err++;
+      LOG_ERROR("TendenciesTest: error initializing default mesh");
+   }
+
+   int TracerErr = Tracers::init();
+   if (TracerErr != 0) {
+      Err++;
+      LOG_ERROR("TendenciesTest: error initializing tracer infrastructure");
+   }
+
+   const auto &Mesh = HorzMesh::getDefault();
+   std::shared_ptr<Dimension> VertDim =
+       Dimension::create("NVertLevels", NVertLevels);
+
+
+   return Err;
 }
 
 
@@ -125,7 +171,20 @@ int testEos() {
       LOG_INFO("EosTest: Non-default Eos erase PASS");
    }
 
+   Eos::clear();
+
    return Err;
+}
+
+void finalizeEosTest() {
+   Tracers::clear();
+   AuxiliaryState::clear();
+   HorzMesh::clear();
+   Halo::clear();
+   TimeStepper::clear();
+   Decomp::clear();
+   MachEnv::removeAll();
+   LOG_INFO("EosTest: end of finalize()");
 }
 
 int eosTest(const std::string &MeshFile = "OmegaMesh.nc"){
@@ -139,7 +198,9 @@ int eosTest(const std::string &MeshFile = "OmegaMesh.nc"){
    if (Err == 0) {
       LOG_INFO("EosTest: Successful completion");
    }
-   return Err; 
+   finalizeEosTest();
+
+   return Err;
 }
 
 
@@ -285,17 +346,7 @@ int linearDensityLinearityTest() {
    return Err;
 }
 
-// int eosClassCheck() {
-//    int Err = 0;
-//
-//    LOG_INFO("eosClassCheck:");
-//    Eos eosinstance;
-//    LOG_INFO("past instantiation");
-//    return Err;
-// }
-
-
-   //------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
 // The test driver for Eos testing
 // --> one test calls the external GSW-C library
 // and compares the specific volume to the published value
@@ -307,14 +358,14 @@ int main(int argc, char *argv[]) {
 
    MPI_Init(&argc, &argv);
    Kokkos::initialize(argc, argv);
-
+   {
 //    RetVal += gswcSpecVolCheckValue();
 //    RetVal += poly75tDeltaCheckValue();
 //    RetVal += poly75tSpecVolCheckValue();
 //    RetVal += linearSpecVolCheckValue();
 //    RetVal += linearDensityLinearityTest();
    RetVal += eosTest();
-
+   }
    Kokkos::finalize();
    MPI_Finalize();
 

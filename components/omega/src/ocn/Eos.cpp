@@ -1,5 +1,6 @@
 #include "DataTypes.h"
 #include "Eos.h"
+#include "HorzMesh.h"
 
 namespace OMEGA {
 
@@ -32,9 +33,9 @@ int Eos::init(){
    HorzMesh *DefHorzMesh = HorzMesh::getDefault();
    I4 NVertLevels = DefHorzMesh->NVertLevels;
 
-      // Ceate default eos
+   // Create default eos
    Eos::DefaultEos =
-       create("Default", DefHorzMesh, NVertLevels);
+      create("Default", DefHorzMesh, NVertLevels);
 
    // Get EosConfig group
    Config *OmegaConfig = Config::getOmegaConfig();
