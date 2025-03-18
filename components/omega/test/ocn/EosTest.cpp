@@ -9,31 +9,30 @@
 //
 //===-----------------------------------------------------------------------===/
 
-#include "Tracers.h"
+#include "Eos.h"
 #include "Config.h"
 #include "DataTypes.h"
 #include "Decomp.h"
 #include "Dimension.h"
+#include "EosConstants.h"
 #include "IO.h"
 #include "Logging.h"
 #include "MachEnv.h"
 #include "OceanTestCommon.h"
 #include "OmegaKokkos.h"
 #include "TimeStepper.h"
+#include "Tracers.h"
 #include "mpi.h"
-#include "EosConstants.h"
-#include "Eos.h"
 
 // added for debug
+#include "AuxiliaryState.h"
 #include "Field.h"
 #include "Halo.h"
 #include "HorzMesh.h"
-#include "AuxiliaryState.h"
 
 #include <gswteos-10.h>
 
 using namespace OMEGA;
-
 
 // struct TestSetup {
 //    Real Radius = 6371220;
@@ -51,10 +50,10 @@ constexpr Geometry Geom   = Geometry::Spherical;
 constexpr int NVertLevels = 60;
 // published values (TEOS-10) to test against
 const Real DeltaRefReal = 0.0009776149797;
-const Real VolRefReal = 0.0009732819628;
-double Sa = 30.;
-double Ct = 10.;
-double P = 1000.;
+const Real VolRefReal   = 0.0009732819628;
+double Sa               = 30.;
+double Ct               = 10.;
+double P                = 1000.;
 
 //------------------------------------------------------------------------------
 // The initialization routine for Eos testing. It calls various
@@ -122,10 +121,8 @@ I4 initEosTest(const std::string &mesh) {
    std::shared_ptr<Dimension> VertDim =
        Dimension::create("NVertLevels", NVertLevels);
 
-
    return Err;
 }
-
 
 int testEos() {
    int Err = 0;
@@ -161,7 +158,7 @@ int testEos() {
       LOG_INFO("EosTest: Non-default Eos retrieval FAIL");
    }
 
-// test erase
+   // test erase
    Eos::erase("TestEos");
 
    if (Eos::get("TestEos")) {
@@ -178,16 +175,18 @@ int testEos() {
 
 void finalizeEosTest() {
    Tracers::clear();
-   AuxiliaryState::clear();
+   // AuxiliaryState::clear();
    HorzMesh::clear();
    Halo::clear();
    TimeStepper::clear();
    Decomp::clear();
+   // FieldGroup::clear();
+   Field::clear();
+   Dimension::clear();
    MachEnv::removeAll();
-   LOG_INFO("EosTest: end of finalize()");
 }
 
-int eosTest(const std::string &MeshFile = "OmegaMesh.nc"){
+int eosTest(const std::string &MeshFile = "OmegaMesh.nc") {
    int Err = initEosTest(MeshFile);
    if (Err != 0) {
       LOG_CRITICAL("EosTest: Error initializing");
@@ -203,9 +202,8 @@ int eosTest(const std::string &MeshFile = "OmegaMesh.nc"){
    return Err;
 }
 
-
 int gswcSpecVolCheckValue() {
-   int Err = 0;
+   int Err         = 0;
    const Real RTol = 1e-10;
 
    double SpecVol = gsw_specvol(Sa, Ct, P);
@@ -214,8 +212,9 @@ int gswcSpecVolCheckValue() {
    bool Check = isApprox(SpecVol, VolRefReal, RTol);
    if (!Check) {
       Err++;
-      LOG_ERROR("gswcSpecVolCheckValue: SpecVol isApprox FAIL, expected {}, got {}",
-                VolRefReal, SpecVol);
+      LOG_ERROR(
+          "gswcSpecVolCheckValue: SpecVol isApprox FAIL, expected {}, got {}",
+          VolRefReal, SpecVol);
    }
    if (Err == 0) {
       LOG_INFO("gswcSpecVolCheckValue: PASS");
@@ -225,8 +224,8 @@ int gswcSpecVolCheckValue() {
 
 // intermediate test: not used for now
 int test_fetch_coeff() {
-   int Err = 0;
-   double ExpVal = 0.0010769995862;
+   int Err         = 0;
+   double ExpVal   = 0.0010769995862;
    const Real RTol = 1e-10;
    GSW_SPECVOL_COEFFICIENTS;
    LOG_INFO("EosTest: called GSW_SPECVOL_COEFFICIENTS");
@@ -243,7 +242,7 @@ int test_fetch_coeff() {
 }
 
 int poly75tDeltaCheckValue() {
-   int Err = 0;
+   int Err         = 0;
    const Real RTol = 1e-10;
 
    TEOS10Poly75t specvolpoly75t;
@@ -253,7 +252,8 @@ int poly75tDeltaCheckValue() {
    bool Check = isApprox(Delta, DeltaRefReal, RTol);
    if (!Check) {
       Err++;
-      LOG_ERROR("Teos10 poly75tDeltaCheckValue: Delta isApprox FAIL, expected {}, got {}",
+      LOG_ERROR("Teos10 poly75tDeltaCheckValue: Delta isApprox FAIL, expected "
+                "{}, got {}",
                 DeltaRefReal, Delta);
    }
    if (Err == 0) {
@@ -263,7 +263,7 @@ int poly75tDeltaCheckValue() {
 }
 
 int poly75tSpecVolCheckValue() {
-   int Err = 0;
+   int Err         = 0;
    const Real RTol = 1e-10;
 
    TEOS10Poly75t specvolpoly75t;
@@ -273,7 +273,8 @@ int poly75tSpecVolCheckValue() {
    bool Check = isApprox(SpecVol, VolRefReal, RTol);
    if (!Check) {
       Err++;
-      LOG_ERROR("Teos10 poly75tSpecVolCheckValue: SpecVol isApprox FAIL, expected {}, got {}",
+      LOG_ERROR("Teos10 poly75tSpecVolCheckValue: SpecVol isApprox FAIL, "
+                "expected {}, got {}",
                 VolRefReal, SpecVol);
    }
    if (Err == 0) {
@@ -283,34 +284,35 @@ int poly75tSpecVolCheckValue() {
 }
 
 int linearSpecVolCheckValue() {
-   int Err = 0;
-   const Real RTol = 1e-10;
+   int Err          = 0;
+   const Real RTol  = 1e-10;
    const Real RTol2 = 1e-2; // >>machine prection
-   Real Sa = 30.;
-   Real Ct = 10.;
-   Real P = 1000.;
+   Real Sa          = 30.;
+   Real Ct          = 10.;
+   Real P           = 1000.;
 
    LinearEOS specvollinear;
    Real SpecVol = specvollinear(Sa, Ct, P);
    LOG_INFO("linearSpecVolCheckValue: produced SpecVol from linear EOS");
    LOG_INFO("Value of SpecVol: {}", SpecVol);
-   bool Check = isApprox(SpecVol, VolRefReal, RTol); // expect False
+   bool Check      = isApprox(SpecVol, VolRefReal, RTol);  // expect False
    bool CheckClose = isApprox(SpecVol, VolRefReal, RTol2); // expect True
    if (Check) {
       Err++;
-      LOG_ERROR("linearSpecVolCheckValue: SpecVol Linear is undistinguishable from TEOS10 Ref Value");
-   }
-   else if (!Check) {
+      LOG_ERROR("linearSpecVolCheckValue: SpecVol Linear is undistinguishable "
+                "from TEOS10 Ref Value");
+   } else if (!Check) {
       LOG_INFO("linearSpecVolCheckValue: SpecVol TEOS10 {}, got {} with Linear",
-                VolRefReal, SpecVol);
+               VolRefReal, SpecVol);
    }
    if (CheckClose) {
-      LOG_INFO("linearSpecVolCheckValue: SpecVol TEOS10 and Linear are within {}",
-		RTol2);
-   }
-   else if (!CheckClose) {
+      LOG_INFO(
+          "linearSpecVolCheckValue: SpecVol TEOS10 and Linear are within {}",
+          RTol2);
+   } else if (!CheckClose) {
       Err++;
-      LOG_ERROR("linearSpecVolCheckValue: SpecVol TEOS10 and Linear are NOT close. Check input values");
+      LOG_ERROR("linearSpecVolCheckValue: SpecVol TEOS10 and Linear are NOT "
+                "close. Check input values");
    }
    if (Err == 0) {
       LOG_INFO("linearSpecVolCheckValue: PASS");
@@ -319,17 +321,20 @@ int linearSpecVolCheckValue() {
 }
 
 int linearDensityLinearityTest() {
-   int Err = 0;
+   int Err         = 0;
    const Real RTol = 1e-10;
-   Real Sa1 = 30.;
-   Real Ct1 = 15.;
-   Real Sa2 = 33.;
-   Real Ct2 = 10.;
+   Real Sa1        = 30.;
+   Real Ct1        = 15.;
+   Real Sa2        = 33.;
+   Real Ct2        = 10.;
 
    LinearEOS specvollinear;
-   Real DRhoS = 1./specvollinear(Sa2, Ct1, P) - 1./specvollinear(Sa1, Ct1, P);
-   Real DRhoT = 1./specvollinear(Sa1, Ct2, P) - 1./specvollinear(Sa1, Ct1, P);
-   Real DRhoTS = 1./specvollinear(Sa2, Ct2, P) - 1./specvollinear(Sa1, Ct1, P);
+   Real DRhoS =
+       1. / specvollinear(Sa2, Ct1, P) - 1. / specvollinear(Sa1, Ct1, P);
+   Real DRhoT =
+       1. / specvollinear(Sa1, Ct2, P) - 1. / specvollinear(Sa1, Ct1, P);
+   Real DRhoTS =
+       1. / specvollinear(Sa2, Ct2, P) - 1. / specvollinear(Sa1, Ct1, P);
    LOG_INFO("linearDensityLinearityTest: produced SpecVol from linear EOS");
    LOG_INFO("Value of drhodS: {}", DRhoS);
    LOG_INFO("Value of drhodT: {}", DRhoT);
@@ -337,9 +342,10 @@ int linearDensityLinearityTest() {
    if (!Check) {
       Err++;
       LOG_ERROR("linearDensityLinearityTest: Sum(DRho) {}, DRhoTS {}",
-		 DRhoS + DRhoT, DRhoTS);
+                DRhoS + DRhoT, DRhoTS);
    }
-   LOG_INFO("linearDensityLinearityTest: Sum(DRho) is undistinguishable from DRhoTS");
+   LOG_INFO("linearDensityLinearityTest: Sum(DRho) is undistinguishable from "
+            "DRhoTS");
    if (Err == 0) {
       LOG_INFO("linearDensityLinearityTest: PASS");
    }
@@ -359,12 +365,12 @@ int main(int argc, char *argv[]) {
    MPI_Init(&argc, &argv);
    Kokkos::initialize(argc, argv);
    {
-//    RetVal += gswcSpecVolCheckValue();
-//    RetVal += poly75tDeltaCheckValue();
-//    RetVal += poly75tSpecVolCheckValue();
-//    RetVal += linearSpecVolCheckValue();
-//    RetVal += linearDensityLinearityTest();
-   RetVal += eosTest();
+      //    RetVal += gswcSpecVolCheckValue();
+      //    RetVal += poly75tDeltaCheckValue();
+      //    RetVal += poly75tSpecVolCheckValue();
+      //    RetVal += linearSpecVolCheckValue();
+      //    RetVal += linearDensityLinearityTest();
+      RetVal += eosTest();
    }
    Kokkos::finalize();
    MPI_Finalize();
