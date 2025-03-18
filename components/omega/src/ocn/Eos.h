@@ -33,12 +33,14 @@ class Eos {
  public:
    Array2DReal SpecVol;
    Array2DReal SpecVolDisplaced;
-   // void computeSpecVol();
+   void computeSpecVol(Array2DReal &SpecVol,
+                         const Array2DReal &ConservativeTemperature,
+                         const Array2DReal &AbsoluteSalinity,
+                         const Array2DReal &Pressure);
    static I4 init();
-   //static Eos *create();
    static Eos *create(const std::string &Name, const HorzMesh *Mesh,
 	int NVertLevels){
-   // Check to see if tendencies of the same name already exist and
+   // Check to see if eos of the same name already exist and
    // if so, exit with an error
    if (AllEos.find(Name) != AllEos.end()) {
       LOG_ERROR(
@@ -68,14 +70,24 @@ class Eos {
    // get eos object by name
    static Eos *get(const std::string &Name ///< [in]
    );
-//   static enum EosType{Linear, TEOS10Poly75t};   // int readConfigOptions(Config *OmegaConfig);
+
  private:
    EosType eosChoice;
    I4 NCellsAll;
    I4 NChunks;
+   Real lineardRhodT;
+   Real lineardRhodS;
    // main methods for calculation
-   // void computeSpecVolTEOS10Poly75t();
-   // void computeSpecVolLinear();
+   void computeSpecVolTEOS10Poly75t(Array2DReal SpecVol,
+                         I4 ICell, I4 KChunk,
+			 const Array2DReal &ConservativeTemperature,
+                         const Array2DReal &AbsoluteSalinity,
+                         const Array2DReal &Pressure);
+   void computeSpecVolLinear(Array2DReal SpecVol,
+                         I4 ICell, I4 KChunk,
+			 const Array2DReal &ConservativeTemperature,
+                         const Array2DReal &AbsoluteSalinity,
+                         const Array2DReal &Pressure);
    // void truncateTempSal();
    // void computeSpecVolDelta();
    // void computeSpecVolRefProfile();
@@ -93,32 +105,6 @@ class Eos {
 
 }; // end class Eos
 
-//  + V311 ) * ss + V211 ) * ss + V111 ) * ss + V011 ) * tt
-// static Eos *create(const std::string &Name, const HorzMesh *Mesh,
-// 	int NVertLevels){
-//    // Check to see if tendencies of the same name already exist and
-//    // if so, exit with an error
-//    if (AllEos.find(Name) != AllEos.end()) {
-//       LOG_ERROR(
-//           "Attempted to create Eos with name {} but Eos of "
-//           "that name already exists",
-//           Name);
-//       return nullptr;
-//    }
-//
-//    // create new eos on the heap and put it in a map of
-//    // unique_ptrs, which will manage its lifetime
-//    auto *NewEos =
-//        new Eos(Name, Mesh, NVertLevels);
-//    AllEos.emplace(Name, NewEos);
-//
-//    return get(Name);
-// }
-//
-// enum class EosType{
-//    Linear,  /// Linear equation of state
-//    TEOS10Poly75t  /// Roquet et al. 2015 75 term expansion
-// };
 //
 /// TEOS10 75-term polynomial
 class TEOS10Poly75t {

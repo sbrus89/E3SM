@@ -38,6 +38,8 @@ Omega:
     Debug: [Debug1, Debug2, Debug3]
   Eos:
     EosType: Linear
+    LinearDRhoDT: -0.2
+    LinearDRhoDS: 0.8
   IOStreams:
     # InitialState should only be used when starting from scratch.
     # For restart runs, the frequency units should be changed from

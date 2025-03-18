@@ -62,8 +62,77 @@ int Eos::init(){
       Err = -1;
       return Err;
    }
+
+
+   Err = EosConfig.get("LineardRhodT", DefaultEos->lineardRhodT);
+   if (Err != 0) {
+      LOG_CRITICAL("Eos: linear dRhodT not found in "
+                   "EosConfig");
+      return Err;
+   }
+   Err = EosConfig.get("LineardRhodS", DefaultEos->lineardRhodS);
+   if (Err != 0) {
+      LOG_CRITICAL("Eos: linear dRhodS not found in "
+                   "EosConfig");
+      return Err;
+   }
+
+   LOG_INFO("set default values {}, {}", DefaultEos->lineardRhodT,
+		   DefaultEos->lineardRhodS);
    return Err;
 } // end init
+
+void Eos::computeSpecVol(Array2DReal &SpecVol,
+		         const Array2DReal &ConservativeTemperature,
+                         const Array2DReal &AbsoluteSalinity,
+                         const Array2DReal &Pressure) {
+   OMEGA_SCOPE(LocSpecVol, SpecVol);
+   // OMEGA_SCOPE(LocComputeSpecVolLinear, computeSpecVolLinear);
+   // OMEGA_SCOPE(LocComputeSpecVolTeos10, computeSpecVolTeos10);
+   // deepCopy(, 0); Is this needed? Why would it be?
+
+    if (eosChoice == EosType::Linear){
+        parallelFor(
+       "eos-linear", {NCellsAll, NChunks},
+       KOKKOS_LAMBDA(int ICell, int KChunk) {
+          computeSpecVolLinear(LocSpecVol, ICell, KChunk,
+          ConservativeTemperature,
+          AbsoluteSalinity,
+          Pressure)
+          ;
+       });
+    }
+    else if (eosChoice == EosType::TEOS10Poly75t){
+         parallelFor(
+       "eos-teos10", {NCellsAll, NChunks},
+       KOKKOS_LAMBDA(int ICell, int KChunk) {
+          computeSpecVolTEOS10Poly75t(LocSpecVol,
+			  ICell, KChunk,
+                          ConservativeTemperature,
+                          AbsoluteSalinity,
+                          Pressure)
+                          ;
+       });
+    }
+
+}
+
+
+
+void Eos::computeSpecVolLinear(Array2DReal SpecVol,
+                         int ICell, int KChunk,
+			 const Array2DReal &ConservativeTemperature,
+                         const Array2DReal &AbsoluteSalinity,
+                         const Array2DReal &Pressure) {
+}
+void Eos::computeSpecVolTEOS10Poly75t(Array2DReal SpecVol,
+                         int ICell, int KChunk,
+			 const Array2DReal &ConservativeTemperature,
+                         const Array2DReal &AbsoluteSalinity,
+                         const Array2DReal &Pressure) {
+}
+
+
 
 //------------------------------------------------------------------------------
 // Destroys the eos class
