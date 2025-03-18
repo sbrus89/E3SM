@@ -18,15 +18,14 @@ Eos::Eos(const std::string &Name, ///< [in] Name for eos object
    SpecVol = Array2DReal("SpecVol", Mesh->NCellsSize, NVertLevels);
    SpecVolDisplaced =
        Array2DReal("SpecVolDisplaced", Mesh->NCellsSize, NVertLevels);
-   SpecVol = Array2DReal("SpecVol", Mesh->NCellsSize, NVertLevels);
+   // SpecVol = Array2DReal("SpecVol", Mesh->NCellsSize, NVertLevels);
    // Array dimension lengths
    NCellsAll = Mesh->NCellsAll;
    NChunks   = NVertLevels / VecLength;
-   // is this where I should add the EosType
 
 } // end constructor
 
-// Initialize the SpecVol Arrays. Assumes Hormesh is initialized
+// Initialize the Eos and its options. Assumes Hormesh is initialized
 int Eos::init() {
 
    int Err               = 0;
@@ -74,48 +73,101 @@ int Eos::init() {
                    "EosConfig");
       return Err;
    }
+   Err = EosConfig.get("LinearRhoT0S0", DefaultEos->linearRhoT0S0);
+   if (Err != 0) {
+      LOG_CRITICAL("Eos: Ref Rho linearRhoT0S0 not found in "
+                   "EosConfig");
+      return Err;
+   }
 
-   LOG_INFO("set default values {}, {}", DefaultEos->lineardRhodT,
-            DefaultEos->lineardRhodS);
+   LOG_INFO("set default values {}, {}, {}", DefaultEos->lineardRhodT,
+            DefaultEos->lineardRhodS, DefaultEos->linearRhoT0S0);
    return Err;
 } // end init
+
+KOKKOS_FUNCTION void
+Eos::computeSpecVolLinear(Array2DReal &SpecVol, I4 ICell, I4 KChunk,
+                          const Array2DReal &ConservativeTemperature,
+                          const Array2DReal &AbsoluteSalinity,
+                          const Array2DReal &Pressure) {
+
+   const I4 KStart = KChunk * VecLength;
+   for (int KVec = 0; KVec < VecLength; ++KVec) {
+      const I4 K = KStart + KVec;
+      SpecVol(ICell, K) =
+          1.0 /
+          (linearRhoT0S0 + (lineardRhodT * ConservativeTemperature(ICell, K) +
+                            lineardRhodS * AbsoluteSalinity(ICell, K)));
+   }
+}
+
+KOKKOS_FUNCTION void
+Eos::computeSpecVolTEOS10Poly75t(Array2DReal &SpecVol, I4 ICell, I4 KChunk,
+                                 const Array2DReal &ConservativeTemperature,
+                                 const Array2DReal &AbsoluteSalinity,
+                                 const Array2DReal &Pressure) {
+
+   const I4 KStart = KChunk * VecLength;
+   for (int KVec = 0; KVec < VecLength; ++KVec) {
+      const I4 K        = KStart + KVec;
+      SpecVol(ICell, K) = 1.0;
+   }
+}
 
 void Eos::computeSpecVol(Array2DReal &SpecVol,
                          const Array2DReal &ConservativeTemperature,
                          const Array2DReal &AbsoluteSalinity,
                          const Array2DReal &Pressure) {
    OMEGA_SCOPE(LocSpecVol, SpecVol);
-   // OMEGA_SCOPE(LocComputeSpecVolLinear, computeSpecVolLinear);
-   // OMEGA_SCOPE(LocComputeSpecVolTeos10, computeSpecVolTeos10);
-   // deepCopy(, 0); Is this needed? Why would it be?
+   OMEGA_SCOPE(LocComputeSpecVolLinear, computeSpecVolLinear);
+   OMEGA_SCOPE(LocComputeSpecVolTEOS10Poly75t, computeSpecVolTEOS10Poly75t);
 
    if (eosChoice == EosType::Linear) {
       parallelFor(
           "eos-linear", {NCellsAll, NChunks},
-          KOKKOS_LAMBDA(int ICell, int KChunk) {
-             computeSpecVolLinear(LocSpecVol, ICell, KChunk,
-                                  ConservativeTemperature, AbsoluteSalinity,
-                                  Pressure);
+          KOKKOS_LAMBDA(I4 ICell, I4 KChunk) {
+             LocComputeSpecVolLinear(LocSpecVol, ICell, KChunk,
+                                     ConservativeTemperature, AbsoluteSalinity,
+                                     Pressure);
           });
    } else if (eosChoice == EosType::TEOS10Poly75t) {
       parallelFor(
           "eos-teos10", {NCellsAll, NChunks},
-          KOKKOS_LAMBDA(int ICell, int KChunk) {
-             computeSpecVolTEOS10Poly75t(LocSpecVol, ICell, KChunk,
-                                         ConservativeTemperature,
-                                         AbsoluteSalinity, Pressure);
+          KOKKOS_LAMBDA(I4 ICell, I4 KChunk) {
+             LocComputeSpecVolTEOS10Poly75t(LocSpecVol, ICell, KChunk,
+                                            ConservativeTemperature,
+                                            AbsoluteSalinity, Pressure);
           });
    }
 }
 
-void Eos::computeSpecVolLinear(Array2DReal SpecVol, int ICell, int KChunk,
-                               const Array2DReal &ConservativeTemperature,
-                               const Array2DReal &AbsoluteSalinity,
-                               const Array2DReal &Pressure) {}
-void Eos::computeSpecVolTEOS10Poly75t(
-    Array2DReal SpecVol, int ICell, int KChunk,
-    const Array2DReal &ConservativeTemperature,
-    const Array2DReal &AbsoluteSalinity, const Array2DReal &Pressure) {}
+// void Eos::computeSpecVolLinear(Array2DReal &SpecVol, I4 ICell, I4 KChunk,
+//                                const Array2DReal &ConservativeTemperature,
+//                                const Array2DReal &AbsoluteSalinity,
+//                                const Array2DReal &Pressure) {
+//
+//    const I4 KStart = KChunk * VecLength;
+//    for (int KVec = 0; KVec < VecLength; ++KVec) {
+//       const I4 K = KStart + KVec;
+//       SpecVol(ICell, K) =
+//           1.0 /
+//           (linearRhoT0S0 + (lineardRhodT * ConservativeTemperature(ICell, K)
+//           +
+//                             lineardRhodS * AbsoluteSalinity(ICell, K)));
+//    }
+// }
+//
+// void Eos::computeSpecVolTEOS10Poly75t(
+//     Array2DReal &SpecVol, I4 ICell, I4 KChunk,
+//     const Array2DReal &ConservativeTemperature,
+//     const Array2DReal &AbsoluteSalinity, const Array2DReal &Pressure) {
+//
+//    const I4 KStart = KChunk * VecLength;
+//    for (int KVec = 0; KVec < VecLength; ++KVec) {
+//       const I4 K        = KStart + KVec;
+//       SpecVol(ICell, K) = 1.0;
+//    }
+// }
 
 //------------------------------------------------------------------------------
 // Destroys the eos class
