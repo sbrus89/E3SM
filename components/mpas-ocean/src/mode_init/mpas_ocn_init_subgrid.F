@@ -288,13 +288,13 @@ contains
          cycle
       endif
 
-      if ( abs(bathymetryMin - bathymetryMax) > 100.0*eps ) then
+      if ( abs(bathymetryMin - bathymetryMax) > 100.0_RKIND*eps ) then
           subgridSshCellTableRange(1,iCell) = -maxval(subgridBathymetryValues(1:nSubgridCell)) + subgrid_thin_layer
           subgridSshCellTableRange(2,iCell) = -minval(subgridBathymetryValues(1:nSubgridCell))
       else
           ! flat bathy !
           subgridSshCellTableRange(1,iCell) =  -bathymetryMin + subgrid_thin_layer
-          subgridSshCellTableRange(2,iCell) =  -bathymetryMin + 2.0*config_drying_min_cell_height  
+          subgridSshCellTableRange(2,iCell) =  -bathymetryMin + 2.0_RKIND*config_drying_min_cell_height  
       endif 
 
       ! Evaluate subgrid bathymetry
