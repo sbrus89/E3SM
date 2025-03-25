@@ -831,7 +831,7 @@ vertex: do iVertex = 1,nVerticesSolve
       real (kind=RKIND), dimension(:,:), intent(inout) :: subgridWetVolumeTable
       real (kind=RKIND), dimension(:,:), intent(inout) :: subgridWetFractionTable
 
-      real (kind=RKIND) :: deltaZ, ssh, pVal
+      real (kind=RKIND) :: deltaZ, ssh, pVal, hVal, volumeOffset
       integer :: lev, tri
       
 
@@ -841,24 +841,52 @@ vertex: do iVertex = 1,nVerticesSolve
 
       subgridWetVolumeTable(1,iCV) = subgrid_thin_layer
       ssh = subgridSshTableRange(1,iCV) + deltaZ
-      subgridWetVolumeTable(2,iCV) = subgridWetVolumeTable(1,iCV)*sum(subgridAreas(1:nSubgridCV))
+      ! subgridWetVolumeTable(2,iCV) = subgridWetVolumeTable(1,iCV)*sum(subgridAreas(1:nSubgridCV))
+      volumeOffset = subgridWetVolumeTable(1,iCV)*sum(subgridAreas(1:nSubgridCV)) 
       subgridWetFractionTable(1,iCV) = 0.0_RKIND
-      do lev = 2,nSubgridTableLevels
-        do tri = 1,nSubgridCV
 
+      !
+      !do lev = 2,nSubgridTableLevels
+      !  do tri = 1,nSubgridCV
+
+      !    pVal = 0.0_RKIND
+      !    if (subgridBathymetryValues(tri) + ssh >= 0.0_RKIND) then
+      !      pVal = 1.0_RKIND
+      !    endif
+
+      !    subgridWetVolumeTable(lev,iCV) = subgridWetVolumeTable(lev,iCV) + pVal*deltaZ*subgridAreas(tri)
+      !    subgridWetFractionTable(lev,iCV) = subgridWetFractionTable(lev,iCV) + pVal*subgridAreas(tri)
+  
+      !  enddo
+
+      !  if (lev < nSubgridTableLevels) then
+      !    subgridWetVolumeTable(lev+1,iCV) = subgridWetVolumeTable(lev,iCV)
+      !  endif
+
+      !  subgridWetVolumeTable(lev,iCV) = subgridWetVolumeTable(lev,iCV)/sum(subgridAreas(1:nSubgridCV))
+      !  subgridWetFractionTable(lev,iCV) = subgridWetFractionTable(lev,iCV)/sum(subgridAreas(1:nSubgridCV))
+
+      !  ssh = ssh + deltaZ
+      !enddo
+      !
+      do lev = 2, nSubgridTableLevels
+
+        subgridWetVolumeTable(lev,iCV) = volumeOffset  
+        subgridWetFractionTable(lev,iCV) = 0.0_RKIND 
+
+        do tri = 1, nSubgridCV
+          !
           pVal = 0.0_RKIND
-          if (subgridBathymetryValues(tri) + ssh >= 0.0_RKIND) then
+          hVal = max( subgridBathymetryValues(tri) + ssh, 1.0e-11_RKIND ) ;
+
+          if ( hVal > 0.0_RKIND) then
             pVal = 1.0_RKIND
           endif
 
-          subgridWetVolumeTable(lev,iCV) = subgridWetVolumeTable(lev,iCV) + pVal*deltaZ*subgridAreas(tri)
+          subgridWetVolumeTable(lev,iCV) = subgridWetVolumeTable(lev,iCV) + hVal*subgridAreas(tri)
           subgridWetFractionTable(lev,iCV) = subgridWetFractionTable(lev,iCV) + pVal*subgridAreas(tri)
-  
+          !
         enddo
-
-        if (lev < nSubgridTableLevels) then
-          subgridWetVolumeTable(lev+1,iCV) = subgridWetVolumeTable(lev,iCV)
-        endif
 
         subgridWetVolumeTable(lev,iCV) = subgridWetVolumeTable(lev,iCV)/sum(subgridAreas(1:nSubgridCV))
         subgridWetFractionTable(lev,iCV) = subgridWetFractionTable(lev,iCV)/sum(subgridAreas(1:nSubgridCV))
