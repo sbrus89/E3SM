@@ -2017,8 +2017,10 @@ contains
                                   windSpeed10mField, &
                                  significantWaveHeightField, &
                                   peakWaveFrequencyField, &
-                                  peakWaveDirectionField
+                                  peakWaveDirectionField, &
+                                  landInfiltrationFluxField
                                   !landIcePressureField
+
 
    type (field2DReal), pointer :: iceFluxPhytoCField, &
                                   iceFluxDOCField
@@ -2069,7 +2071,8 @@ contains
                                                windSpeed10m, &
                                                significantWaveHeight, &
                                                peakWaveFrequency, &
-                                               peakWaveDirection
+                                               peakWaveDirection, &
+                                               landInfiltrationFlux
                                                !landIcePressure
 
    real (kind=RKIND), dimension(:), pointer :: latCell
@@ -2156,6 +2159,7 @@ contains
       call mpas_pool_get_field(forcingPool, 'significantWaveHeight', significantWaveHeightField)
       call mpas_pool_get_field(forcingPool, 'peakWaveFrequency', peakWaveFrequencyField)
       call mpas_pool_get_field(forcingPool, 'peakWaveDirection', peakWaveDirectionField)
+      call mpas_pool_get_field(forcingPool, 'landInfiltrationFlux', landInfiltrationFluxField)
 
       call mpas_pool_get_field(forcingPool, 'landIceFreshwaterFlux', landIceFreshwaterFluxField)
       call mpas_pool_get_field(forcingPool, 'landIceHeatFlux', landIceHeatFluxField)
@@ -2202,6 +2206,7 @@ contains
       significantWaveHeight => significantWaveHeightField % array
       peakWaveFrequency => peakWaveFrequencyField % array
       peakWaveDirection => peakWaveDirectionField % array
+      landInfiltrationFlux => landInfiltrationFluxField % array
       !landIcePressure => landIcePressureField % array
 
       call mpas_pool_get_array(meshPool, 'latCell', latCell)
@@ -2423,6 +2428,10 @@ contains
            end if
         endif
 
+        if ( landInfiltrationFluxField % isActive ) then
+           landInfiltrationFlux(i) = x2o_o % rAttr(index_x2o_Flxl_infiltration, n)
+        end if
+
         if ( landIceFreshwaterFluxField % isActive ) then
            !landIceFreshwaterFlux(i) = x2o_o % rAttr(index_x2o_Fogx_qicelo, n)
         end if
@@ -2593,6 +2602,7 @@ contains
    call mpas_pool_get_field(forcingPool, 'significantWaveHeight', significantWaveHeightField)
    call mpas_pool_get_field(forcingPool, 'peakWaveFrequency', peakWaveFrequencyField)
    call mpas_pool_get_field(forcingPool, 'peakWaveDirection', peakWaveDirectionField)
+   call mpas_pool_get_field(forcingPool, 'landInfiltrationFlux', landInfiltrationFluxField)
 
    call mpas_pool_get_field(forcingPool, 'landIceFreshwaterFlux', landIceFreshwaterFluxField)
    call mpas_pool_get_field(forcingPool, 'landIceHeatFlux', landIceHeatFluxField)
@@ -2728,6 +2738,10 @@ contains
    end if
    if ( peakWaveDirectionField % isActive ) then
       call mpas_dmpar_exch_halo_field(peakWaveDirectionField)
+   end if
+
+   if ( landInfiltrationFluxField % isActive ) then
+      call mpas_dmpar_exch_halo_field(landInfiltrationFluxField)
    end if
 
    if ( landIceFreshwaterFluxField % isActive ) then
@@ -2918,7 +2932,8 @@ contains
                                                avgRemovedIceRunoffFlux, &
                                                avgLandIceHeatFlux, &
                                                avgRemovedIceRunoffHeatFlux, &
-                                               avgThermalForcingAtCritDepth
+                                               avgThermalForcingAtCritDepth, &
+                                               avgRemovedLandInfiltrationFlux
 
    real (kind=RKIND), dimension(:,:), pointer :: avgTracersSurfaceValue, avgSurfaceVelocity, &
                                                  avgSSHGradient, avgOceanSurfacePhytoC, &
@@ -3006,6 +3021,10 @@ contains
      endif
      if (trim(config_glc_thermal_forcing_coupling_mode) == '2d') then
         call mpas_pool_get_array(forcingPool, 'avgThermalForcingAtCritDepth', avgThermalForcingAtCritDepth)
+     endif
+
+     if (config_use_land_infiltration_flux) then
+        call mpas_pool_get_array(forcingPool, 'avgRemovedLandInfiltrationFlux', avgRemovedLandInfiltrationFlux)
      endif
 
      ! BGC fields
@@ -3172,6 +3191,10 @@ contains
           o2x_o % rAttr(index_o2x_So_tf2d, n) = avgThermalForcingAtCritDepth(i)
        endif
 
+
+       if ( config_use_land_infiltration_flux ) then
+          o2x_o % rAttr(index_o2x_Foxo_infiltration, n) = avgRemovedLandInfiltrationFlux(i)
+       endif
 
        !Fyke: test
        !write(stderrUnit,*) 'n=',n

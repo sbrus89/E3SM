@@ -336,6 +336,10 @@ contains
        index_x2o_Sw_Fp = mct_avect_indexra(x2o,'Sw_Fp')
        index_x2o_Sw_Dp = mct_avect_indexra(x2o,'Sw_Dp')
     endif
+
+    index_x2o_Flxl_infiltration = mct_avect_indexra(x2o,'Flxl_infiltration')
+    index_o2x_Foxo_infiltration = mct_avect_indexra(o2x,'Foxo_infiltration')
+
     call mct_aVect_clean(x2o)
     call mct_aVect_clean(o2x)
 

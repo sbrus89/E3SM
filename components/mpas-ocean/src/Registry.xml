@@ -831,6 +831,12 @@
 					possible_values="any non-negative value"
 		/>
 	</nml_record>
+	<nml_record name="land_coupling" mode="init;forward">
+		<nml_option name="config_use_land_infiltration_flux" type="logical" default_value=".false."
+					description="If true, remove water due to land infiltration"
+					possible_values=".true. or .false."
+		/>
+	</nml_record>
 	<nml_record name="shortwaveRadiation" mode="init;forward">
 		<nml_option name="config_sw_absorption_type" type="character" default_value="none"
 					description="Name of shortwave absorption type used in simulation."
@@ -3782,6 +3788,10 @@
 			 description="Divergence of transmission through interfaces of surface fluxes below the surface layer at cell centers. These are applied only to subglacial runoff."
 			 packages="dataSubglacialRunoffFluxPKG"
 		/>
+		<var name="fractionAbsorbedLand" type="real" dimensions="nVertLevels nCells Time" units="fractional"
+			 description="Divergence of transmission through interfaces of surface fluxes below the surface layer at cell centers. These are applied only to land fluxes."
+			 packages="forwardMode;analysisMode"
+		/>
 
 		<!-- Input fields for coupling -->
 		<!-- Coupling fields associated with heat fluxes -->
@@ -3895,6 +3905,18 @@
 		<var name="snowFlux" type="real" dimensions="nCells Time" units="kg m^-2 s^-1"
 			 description="Fresh water flux from snow at cell centers from coupler. Positive into the ocean."
 			 packages="activeTracersBulkRestoringPKG;thicknessBulkPKG"
+		/>
+		<var name="landInfiltrationFlux" type="real" dimensions="nCells Time" units="kg m^-2 s^-1"
+			 description="Land infiltration flux at cell centers from coupler. Positive into the ocean."
+			 packages="thicknessBulkPKG"
+		/>
+		<var name="removedLandInfiltrationFlux" type="real" dimensions="nCells Time" units="kg m^-2 s^-1"
+			 description="Land infiltration flux from the coupler that was removed. Positive into the ocean."
+			 packages="thicknessBulkPKG"
+		/>
+		<var name="avgRemovedLandInfiltrationFlux" type="real" dimensions="nCells Time" units="kg m^-2 s^-1"
+			 description="Time averaged land infiltration flux sent to the coupler. Positive into the ocean."
+			 packages="thicknessBulkPKG"
 		/>
 
 

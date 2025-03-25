@@ -58,7 +58,8 @@ module ocn_time_average_coupled
         real (kind=RKIND), dimension(:), pointer :: avgEffectiveDensityInLandIce, avgTotalFreshWaterTemperatureFlux, &
                                                     avgLandIceFreshwaterFlux, &
                                                     avgRemovedRiverRunoffFlux, avgRemovedIceRunoffFlux, &
-                                                    avgLandIceHeatFlux, avgRemovedIceRunoffHeatFlux
+                                                    avgLandIceHeatFlux, avgRemovedIceRunoffHeatFlux, &
+                                                    avgRemovedLandInfiltrationFlux
 
         real (kind=RKIND), dimension(:), pointer :: avgThermalForcingAtCritDepth
 
@@ -284,7 +285,8 @@ module ocn_time_average_coupled
                                                     removedRiverRunoffFlux, avgRemovedRiverRunoffFlux, &
                                                     removedIceRunoffFlux, avgRemovedIceRunoffFlux, &
                                                     avgRemovedIceRunoffHeatFlux, &
-                                                    avgThermalForcingAtCritDepth
+                                                    avgThermalForcingAtCritDepth, &
+                                                    removedLandInfiltrationFlux, avgRemovedLandInfiltrationFlux
 
         type (mpas_pool_type), pointer :: tracersPool
 
@@ -575,6 +577,19 @@ module ocn_time_average_coupled
 !maltrud need to renormalize
            avgOceanSurfaceDON(iCell) = ( avgOceanSurfaceDON(iCell) * nAccumulatedCoupled &
               + MacroMoleculesTracers(macrosIndices%prot_ind,1,iCell) ) / ( nAccumulatedCoupled + 1)
+           end do
+           !$omp end do
+           !$omp end parallel
+        endif
+
+        if (config_use_land_infiltration_flux) then
+           call mpas_pool_get_array(forcingPool, 'avgRemovedLandInfiltrationFlux', avgRemovedLandInfiltrationFlux)
+           call mpas_pool_get_array(forcingPool, 'removedLandInfiltrationFlux', removedLandInfiltrationFlux)
+           !$omp parallel
+           !$omp do schedule(runtime)
+           do iCell = 1,nCells
+              avgRemovedLandInfiltrationFlux(iCell) = ( avgRemovedLandInfiltrationFlux(iCell) * nAccumulatedCoupled &
+                                                    + removedLandInfiltrationFlux(iCell) ) / ( nAccumulatedCoupled + 1)
            end do
            !$omp end do
            !$omp end parallel
