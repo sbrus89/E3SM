@@ -502,6 +502,7 @@ contains
                                                  subgridWetVolumeCellTable(:,iCell), &
                                                  subgridSshCellTableRange(:,iCell),&
                                                  bottomDepth(iCell),&
+                                                 subgridCellBathymetryMin(iCell), &
                                                  subgridLayerThicknessDebug(iCell))
         enddo
      end if

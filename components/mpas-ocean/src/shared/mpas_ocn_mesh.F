@@ -1636,9 +1636,10 @@ contains
 
                   call mpas_log_write( &
                      ' Warning: Sea surface height outside of acceptable range (20m)', &
-                     MPAS_LOG_ERR)
+                     MPAS_LOG_ERR) ;
                   call mpas_log_write( &
                      ' iCell: $i, minLevelCell(iCell), maxLevelCell(iCell): $i, $i, bottomDepth(iCell): $r, sum(h): $r', &
+                     messageType = MPAS_LOG_ERR, &
                      intArgs=(/iCell, minLevelCell(iCell), maxLevelCell(iCell) /), &
                      realArgs=(/ bottomDepth(iCell), thickDepth /) )
                endif ! depth diff check

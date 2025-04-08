@@ -119,7 +119,7 @@ contains
 
       real (kind=RKIND), dimension(:), intent(in) :: ssh
 
-      !-----------------------------------------------------------------
+      !---------------------------------yahoo\--------------------------------
       ! output variables
       !-----------------------------------------------------------------
 
@@ -143,6 +143,7 @@ contains
                                                  subgridWetVolumeEdgeTable(:,iEdge), &
                                                  subgridSshEdgeTableRange(:,iEdge), &
                                                  subgridEdgeBathymetryMean(iEdge), &
+                                                 subgridEdgeBathymetryMin(iEdge), &
                                                  layerThickEdgeFlux(1,iEdge) )
 
          if ( layerThickEdgeFlux(1,iEdge) < eps ) then
@@ -223,19 +224,22 @@ contains
                                                       subgridWetVolumeEdgeTable(:,iEdge), &
                                                       subgridSshEdgeTableRange(:,iEdge), &
                                                       subgridEdgeBathymetryMean(iEdge), &
+                                                      subgridEdgeBathymetryMin(iEdge), &
                                                       layerThickEdgeFlux(1,iEdge))
            elseif (normalVelocity(1,iEdge) < 0.0_RKIND) then
               call ocn_subgrid_layer_thickness_lookup(ssh(cell2), &
                                                       subgridWetVolumeEdgeTable(:,iEdge), &
                                                       subgridSshEdgeTableRange(:,iEdge), &
                                                       subgridEdgeBathymetryMean(iEdge), &
+                                                      subgridEdgeBathymetryMin(iEdge), &
                                                       layerThickEdgeFlux(1,iEdge))
            else
               sshMean = 0.5_RKIND*(ssh(cell1) + ssh(cell2))
               call ocn_subgrid_layer_thickness_lookup(sshMean, &
                                                       subgridWetVolumeEdgeTable(:,iEdge), &
                                                       subgridSshEdgeTableRange(:,iEdge), &
-                                                      subgridEdgeBathymetryMean(iEdge), &
+                                                      subgridEdgeBathymetryMean(iEdge),&
+                                                      subgridEdgeBathymetryMin(iEdge), &
                                                       layerThickEdgeFlux(1,iEdge))
            end if
            !
@@ -305,6 +309,7 @@ contains
                                                     subgridWetVolumeVertexTable(:,iVertex), &
                                                     subgridSshVertexTableRange(:,iVertex), &
                                                     subgridVertexBathymetryMean(iVertex), &
+                                                    subgridVertexBathymetryMin(iVertex),&
                                                     layerThicknessVertex)
             if (layerThicknessVertex == 0) cycle
 
@@ -331,7 +336,8 @@ contains
    subroutine ocn_subgrid_layer_thickness_lookup(zeta, &
                                                  subgridTable, &
                                                  subgridTableRange, &
-                                                 bathymetry, &
+                                                 bathymetryMean, &
+                                                 bathymetryMin, &
                                                  layerThick)!{{{
 
       !-----------------------------------------------------------------
@@ -341,8 +347,8 @@ contains
       real (kind=RKIND), intent(in) :: zeta
       real (kind=RKIND), dimension(:), intent(in) :: subgridTable
       real (kind=RKIND), dimension(:), intent(in) :: subgridTableRange
-      real (kind=RKIND), intent(in) :: bathymetry
-
+      real (kind=RKIND), intent(in) :: bathymetryMean, bathymetryMin
+      real (kind=RKIND), parameter:: eps = 1.0e-10_RKIND
       !-----------------------------------------------------------------
       ! output variables
       !-----------------------------------------------------------------
@@ -359,15 +365,27 @@ contains
       real (kind=RKIND) :: tableMax
       real (kind=RKIND) :: deltaZ
       real (kind=RKIND) :: zeta0, zeta1
+      logical, save:: first = .true. 
 
       tableMin = subgridTableRange(1)
       tableMax = subgridTableRange(2)
       deltaZ = (tableMax - tableMin)/real(nSubgridTableLevels-1,RKIND)
 
       if (zeta >= tableMax) then
-        layerThick = zeta + bathymetry
+        layerThick = zeta + bathymetryMean
       else if (zeta <= tableMin) then
         layerThick = 0.0_RKIND
+
+        !!
+        if ( abs(tableMin + 8.0_RKIND) < 1000.0_RKIND*eps .and. subgridTable(1) > 1000.0_RKIND*eps ) then
+           layerThick = (zeta + bathymetryMin)*subgridTable(1)/(tableMin + bathymetryMin)
+
+           if ( first ) then
+              write(*,*) "warning: zeta = ",  zeta, " is less than -8m" ;
+              first = .false. ;
+           endif
+        endif        
+        !!
       else
         do lev = 1, nSubgridTableLevels-1
           zeta0 = (real(lev,RKIND)-1.0_RKIND)*deltaZ + tableMin
@@ -398,6 +416,7 @@ contains
    subroutine ocn_subgrid_wet_fraction_lookup(zeta, &
                                               subgridTable, &
                                               subgridTableRange, &
+                                              bathymetryMin, &
                                               wetFraction)!{{{
 
       !-----------------------------------------------------------------
@@ -407,7 +426,7 @@ contains
       real (kind=RKIND), intent(in) :: zeta
       real (kind=RKIND), dimension(:), intent(in) :: subgridTable
       real (kind=RKIND), dimension(:), intent(in) :: subgridTableRange
-
+      real (kind=RKIND), intent(in) :: bathymetryMin
       !-----------------------------------------------------------------
       ! output variables
       !-----------------------------------------------------------------
@@ -424,6 +443,7 @@ contains
       real (kind=RKIND) :: tableMax
       real (kind=RKIND) :: deltaZ
       real (kind=RKIND) :: zeta0, zeta1
+      real (kind=RKIND), parameter:: eps = 1.0e-10_RKIND
 
       tableMin = subgridTableRange(1)
       tableMax = subgridTableRange(2)
@@ -433,6 +453,15 @@ contains
         wetFraction = 1.0_RKIND
       else if (zeta <= tableMin) then
         wetFraction = 0.0_RKIND
+
+        ! add expected range
+        if ( tableMin + 8.0_RKIND  < 100.0_RKIND*eps .and. subgridTable(1) > 100.0_RKIND*eps ) then
+          ! write(*,*) "Warning: ssh is less than an expected range of -8m" ; 
+          !
+          ! 
+          wetFraction = tableMin*(zeta + bathymetryMin )/( subgridTable(1) - bathymetryMin ) ; 
+        endif
+        !    
       else
         do lev = 1, nSubgridTableLevels-1
           zeta0 = (real(lev,RKIND)-1.0_RKIND)*deltaZ + tableMin
@@ -495,6 +524,8 @@ contains
       real (kind=RKIND) :: layerThick0, layerThick1
       real (kind=RKIND) :: zeta0, zeta1
       real (kind=RKIND) :: phi0, phi1
+      real (kind=RKIND), parameter:: eps  = 1.0e-10_RKIND
+      logical, save:: first = .true. 
 
       tableMin = subgridTableRange(1)
       tableMax = subgridTableRange(2)
@@ -503,11 +534,24 @@ contains
       layerThickMin = subgridTable(1)
       layerThickMax = subgridTable(nSubgridTableLevels)
 
+      
       if (layerThick >= layerThickMax) then
         zeta = layerThick - bathymetryMean
-
-      else if (layerThick <= layerThickMin) then
+ 
+      else if (layerThick < layerThickMin) then
         zeta = - bathymetryMin ! prevent_drying likely fails to ensure positive water columbn
+        ! add expected range
+        if ( abs(tableMin + 8.0_RKIND)  < 1000.0_RKIND*eps .and. layerThickMin > 1000.0_RKIND*eps ) then
+          !
+          if ( first ) then 
+           write(*,*) "Warning: ssh is less than an expected range of -8m"  ; 
+           first = .false. ; 
+          endif
+          !
+          zeta = bathymetryMin*(layerThick - LayerThickMin)/LayerThickMin
+          zeta = zeta + (layerThick/LayerThickMin)*tableMin
+        endif
+        !    
       else
 
        do lev = 1, nSubgridTableLevels-1
@@ -523,9 +567,10 @@ contains
             zeta = phi0*zeta0 + phi1*zeta1
             return
           end if
-
         end do
+
       end if
+
 
    end subroutine ocn_subgrid_ssh_lookup!}}}
 

@@ -207,13 +207,17 @@ contains
     do iCell = 1, nCellsSolve
        bottomDepth(iCell) = -1.0_RKIND*bottomDepthObserved(iCell)
 
+       if ( iCell == 2053713 ) then
+          write(*,*), iCell,  bottomDepth(iCell)  ;
+       endif
+
        if ( .not. ( config_use_subgrid_wetting_drying .and. &
             MPAS_stream_mgr_stream_exists(domain%streamManager, 'subgrid_init') )  ) then
           ! sea level rise adjustment
           bottomDepth(iCell) = bottomDepth(iCell) + config_hurricane_sea_level_rise_adjustment
 
 
-         ! enforce minimum and maximum bottom depth
+          ! enforce minimum and maximum bottom depth
           bottomDepth(iCell) = max(bottomDepth(iCell), config_hurricane_min_depth)
           bottomDepth(iCell) = min(bottomDepth(iCell), globalMaxBottomDepth)
           ssh(iCell) = 0.0_RKIND ; 

@@ -199,6 +199,7 @@ module ocn_time_integration_rk4
       real (kind=RKIND), dimension(:,:,:), pointer :: activeTracersCur, activeTracersNew
 
       real(kind=RKIND), dimension(:,:), pointer :: subgridSshCellTableRange, subgridWetVolumeCellTable
+      real(kind=RKIND), dimension(:), pointer:: subgridCellBathymetryMin     
 
 
       ! Get config options
@@ -261,6 +262,8 @@ module ocn_time_integration_rk4
                                 subgridSshCellTableRange)
 
 
+         call mpas_pool_get_array( meshPool, 'subgridCellBathymetryMin', &
+                                subgridCellBathymetryMin ) ;               
          ! Lower k-loop limit of 1 rather than minLevel* needed in *New = *Cur
          ! assignments below are needed to maintain bit-for-bit results
 
@@ -695,6 +698,7 @@ module ocn_time_integration_rk4
                                          subgridWetVolumeCellTable(:,iCell), &
                                          subgridSshCellTableRange(:,iCell),&
                                          bottomDepth(iCell), &
+                                         subgridCellBathymetryMin(iCell), &
                                          layerThicknessNew(1,iCell) )
                end if
 
