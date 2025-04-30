@@ -95,6 +95,7 @@ module ocn_subgrid
    !--------------------------------------------------------------------
 
 
+    real (kind=RKIND), private:: bathylim = 5.0_RKIND 
 
 contains
 
@@ -211,10 +212,10 @@ contains
               end if
            end do
  
-           if ( first ) then
-              write(*,*), "Info: use regular Layer Edge thickness " ;  
-              first = .false. ;
-           end if
+           !if ( first ) then
+           !   write(*,*), "Info: use regular Layer Edge thickness " ;  
+           !   first = .false. ;
+           !end if
          else
            ! in subgrid zone !     
            cell1 = cellsOnEdge(1,iEdge)
@@ -366,7 +367,7 @@ contains
       real (kind=RKIND) :: deltaZ
       real (kind=RKIND) :: zeta0, zeta1
       logical, save:: first = .true. 
-
+      
       tableMin = subgridTableRange(1)
       tableMax = subgridTableRange(2)
       deltaZ = (tableMax - tableMin)/real(nSubgridTableLevels-1,RKIND)
@@ -377,7 +378,7 @@ contains
         layerThick = 0.0_RKIND
 
         !!
-        if ( abs(tableMin + 8.0_RKIND) < 1000.0_RKIND*eps .and. subgridTable(1) > 1000.0_RKIND*eps ) then
+        if ( abs(tableMin + bathylim) < 1000.0_RKIND*eps .and. subgridTable(1) > 1000.0_RKIND*eps ) then
            layerThick = (zeta + bathymetryMin)*subgridTable(1)/(tableMin + bathymetryMin)
 
            if ( first ) then
@@ -444,7 +445,7 @@ contains
       real (kind=RKIND) :: deltaZ
       real (kind=RKIND) :: zeta0, zeta1
       real (kind=RKIND), parameter:: eps = 1.0e-10_RKIND
-
+   
       tableMin = subgridTableRange(1)
       tableMax = subgridTableRange(2)
       deltaZ = (tableMax - tableMin)/real(nSubgridTableLevels-1,RKIND)
@@ -455,7 +456,7 @@ contains
         wetFraction = 0.0_RKIND
 
         ! add expected range
-        if ( tableMin + 8.0_RKIND  < 100.0_RKIND*eps .and. subgridTable(1) > 100.0_RKIND*eps ) then
+        if ( tableMin + bathylim  < 100.0_RKIND*eps .and. subgridTable(1) > 100.0_RKIND*eps ) then
           ! write(*,*) "Warning: ssh is less than an expected range of -8m" ; 
           !
           ! 
@@ -526,6 +527,7 @@ contains
       real (kind=RKIND) :: phi0, phi1
       real (kind=RKIND), parameter:: eps  = 1.0e-10_RKIND
       logical, save:: first = .true. 
+      real (kind=RKIND) :: zetaold
 
       tableMin = subgridTableRange(1)
       tableMax = subgridTableRange(2)
@@ -539,13 +541,20 @@ contains
         zeta = layerThick - bathymetryMean
  
       else if (layerThick < layerThickMin) then
+        !      
+        zetaold = zeta ;      
         zeta = - bathymetryMin ! prevent_drying likely fails to ensure positive water columbn
         ! add expected range
-        if ( abs(tableMin + 8.0_RKIND)  < 1000.0_RKIND*eps .and. layerThickMin > 1000.0_RKIND*eps ) then
+        if ( abs(tableMin + bathylim)  < 1000.0_RKIND*eps .and. layerThickMin > 1000.0_RKIND*eps ) then
           !
           if ( first ) then 
-           write(*,*) "Warning: ssh is less than an expected range of -8m"  ; 
-           first = .false. ; 
+            write(*,*) "Warning in ocn_subgrid_ssh_lookup()" ; 
+            write(*,*) "  Warning: H  = ", layerThick, " is less than anexpected &
+                                        lower range of -5m ssh witgh H = ", layerThickMin   ;
+            ! write(*,*) "  layerThickMin = ", layerThickMin ;
+            ! write(*,*) "  layerThick   = ", layerThick ;
+            ! write(*,*) "  TableMin = ", TableMin, TableMax ; 
+            first = .false. ; 
           endif
           !
           zeta = bathymetryMin*(layerThick - LayerThickMin)/LayerThickMin
@@ -553,7 +562,7 @@ contains
         endif
         !    
       else
-
+       !
        do lev = 1, nSubgridTableLevels-1
           zeta0 = (real(lev,RKIND)-1.0_RKIND)*deltaZ + tableMin
           zeta1 = zeta0 + deltaZ
@@ -568,7 +577,7 @@ contains
             return
           end if
         end do
-
+        !
       end if
 
 

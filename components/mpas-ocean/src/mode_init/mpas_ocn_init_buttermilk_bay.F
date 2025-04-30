@@ -61,7 +61,8 @@ module ocn_init_Buttermilk_bay
              ocn_init_Buttermilk_bay_bathymetry, &
              ocn_init_Buttermilk_bay_ssh, &
              ocn_init_Buttermilk_bay_velocity, &
-             ocn_init_setup_Buttermilk_bay_read_topo
+             ocn_init_setup_Buttermilk_bay_read_topo, &
+             ocn_init_Buttermilk_bay_destroy_topo_fields
 
    !--------------------------------------------------------------------
    !
@@ -835,9 +836,10 @@ contains
     subroutine ocn_init_Buttermilk_bay_destroy_topo_fields()!{{{
        implicit none
 
-       deallocate(topoIC % array)
-       deallocate(topoLat % array)
-       deallocate(topoLon % array)
+       if ( associated(topoIC%array)  ) deallocate(topoIC % array)
+       if ( associated(topoLat%array) ) deallocate(topoLat % array)
+       if ( associated(topoLon%array) ) deallocate(topoLon % array)
+       
     end subroutine ocn_init_Buttermilk_bay_destroy_topo_fields!}}}
 
 

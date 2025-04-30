@@ -121,6 +121,11 @@ contains
          attDepth,         &! depth scaled by attenuation length
          attCoeff           ! attenuation coefficient on edge
 
+      real (kind=RKIND):: layerThicknessMinLim
+
+
+      layerThicknessMinLim = 2.5_RKIND*config_drying_min_cell_height ;
+
       ! End preamble
       !-----------------------------------------------------------------
       ! Begin code
@@ -166,9 +171,13 @@ contains
            absorb = transCoeffTop - transCoeffBot
            remainingStress = remainingStress - absorb
 
+           ! tend(k,iEdge) =  tend(k,iEdge) + &
+           !                 edgeMask(k,iEdge)*sfcStress(iEdge) * &
+           !                 absorb/rho_sw/layerThickEdgeMean(k,iEdge)
            tend(k,iEdge) =  tend(k,iEdge) + &
                             edgeMask(k,iEdge)*sfcStress(iEdge) * &
-                            absorb/rho_sw/layerThickEdgeMean(k,iEdge)
+                            absorb/rho_sw/max( layerThickEdgeMean(k,iEdge),layerThicknessMinLim)
+
 
            zTop = zBot
            transCoeffTop = transCoeffBot

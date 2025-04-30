@@ -1034,9 +1034,14 @@ contains
       real (kind=RKIND) :: kineticEnergyTopOfEdge, zMidEdge
       integer :: iCell
 
+      real (kind=RKIND):: hlim 
+      real (kind=RKIND):: minthickness = 0.025_RKIND ; 
       err = 0
       von_karman = 0.4_RKIND
       von_karman_sq = 0.16_RKIND
+
+      ! DW
+      minthickness = 2.5_RKIND*config_drying_min_cell_height ;
 
       if(.not.velVmixOn) return
 
@@ -1073,9 +1078,13 @@ contains
 
          ! one active layer
          if (N .eq. Nsurf) then
+           hlim = max( LayerThickEdgeDrag(N,iEdge), minthickness ) ; 
+           !normalVelocity(N,iEdge) = normalVelocity(N,iEdge)  &
+           !     / (1.0_RKIND + dt*CdTemp(N) &
+           !        * sqrt(kineticEnergyCell(N,cell1) + kineticEnergyCell(N,cell2)) / layerThickEdgeDrag(N,iEdge) )
            normalVelocity(N,iEdge) = normalVelocity(N,iEdge)  &
                 / (1.0_RKIND + dt*CdTemp(N) &
-                   * sqrt(kineticEnergyCell(N,cell1) + kineticEnergyCell(N,cell2)) / layerThickEdgeDrag(N,iEdge) )
+                   * sqrt(kineticEnergyCell(N,cell1) + kineticEnergyCell(N,cell2)) / hlim )
          else
            do k = Nsurf+1, N
               kineticEnergyTopOfEdge = 0.5_RKIND * (kineticEnergyCell(k,cell1) + kineticEnergyCell(k,cell2) + &

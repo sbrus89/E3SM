@@ -207,9 +207,9 @@ contains
     do iCell = 1, nCellsSolve
        bottomDepth(iCell) = -1.0_RKIND*bottomDepthObserved(iCell)
 
-       if ( iCell == 2053713 ) then
-          write(*,*), iCell,  bottomDepth(iCell)  ;
-       endif
+       !if ( iCell == 2053713 ) then
+       !   write(*,*), iCell,  bottomDepth(iCell)  ;
+       !endif
 
        if ( .not. ( config_use_subgrid_wetting_drying .and. &
             MPAS_stream_mgr_stream_exists(domain%streamManager, 'subgrid_init') )  ) then
@@ -361,7 +361,7 @@ contains
 !          ! sea level rise adjustment
 !          bottomDepth(iCell) = bottomDepth(iCell) + config_hurricane_sea_level_rise_adjustment
 !
-!          ! enforce minimum and maximum bottom depth
+!          ! enforce minimum and maximum bot37995701tom depth
 !          bottomDepth(iCell) = max(bottomDepth(iCell), config_hurricane_min_depth)
 !          bottomDepth(iCell) = min(bottomDepth(iCell), globalMaxBottomDepth)
 !        end do
@@ -508,7 +508,9 @@ contains
             bottomDepthObserved(iCell) = -1.0_RKIND*bottomDepth(iCell) ; 
          end do  
        endif        
-       
+      
+       write(*,*) "End ocn_init_setup_hurricane()" ;
+
 !       do iCell = 1, nCellsSolve
 !         if ( ssh(iCell) < 0 ) then
 !            write(*,*) "after = ", iCell, ssh(iCell) ; 
@@ -518,7 +520,14 @@ contains
     end do
 
     deallocate(interfaceLocations)
+
+    if (config_use_subgrid_wetting_drying .and. MPAS_stream_mgr_stream_exists(domain%streamManager, 'subgrid_init')) then
+        call mpas_log_write( 'Cleaning up topography IC fields')
+        call ocn_init_Buttermilk_bay_destroy_topo_fields()
+    endif
     !--------------------------------------------------------------------
+
+
 
   end subroutine ocn_init_setup_hurricane!}}}
 

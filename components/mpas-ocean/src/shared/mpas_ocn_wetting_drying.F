@@ -371,7 +371,8 @@ contains
       real (kind=RKIND) :: sshCur, sshNei
       real (kind=RKIND), dimension(:), pointer :: sshCell
       real (kind=RKIND), dimension(:, :), pointer :: layerThicknessCell
-
+      ! real (kind=RKIND), parameter:: wdcoeframp = 50.0_RKIND
+      real (kind=RKIND), parameter:: wdcoeframp = 10.0_RKIND 
 
       err = 0
 
@@ -491,9 +492,17 @@ contains
                   wettingVelocityFactor(k,iEdge) = 1.0_RKIND
 
                   ! if the neigbor cell is anticipated wet
-                  if ( layerThicknessCell(k, cellNei) >  hCrit ) then
+                  if ( layerThicknessCell(k, cellNei) > hCrit ) then
                     if ( sshCur < sshNei ) then
                        wettingVelocityFactor(k,iEdge) = 0.0_RKIND
+                       !! --- experiment: add some level of smoothing leaving 
+                       !!     the neighbor cell
+                       if ( config_zero_drying_velocity_ramp .and.  &
+                                   layerThicknessCell(k, cellNei) <= hRampMax ) then 
+                           wettingVelocityFactor(k,iEdge) = 1.0_RKIND - &
+                                tanh(wdcoeframp*(layerThicknessCell(k, cellNei) - hRampMin)/hRampMin) ;
+                       endif
+                       !!  
                     end if
                   end if
 
@@ -511,15 +520,22 @@ contains
           do i = 1, nEdgesOnCell(iCell)
             iEdge = edgesOnCell(i, iCell)
             do k = minLevelCell(iCell), maxLevelCell(iCell)
-              if (k <= maxLevelEdgeTop(iEdge) .and. k >= minLevelEdgeBot(iEdge) .and. &
-                  config_zero_drying_velocity_ramp .and. &
-                  (layerThicknessCell(k, iCell) > hCrit) .and. &
-                  (layerThicknessCell(k, iCell) <= hRampMax) ) then
+              !if (k <= maxLevelEdgeTop(iEdge) .and. k >= minLevelEdgeBot(iEdge) .and. &
+              !    config_zero_drying_velocity_ramp .and. &
+              !    (layerThicknessCell(k, iCell) > hCrit) .and. &
+              !    (layerThicknessCell(k, iCell) <= hRampMax) ) then
 
-                if ( normalVelocity(k, iEdge) * edgeSignOnCell(i, iCell) <= 0.0_RKIND ) then
-                  wettingVelocityFactor(k, iEdge) = 1.0_RKIND - &
-                      tanh(50.0_RKIND * (layerThicknessCell(k, iCell) - hRampMin)/hRampMin)
+              if ( k <= maxLevelEdgeTop(iEdge) .and. k >= minLevelEdgeBot(iEdge) .and. &
+                                                 (layerThicknessCell(k, iCell) > hCrit) ) then
+                ! Apply O'Dea et al. approach !
+                if ( config_zero_drying_velocity_ramp .and. &
+                       layerThicknessCell(k, iCell) <= hRampMax ) then  
+                   if ( normalVelocity(k, iEdge) * edgeSignOnCell(i, iCell) <= 0.0_RKIND ) then
+                      wettingVelocityFactor(k, iEdge) = 1.0_RKIND - &
+                           tanh(wdcoeframp * (layerThicknessCell(k, iCell) - hRampMin)/hRampMin)
+                   endif
                 endif
+                !
 
                 ! If edge velocity has been zeroed, check neighbor and current cell ssh.
                 ! Prevent flow out of cell if neighbor cell is dry and the ssh gradient
@@ -529,6 +545,7 @@ contains
                   cellDummy(1:2) = cellsOnEdge(1:2,iEdge)
                   cellNei = merge( cellDummy(2), cellDummy(1), iCell == cellDummy(1) )
                   cellCur = iCell
+
                   if ( cellNei > nCellsAll ) cellNei = cellCur
                   sshCur = sshCell(cellCur)
                   sshNei = sshCell(cellNei)

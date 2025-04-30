@@ -167,15 +167,19 @@ contains
     real (kind=RKIND) :: deltaZ
     logical, pointer :: on_a_sphere
 
-
-
+    integer:: nsbeg, nsend, isub, iscale, iclipped
+    real (kind=RKIND) :: den
+    real (kind=RKIND), parameter:: clipfac =  4.0_RKIND ;
+    real (kind=RKIND), parameter:: bathylim = 8.0_RKIND ; 
+    real (kind=RKIND), parameter:: bathylim_lower_bound = 0.125_RKIND 
     integer:: i, j, jj
     integer:: nsubgridCellEdge, iEdgeSegment
     real (kind=RKIND):: pi
     real (kind=RKIND), dimension(:,:), allocatable :: cellEdgeBathymetryValues
     real (kind=RKIND), dimension(:), allocatable:: dsEdge
     real (kind=RKIND), dimension(:), allocatable:: xSubgridCell, ySubgridCell
-    real (kind=RKIND):: bathymetryMin, bathymetryMax 
+    real (kind=RKIND):: bathymetryMin, bathymetryMax
+    integer, dimension(:), allocatable:: scaledBathyFlag 
     iErr = 0
 
 
@@ -243,6 +247,10 @@ contains
     xSubgridCell = 0.0_RKIND  
     ySubgridCell = 0.0_RKIND 
 
+    allocate( scaledBathyFlag(nCellsSolve) ) ;
+    scaledBathyFlag = 0  ;  
+
+
    do iCell = 1,nCellsSolve
       !
       ! Evaluate subgrid bathymetry at centers of sub-triangles for cell slices 
@@ -251,8 +259,15 @@ contains
       !---------------------------------------------------------------
 
       nSubgridCell = 0  ! Counter for all subgrid triangles over cell slices
-      do slice = 1,nEdgesOnCell(iCell) ! Loop over cell slices
+      nsbeg =  1  ; 
+      nsend =  1  ;
 
+       
+      scaledBathyFlag(iCell) = 0 ; 
+
+      do slice = 1,nEdgesOnCell(iCell) ! Loop over cell slices
+        iscale = 0 ; 
+        ! 
         v1 = verticesOnCell(slice,iCell)
         if (slice+1 <= nEdgesOnCell(iCell)) then
           v2 = verticesOnCell(slice+1,iCell)
@@ -274,8 +289,57 @@ contains
                                             problem_bathymetry, problem_velocity, problem_ssh, &  
                                             subgridBathymetryValues, subgridAreas, subgridSshValues, &
                                             subgridUValues, subgridVValues, xSubgridCell, ysubgridCell) !{{{
+            
+        !!!            
+        !!! ----------- experiment ----------- !!                          
+        !! if necessary, scale bathy slice by slice                            
+        nsend = nSubgridCell
+        bathymetryMin = maxval( subgridBathymetryValues(nsbeg:nsend) ) 
+        bathymetryMax = minval( subgridBathymetryValues(nsbeg:nsend) )
+
+        if (bathymetryMax < -99998) then
+          cycle 
+        endif
+        if (bathymetryMin > 99998) then
+          cycle
+        endif
+
+        if ( bathymetryMax < -clipfac*bathylim .and. bathymetryMin > bathylim_lower_bound ) then
+           ! Clip very high area !  
+           do isub = nsbeg, nsend
+               if ( subgridbathymetryValues(isub) < -clipfac*bathylim ) then
+                  subgridbathymetryValues(isub) = -clipfac*bathylim ;     
+               endif        
+           enddo
+
+           bathymetryMin = maxval( subgridBathymetryValues(nsbeg:nsend) ) 
+           bathymetryMax = minval( subgridBathymetryValues(nsbeg:nsend) )
+        endif            
+      
+        ! scale bathymetry !
+        if ( bathymetryMax < -bathylim .and. bathymetryMin > bathylim_lower_bound ) then
+            iscale = 1 ; 
+            write(*,*) "info: Scale ", iCell, bathymetryMax, bathymetryMin ; 
+
+            den = 1.0_RKIND/(bathymetryMin - bathymetryMax)  ;
+            
+            subgridBathymetryValues(nsbeg:nsend) =  & 
+                     (subgridBathymetryValues(nsbeg:nsend) - bathymetryMax)*bathymetryMin*den &
+                   + (subgridBathymetryValues(nsbeg:nsend) - bathymetryMin)*(bathylim + 0.00001_RKIND)*den
+
+           scaledBathyFlag(iCell) = iscale ; 
+        endif        
+
+        bathymetryMin = maxval( subgridBathymetryValues(nsbeg:nsend) ) 
+        bathymetryMax = minval( subgridBathymetryValues(nsbeg:nsend) )
+        if ( iscale == 1 ) then
+            write(*,*) " -- info: after Scale ", iCell, bathymetryMax, bathymetryMin ; 
+        endif
+        
+        nsbeg = nsend + 1 ;
+        !!!
       enddo
-    
+
       ! Evaluate bounds of look-up table range
       !---------------------------------------------------------------        
       bathymetryMin = maxval( subgridBathymetryValues(1:nSubgridCell) ) 
@@ -288,6 +352,27 @@ contains
          cycle
       endif
 
+      !!$   
+      where ( subgridBathymetryValues < -bathylim ) subgridBathymetryValues = -bathylim     
+      where ( subgridBathymetryValues <  0.0_RKIND ) subgridSshValues = -subgridBathymetryValues - 0.000001_RKIND
+    
+      !if ( scaledBathyFlag(iCell) == 1 ) then     
+      do isub = 1, nSubgridCell
+         call problem_ssh( xSubgridCell(isub), ySubgridCell(isub), &
+                        subgridBathymetryValues(isub), subgridSshValues(isub) )
+
+         !if ( subgridbathymetryValues(isub) < 0.0_RKIND ) then
+         !   subgridSshValues(isub) = -subgridbathymetryValues(isub) - 0.000001_RKIND ;     
+         !endif        
+      enddo
+      !endif   
+      !endif 
+
+      !***************************************************************!
+      !---------------------------------------------------------------!        
+      bathymetryMin = maxval( subgridBathymetryValues(1:nSubgridCell) ) 
+      bathymetryMax = minval( subgridBathymetryValues(1:nSubgridCell) )
+
       if ( abs(bathymetryMin - bathymetryMax) > 100.0_RKIND*eps ) then
           subgridSshCellTableRange(1,iCell) = -maxval(subgridBathymetryValues(1:nSubgridCell)) + subgrid_thin_layer
           subgridSshCellTableRange(2,iCell) = -minval(subgridBathymetryValues(1:nSubgridCell))
@@ -297,21 +382,18 @@ contains
           subgridSshCellTableRange(2,iCell) =  -bathymetryMin + 2.0_RKIND*config_drying_min_cell_height  
       endif 
 
-      !!
-      !! limit a look up table to -8 to 8 !
-      if ( subgridSshCellTableRange(1,iCell) <= -8.0_RKIND ) then
-          subgridSshCellTableRange(1,iCell) = -8.0_RKIND ;
-      endif
-
-      if ( subgridSshCellTableRange(2,iCell) >= 8.0_RKIND ) then
-          subgridSshCellTableRange(2,iCell) = 8.0_RKIND ;
-      endif
-
-      where ( subgridBathymetryValues <= -8.0_RKIND ) subgridSshValues = 7.999_RKIND        
-      where ( subgridBathymetryValues <= -8.0_RKIND ) subgridBathymetryValues = -8.0_RKIND
-      !!
-      !! 
-
+      if ( subgridSshCellTableRange(2,iCell) > -bathylim .and. &
+                 subgridSshCellTableRange(1,iCell) <  bathylim  ) then
+          !       
+          if ( subgridSshCellTableRange(1,iCell) < -bathylim ) then
+             subgridSshCellTableRange(1,iCell) = -bathylim 
+          endif
+          if ( subgridSshCellTableRange(2,iCell) > bathylim ) then
+             subgridSshCellTableRange(2,iCell) = bathylim     
+          endif
+          !
+      endif        
+      !!!$
 
       ! Evaluate subgrid bathymetry
       !---------------------------------------------------------------
@@ -320,6 +402,10 @@ contains
 
       ! Vertical integration of wet fraction
       !---------------------------------------------------------------
+      !if ( abs(subgridCellBathymetryMin(iCell) - 14.2082536811025) < 0.000001 ) then
+      !   write(*,*) "   buzzbay iCell = ", bathymetryMin, BathymetryMax, &
+      !           maxval(subgridSshValues(1:nsubgridCell)), minval(subgridSshValues(1:nsubgridCell))     
+      !endif   
 
       call ocn_init_vertical_integration(iCell,subgridSshCellTableRange, nSubgridCell, subgridBathymetryValues, subgridAreas, &
                                          subgridWetVolumeCellTable, subgridWetFractionCellTable)
@@ -336,12 +422,12 @@ contains
 !                                    subgridCellBathymetryMin(iCell),&
 !                                    ssh(iCell))
 
-       call ocn_subgrid_layer_thickness_lookup(ssh(iCell), &
+       call ocn_subgrid_layer_thickness_lookup( ssh(iCell), &
                                            subgridWetVolumeCellTable(:,iCell), &
                                            subgridSshCellTableRange(:,iCell),&
                                            bottomDepth(iCell), &
                                            subgridCellBathymetryMin(iCell), &
-                                           LayerThickness(1,iCell))
+                                           LayerThickness(1,iCell) )
 
        call ocn_subgrid_ssh_lookup(  config_drying_min_cell_height, & 
                                      subgridWetVolumeCellTable(:,iCell), &
@@ -350,18 +436,7 @@ contains
                                      subgridCellBathymetryMin(iCell),&
                                      subgridSShCellTableRange(3,iCell) )
 
-       !
-       !if ( iCell == 2048219 .or. iCell == 2053713 ) then
-       !    write(*,*) "issue ", iCell, ssh(iCell),  LayerThickness(1,iCell), bottomDepth(iCell) ;  
-       !endif           
-       !
-       !if ( abs(abs(bottomDepth(iCell)) - 5.113966150673738) < 0.0001_RKIND ) then  
-       !    write(*,*) "issue i ", iCell, ssh(iCell),  LayerThickness(1,iCell), bottomDepth(iCell) ;
-       !    write(*,*) nsubgridCell ;
-       !    do jj = 1, nsubgridCell
-       !       write(8,*) subgridBathymetryValues(jj), subgridSshValues(jj) ; 
-       !    end do       
-       !endif        
+       
        if ( ssh(iCell) < subgridSshCellTableRange(3,iCell) ) then
           ssh(iCell) = subgridSshCellTableRange(3,iCell) ;  
 
@@ -381,6 +456,8 @@ contains
     cellEdgeBathymetryValues = -99999 ; 
 
 
+    nsbeg = 1 ; 
+    nsend = 1 ; 
     do iEdge = 1,nEdgesSolve
       !--------------------------------------------------------------
       ! Evaluate subgrid bathymetry at centers of sub-triangles for edge slices
@@ -397,6 +474,7 @@ contains
 
       nSubgridEdge = 0  ! Counter for all subgrid triangles over edge slices
       do slice = 1,nSlice ! Loop over edge slices
+        iscale = 0 ; 
 
         ! Edge slice coordinates
         x(1) = xVertex(verticesOnEdge(1,iEdge))
@@ -413,7 +491,49 @@ contains
                                             problem_bathymetry, problem_velocity, problem_ssh, &  
                                             subgridBathymetryValues, subgridAreas, subgridSshValues, subgridUValues, subgridVValues, &
                                             xSubgridCell, ySubgridCell)
-  
+
+        !!!!
+        !!!!! ----------- experiment ----------- !!                          
+        !! scale bathy slice by slice                            
+        nsend = nSubgridEdge
+        bathymetryMin = maxval( subgridBathymetryValues(nsbeg:nsend) ) 
+        bathymetryMax = minval( subgridBathymetryValues(nsbeg:nsend) )
+
+        if (bathymetryMax < -99998) then
+          cycle 
+        endif
+        if (bathymetryMin > 99998) then
+          cycle
+        endif
+
+        if ( bathymetryMax < -clipfac*bathylim .and. bathymetryMin > bathylim_lower_bound ) then
+           ! Clip very high area !  
+           do isub = nsbeg, nsend
+               if ( subgridbathymetryValues(isub) < -clipfac*bathylim ) then
+                  subgridbathymetryValues(isub) = -clipfac*bathylim ;     
+               endif        
+           enddo
+
+           bathymetryMin = maxval( subgridBathymetryValues(nsbeg:nsend) ) 
+           bathymetryMax = minval( subgridBathymetryValues(nsbeg:nsend) )
+
+           ! iscale = 1 ; 
+        endif            
+      
+        ! scale bathymetry !
+        if ( bathymetryMax < -bathylim .and. bathymetryMin > bathylim_lower_bound ) then
+        ! if ( iscale == 1 ) then
+            iscale = 1 ; 
+
+            den = 1.0_RKIND/(bathymetryMin - bathymetryMax)  ;
+
+            subgridBathyMetryValues(nsbeg:nsend) = &
+                   ( subgridBathymetryValues(nsbeg:nsend) - bathymetryMax )*bathymetryMin*den &
+                 + ( subgridBathymetryValues(nsbeg:nsend) - bathymetryMin )*bathylim*den 
+        endif        
+        !
+        nsbeg = nsend + 1 ;
+        !!!!                   
       enddo
 
       bathymetryMin = maxval( subgridBathymetryValues(1:nSubgridEdge) ) 
@@ -426,9 +546,14 @@ contains
          cycle
       endif
 
+      !!!
+      !!! clip bathymetry !!
+      where ( subgridBathymetryValues < -bathylim ) subgridBathymetryValues = -bathylim
+      !!!
+
       ! Evaluate velocity average
       !---------------------------------------------------------------
-      call ocn_init_grid_average(nSubgridCell, subgridBathymetryValues, subgridSshValues, subgridAreas, layerThicknessEdgeAverage, &
+      call ocn_init_grid_average( nSubgridEdge, subgridBathymetryValues, subgridSshValues, subgridAreas, layerThicknessEdgeAverage, &
                                 subgridUValues, subgridVValues, uVelocityAverage(iEdge), vVelocityAverage(iEdge))
 
       if ( .NOT. subgrid_edge_bathymetry_max_pixel) then
@@ -438,22 +563,21 @@ contains
             subgridSshEdgeTableRange(1,iEdge) = -maxval(subgridBathymetryValues(1:nSubgridEdge)) + subgrid_thin_layer
             subgridSshEdgeTableRange(2,iEdge) = -minval(subgridBathymetryValues(1:nSubgridEdge))
          else
-            subgridSshCellTableRange(1,iEdge) =  -bathymetryMin + subgrid_thin_layer
-            subgridSshCellTableRange(2,iEdge) =  -bathymetryMin + 2.0_RKIND*config_drying_min_cell_height  
+            subgridSshEdgeTableRange(1,iEdge) =  -bathymetryMin + subgrid_thin_layer
+            subgridSshEdgeTableRange(2,iEdge) =  -bathymetryMin + 2.0_RKIND*config_drying_min_cell_height  
          endif
 
          !!
-         !!
-         if ( subgridSshCellTableRange(1,iEdge) < -8.0_RKIND ) then
-             subgridSshCellTableRange(1,iEdge) = -8.0_RKIND ;
+         if ( subgridSshEdgeTableRange(2,iEdge) > -bathylim .and. &
+                     subgridSshEdgeTableRange(1,iEdge) < bathylim ) then
+            if ( subgridSshEdgeTableRange(1,iEdge) < -bathylim ) then
+              subgridSshEdgeTableRange(1,iEdge) = -bathylim ;
+            endif
+            !
+            if ( subgridSshEdgeTableRange(2,iEdge) > bathylim ) then
+              subgridSshEdgeTableRange(2,iEdge) = bathylim ;
+            endif
          endif
-
-         if ( subgridSshCellTableRange(2,iEdge) >  8.0_RKIND ) then
-            subgridSshCellTableRange(2,iEdge) = 8.0_RKIND ;
-         endif
-         
-         where ( subgridBathymetryValues < -8.0_RKIND ) subgridBathymetryValues = -8.0_RKIND
-         !!
          !!
 
          ! Evaluate subgrid bathymetry
@@ -463,7 +587,7 @@ contains
 
          ! Vertical integration of wet fraction
          !---------------------------------------------------------------
-         call ocn_init_vertical_integration(iEdge,subgridSshEdgeTableRange, nSubgridEdge, subgridBathymetryValues, subgridAreas, &
+         call ocn_init_vertical_integration( iEdge, subgridSshEdgeTableRange, nSubgridEdge, subgridBathymetryValues, subgridAreas, &
                                          subgridWetVolumeEdgeTable, subgridWetFractionEdgeTable)
       else
          ! DW: Use the higher values of the pair of subcells along the
@@ -492,23 +616,23 @@ contains
             subgridSshEdgeTableRange(1,iEdge) = -maxval(CellEdgeBathymetryValues(3,1:nSubgridCellEdge)) + subgrid_thin_layer
             subgridSshEdgeTableRange(2,iEdge) = -minval(CellEdgeBathymetryValues(3,1:nSubgridCellEdge))
          else
-            subgridSshCellTableRange(1,iEdge) =  -bathymetryMin + subgrid_thin_layer
-            subgridSshCellTableRange(2,iEdge) =  -bathymetryMin + 2.0_RKIND*config_drying_min_cell_height  
+            subgridSshEdgeTableRange(1,iEdge) =  -bathymetryMin + subgrid_thin_layer
+            subgridSshEdgeTableRange(2,iEdge) =  -bathymetryMin + 2.0_RKIND*config_drying_min_cell_height  
          endif
          
+         
          !!
-         !!
-         if ( subgridSshCellTableRange(1,iEdge) < -8.0_RKIND ) then
-             subgridSshCellTableRange(1,iEdge) = -8.0_RKIND ;
+         if ( subgridSshEdgeTableRange(2,iEdge) > -bathylim .and. &
+                  subgridSshEdgeTableRange(1,iEdge) < bathylim )  then 
+            if ( subgridSshEdgeTableRange(1,iEdge) < -bathylim ) then
+               subgridSshEdgeTableRange(1,iEdge) = -bathylim ;
+            endif
+            if ( subgridSshCellTableRange(2,iEdge) > bathylim ) then
+               subgridSshEdgeTableRange(2,iEdge) = bathylim ;
+            endif
          endif
-
-         if ( subgridSshCellTableRange(2,iEdge) >  8.0_RKIND ) then
-            subgridSshCellTableRange(2,iEdge) = 8.0_RKIND ;
-         endif
-
-         where( cellEdgeBathymetryValues(3,:) > -8.0_RKIND ) cellEdgeBathymetryValues(3,:) = -8.0_RKIND ;
          !!
-         !!
+         
 
          ! Evaluate bounds of look-up table range
          !---------------------------------------------------------------
@@ -533,6 +657,8 @@ contains
                                      subgridEdgeBathymetryMin(iEdge),&
                                      subgridSshEdgeTableRange(3,iEdge) )
     end do
+
+    write(*,*) "End Edge" ;
 
     return
 
@@ -904,7 +1030,7 @@ vertex: do iVertex = 1,nVerticesSolve
       real (kind=RKIND) :: deltaZ, ssh, pVal, hVal, volumeOffset
       integer :: lev, tri
       
-
+      real (kind=RKIND), parameter:: eps = 1.0e-12_RKIND 
    !--------------------------------------------------------------------
    
       deltaZ = (subgridSshTableRange(2,iCV)-subgridSshTableRange(1,iCV))/real(nSubgridTableLevels-1,RKIND);
@@ -949,9 +1075,9 @@ vertex: do iVertex = 1,nVerticesSolve
         do tri = 1, nSubgridCV
           !
           pVal = 0.0_RKIND
-          hVal = max( subgridBathymetryValues(tri) + ssh, 1.0e-11_RKIND ) ;
+          hVal = max( subgridBathymetryValues(tri) + ssh, eps ) ;
 
-          if ( hVal > 0.0_RKIND) then
+          if ( hVal > eps ) then
             pVal = 1.0_RKIND
           endif
 
@@ -1080,7 +1206,7 @@ vertex: do iVertex = 1,nVerticesSolve
       end do
 
       if ( WetArea > 0.0_RKIND ) then
-          sshWetAverage = sshWetAverage/WetArea ;
+         sshWetAverage = sshWetAverage/WetArea ;
       else
          sshWetAverage = -maxval(subgridBathymetryValues(1:nsubgridCV)) + subgrid_thin_layer
       endif
