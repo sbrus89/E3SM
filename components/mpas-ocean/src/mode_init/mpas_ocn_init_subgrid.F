@@ -170,7 +170,7 @@ contains
     integer:: nsbeg, nsend, isub, iscale, iclipped
     real (kind=RKIND) :: den
     real (kind=RKIND), parameter:: clipfac =  4.0_RKIND ;
-    real (kind=RKIND), parameter:: bathylim = 8.0_RKIND ; 
+    real (kind=RKIND), parameter:: bathylim = 6.0_RKIND ; 
     real (kind=RKIND), parameter:: bathylim_lower_bound = 0.125_RKIND 
     integer:: i, j, jj
     integer:: nsubgridCellEdge, iEdgeSegment

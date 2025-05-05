@@ -818,9 +818,12 @@ contains
       !-----------------------------------------------------------------
 
       real (kind=RKIND), dimension(:,:), intent(in) :: &
-         normalVelocity,  &!< [in] transport
+      !   normalVelocity,  &!< [in] transport
          layerThickness,  &!< [in] layer thickness at cell center
          restingThickness  !< [in] initial layer thickness at cell center
+  
+      ! DW -- change from intent(in) to (inout), will revert back
+      real (kind=RKIND), dimension(:,:), intent(inout):: normalVelocity 
       real (kind=RKIND), dimension(:), intent(in) :: &
          ssh               !< [in] sea surface height at cell center
 

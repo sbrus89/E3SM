@@ -112,6 +112,9 @@ contains
 
       real (kind=RKIND) :: flux, invAreaCell
 
+      real (kind=RKIND):: hCrit, hRampMin
+      real (kind=RKIND), parameter:: hRampCoef = 4.0_RKIND 
+
       !-----------------------------------------------------------------
       !
       ! call relevant routines for computing tendencies
@@ -125,6 +128,12 @@ contains
       if(.not.thickHadvOn) return
 
       call mpas_timer_start("thick hadv")
+
+      !!
+      hCrit = config_drying_min_cell_height + &
+                              config_drying_safety_height
+
+      hRampMin = config_zero_drying_velocity_ramp_hmin ;
 
 #ifdef MPAS_OPENACC
       !$acc parallel loop &
@@ -142,6 +151,25 @@ contains
           iEdge = edgesOnCell(i, iCell)
           do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
             flux = normalVelocity(k, iEdge) * dvEdge(iEdge) * layerThickEdgeFlux(k, iEdge)
+            
+            !!! DW: 
+            if ( config_use_wetting_drying .AND. & 
+                      config_use_subgrid_wetting_drying ) then 
+                if ( layerThickEdgeFlux(k,iEdge) <= hCrit ) flux = 0.0_RKIND
+
+              !     
+              ! if ( layerThickEdgeFlux(k,iEdge) <= hCrit ) then
+              !   flux = 0.0_RKIND ;
+              ! elseif ( (layerThickEdgeFlux(k,iEdge) > hCrit) .and. &
+              !   (layerThickEdgeFlux(k,iEdge) <= config_zero_drying_velocity_ramp_hmax) ) then
+              !
+              !   flux = flux* &
+              !      tanh(hRampCoef*(layerThickEdgeFlux(k,iEdge) - hRampMin)/hRampMin)
+              ! endif
+              !        
+            endif
+            !!!!
+ 
             tend(k, iCell) = tend(k, iCell) + edgeSignOnCell(i, iCell) * flux * invAreaCell
           end do
         end do

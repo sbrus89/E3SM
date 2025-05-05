@@ -312,12 +312,14 @@ contains
       real (kind=RKIND), dimension(:,:,:), pointer, contiguous :: &
          activeTracers
 
+      real (kind=RKIND):: hCrit, hRampMin
+      real (kind=RKIND), parameter:: hRampCoef = 4.0_RKIND ; 
+
       ! End preamble
       !-----------------------------------------------------------------
       ! Begin code
 
       !*** Initialize error code and determine time level
-
       err = 0
       if (present(timeLevelIn)) then
          timeLevel = timeLevelIn
@@ -460,6 +462,12 @@ contains
       ! vertical mixing treated implicitly in a later routine
       ! adjust total velocity tendency based on wetting/drying
 
+      !
+      hCrit = config_drying_min_cell_height + &
+                              config_drying_safety_height
+      hRampMin = config_zero_drying_velocity_ramp_hmin ;
+      !       
+
 #ifdef MPAS_OPENACC
       !$acc parallel loop collapse(2) &
       !$acc    present(tendVel, wettingVelocityFactor)
@@ -467,10 +475,29 @@ contains
       !$omp parallel
       !$omp do schedule(runtime) private(k)
 #endif
+
       do iEdge = 1, nEdgesAll
-      do k=1,nVertLevels
-         tendVel(k,iEdge) = tendVel(k,iEdge) * (1.0_RKIND - wettingVelocityFactor(k,iEdge))
-      end do
+        do k=1,nVertLevels
+          tendVel(k,iEdge) = tendVel(k,iEdge) * (1.0_RKIND - wettingVelocityFactor(k,iEdge))
+        end do
+              
+        !! DW: !!
+        if ( config_use_wetting_drying .AND. & 
+                config_use_subgrid_wetting_drying ) then
+           k = 1 ;    
+           if ( layerThickEdgeFlux(k,iEdge) <= hCrit ) then
+             tendVel(k,iEdge) = 0.0_RKIND ;     
+           elseif ( (layerThickEdgeFlux(k,iEdge) > hCrit) .and. &
+             (layerThickEdgeFlux(k,iEdge) <= config_zero_drying_velocity_ramp_hmax) ) then
+
+             ! Following O'Dea et al. (2021), if total upwinded wct is less than
+             ! 2*critical thickness, apply damping at each edge
+             tendVel(k, iEdge) = tendVel(k,iEdge)* &
+                    tanh(hRampCoef*(layerThickEdgeFlux(k,iEdge) - hRampMin)/hRampMin)
+            end if
+        endif
+        !! 
+
       end do
 #ifndef MPAS_OPENACC
       !$omp end do

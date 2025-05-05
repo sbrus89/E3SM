@@ -372,7 +372,7 @@ contains
       real (kind=RKIND), dimension(:), pointer :: sshCell
       real (kind=RKIND), dimension(:, :), pointer :: layerThicknessCell
       ! real (kind=RKIND), parameter:: wdcoeframp = 50.0_RKIND
-      real (kind=RKIND), parameter:: wdcoeframp = 10.0_RKIND 
+      real (kind=RKIND), parameter:: hRampCoef = 4.0_RKIND 
 
       err = 0
 
@@ -500,7 +500,7 @@ contains
                        if ( config_zero_drying_velocity_ramp .and.  &
                                    layerThicknessCell(k, cellNei) <= hRampMax ) then 
                            wettingVelocityFactor(k,iEdge) = 1.0_RKIND - &
-                                tanh(wdcoeframp*(layerThicknessCell(k, cellNei) - hRampMin)/hRampMin) ;
+                                tanh(hRampCoef*(layerThicknessCell(k, cellNei) - hRampMin)/hRampMin) ;
                        endif
                        !!  
                     end if
@@ -532,7 +532,7 @@ contains
                        layerThicknessCell(k, iCell) <= hRampMax ) then  
                    if ( normalVelocity(k, iEdge) * edgeSignOnCell(i, iCell) <= 0.0_RKIND ) then
                       wettingVelocityFactor(k, iEdge) = 1.0_RKIND - &
-                           tanh(wdcoeframp * (layerThicknessCell(k, iCell) - hRampMin)/hRampMin)
+                           tanh(hRampCoef * (layerThicknessCell(k, iCell) - hRampMin)/hRampMin)
                    endif
                 endif
                 !
