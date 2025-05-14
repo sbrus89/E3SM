@@ -86,6 +86,7 @@ module ocn_diagnostics_variables
    real (kind=RKIND), dimension(:), pointer :: sfcFlxAttCoeff
    real (kind=RKIND), dimension(:), pointer :: surfaceFluxAttenuationCoefficientRunoff
    real (kind=RKIND), dimension(:), pointer :: surfaceFluxAttenuationCoefficientSubglacialRunoff
+   real (kind=RKIND), dimension(:), pointer :: surfaceFluxAttenuationCoefficientInfiltration
 
    real (kind=RKIND), dimension(:), pointer :: landIceFrictionVelocity
    real (kind=RKIND), dimension(:), pointer :: velocityTidalRMS
@@ -685,6 +686,9 @@ contains
                'surfaceFluxAttenuationCoefficientSubglacialRunoff', &
                 surfaceFluxAttenuationCoefficientSubglacialRunoff)
       call mpas_pool_get_array(diagnosticsPool, &
+               'surfaceFluxAttenuationCoefficientInfiltration', &
+                surfaceFluxAttenuationCoefficientInfiltration)
+      call mpas_pool_get_array(diagnosticsPool, &
                'boundaryLayerDepth', &
                 boundaryLayerDepth)
       call mpas_pool_get_array(diagnosticsPool, &
@@ -970,6 +974,7 @@ contains
       !$acc                   boundaryLayerDepthSmooth,                &
       !$acc                   surfaceFluxAttenuationCoefficientRunoff, &
       !$acc                   surfaceFluxAttenuationCoefficientSubglacialRunoff  &
+      !$acc                   surfaceFluxAttenuationCoefficientInfiltration&
       !$acc                   )
 
     end subroutine ocn_diagnostics_variables_init!}}}
@@ -1230,6 +1235,7 @@ contains
       !$acc                   boundaryLayerDepthSmooth,                &
       !$acc                   surfaceFluxAttenuationCoefficientRunoff, &
       !$acc                   surfaceFluxAttenuationCoefficientSubglacialRunoff  &
+      !$acc                   surfaceFluxAttenuationCoefficientInfiltration &
       !$acc                   )
 
       ! Nullify pointers
@@ -1432,7 +1438,8 @@ contains
               simulationStartTime,                     &
               boundaryLayerDepthSmooth,                &
               surfaceFluxAttenuationCoefficientRunoff, &
-              surfaceFluxAttenuationCoefficientSubglacialRunoff)
+              surfaceFluxAttenuationCoefficientSubglacialRunoff, &
+              surfaceFluxAttenuationCoefficientInfiltration)
 
     end subroutine ocn_diagnostics_variables_destroy!}}}
 

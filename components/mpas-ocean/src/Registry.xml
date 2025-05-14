@@ -3434,6 +3434,9 @@
 			description="The spatially-dependent length scale of exponential decay of subglacial runoff. Fluxes are multiplied by $e^{z/\gamma}$, where this coefficient is $\gamma$."
 			packages="dataSubglacialRunoffFluxPKG"
 		/>
+		<var name="surfaceFluxAttenuationCoefficientInfiltration" type="real" dimensions="nCells Time" units="m"
+			description="The spatially-dependent length scale of exponential decay of land infiltration fluxes. Fluxes are multiplied by $e^{z/\gamma}$, where this coefficient is $\gamma$."
+		/>
 		<var name="topo_rinv" type="real" dimensions="nEdges" units="unitless"
 			description="wave drag coefficient or 1/(rinv) where rinv is the e-folding time used in HyCOM"
 			packages="topographicWaveDragPKG"
@@ -3737,6 +3740,10 @@
 			 description="Flux of mass through the ocean surface due to subglacial runoff. Positive into ocean."
 			 packages="dataSubglacialRunoffFluxPKG"
 		/>
+		<var name="surfaceThicknessFluxInfiltration" type="real" dimensions="nCells Time" units="m s^-1"
+			 description="Flux of mass through the ocean surface due to land infiltration. Positive into ocean."
+			 packages="forwardMode;analysisMode"
+		/>
 
 		<var name="windStressZonal" type="real" dimensions="nCells Time" units="N m^-2"
 			 description="Zonal (eastward) component of wind stress at cell centers from coupler. Positive eastward."
@@ -3788,7 +3795,7 @@
 			 description="Divergence of transmission through interfaces of surface fluxes below the surface layer at cell centers. These are applied only to subglacial runoff."
 			 packages="dataSubglacialRunoffFluxPKG"
 		/>
-		<var name="fractionAbsorbedLand" type="real" dimensions="nVertLevels nCells Time" units="fractional"
+		<var name="fractionAbsorbedInfiltration" type="real" dimensions="nVertLevels nCells Time" units="fractional"
 			 description="Divergence of transmission through interfaces of surface fluxes below the surface layer at cell centers. These are applied only to land fluxes."
 			 packages="forwardMode;analysisMode"
 		/>

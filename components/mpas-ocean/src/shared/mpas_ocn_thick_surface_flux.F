@@ -74,8 +74,8 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_thick_surface_flux_tend(transmissionCoefficients, transmissionCoefficientsRunoff, &
-      surfaceThicknessFlux, surfaceThicknessFluxRunoff, tend, err)!{{{
+   subroutine ocn_thick_surface_flux_tend(transmissionCoefficients, transmissionCoefficientsRunoff, transmissionCoefficientsInfiltration ,&
+      surfaceThicknessFlux, surfaceThicknessFluxRunoff, surfaceThicknessFluxInfiltration, tend, err)!{{{
       !-----------------------------------------------------------------
       !
       ! input variables
@@ -83,12 +83,15 @@ contains
       !-----------------------------------------------------------------
 
       real (kind=RKIND), dimension(:,:), intent(in) :: &
-         transmissionCoefficients,     &!< Input: Coefficients for the transmission of surface fluxes
-         transmissionCoefficientsRunoff !< Input: Coefficients for the transmission of surface fluxes due to river runoff
+         transmissionCoefficients,      & !< Input: Coefficients for the transmission of surface fluxes
+         transmissionCoefficientsRunoff,& !< Input: Coefficients for the transmission of surface fluxes due to river runoff
+         transmissionCoefficientsInfiltration     !< Input: Coefficients for the transmission of surface fluxes due to land infiltration
 
       real (kind=RKIND), dimension(:), intent(in) :: &
-         surfaceThicknessFlux,      &!< Input: surface flux of thickness
-         surfaceThicknessFluxRunoff !< Input: surface flux of thickness due to river runoff
+         surfaceThicknessFlux,      & !< Input: surface flux of thickness
+         surfaceThicknessFluxRunoff,& !< Input: surface flux of thickness due to river runoff
+         surfaceThicknessFluxInfiltration !< Input: surface flux of thickness due to land infiltration
+         
 
 
       !-----------------------------------------------------------------
@@ -116,7 +119,7 @@ contains
 
       integer :: iCell, k
 
-      real (kind=RKIND) :: remainingFlux, remainingFluxRunoff
+      real (kind=RKIND) :: remainingFlux, remainingFluxRunoff, remainingFluxInfiltration
 
       err = 0
 
@@ -125,24 +128,27 @@ contains
       call mpas_timer_start("thick surface flux")
 
 #ifdef MPAS_OPENACC
-      !$acc enter data copyin(transmissionCoefficients, transmissionCoefficientsRunoff)
+      !$acc enter data copyin(transmissionCoefficients, transmissionCoefficientsRunoff, transmissionCoefficientsInfiltration)
 
       !$acc parallel loop &
-      !$acc     present(tend, surfaceThicknessFlux, surfaceThicknessFluxRunoff, &
-      !$acc     transmissionCoefficients, transmissionCoefficientsRunoff, minLevelCell, maxLevelCell) &
-      !$acc     private(k, remainingFlux, remainingFluxRunoff)
+      !$acc     present(tend, surfaceThicknessFlux, surfaceThicknessFluxRunoff, surfaceThicknessFluxInfiltration ,&
+      !$acc     transmissionCoefficients, transmissionCoefficientsRunoff, transmissionCoefficientsInfiltration, minLevelCell, maxLevelCell) &
+      !$acc     private(k, remainingFlux, remainingFluxRunoff, remainingFluxInfiltration)
 #else
       !$omp parallel
-      !$omp do schedule(runtime) private(remainingFlux, remainingFluxRunoff, k)
+      !$omp do schedule(runtime) private(remainingFlux, remainingFluxRunoff, remainingFluxInfiltration, k)
 #endif
       do iCell = 1, nCellsOwned
         remainingFlux = 1.0_RKIND
         remainingFluxRunoff = 1.0_RKIND
+        remainingFluxInfiltration = 1.0_RKIND
         do k = minLevelCell(iCell), maxLevelCell(iCell)
           remainingFlux = remainingFlux - transmissionCoefficients(k, iCell)
           remainingFluxRunoff = remainingFluxRunoff - transmissionCoefficientsRunoff(k, iCell)
+          remainingFluxInfiltration = remainingFluxInfiltration - transmissionCoefficientsInfiltration(k, iCell)
           tend(k, iCell) = tend(k, iCell) + surfaceThicknessFlux(iCell) * transmissionCoefficients(k, iCell)  &
-                                          + surfaceThicknessFluxRunoff(iCell) * transmissionCoefficientsRunoff(k, iCell)
+                                          + surfaceThicknessFluxRunoff(iCell) * transmissionCoefficientsRunoff(k, iCell) &
+                                          + surfaceThicknessFluxInfiltration(iCell) * transmissionCoefficientsInfiltration(k, iCell)
         end do
 
         if(maxLevelCell(iCell) > 0 .and. remainingFlux > 0.0_RKIND) then
@@ -154,6 +160,11 @@ contains
              + remainingFluxRunoff * surfaceThicknessFluxRunoff(iCell)
         end if
 
+        if(maxLevelCell(iCell) > 0 .and. remainingFluxInfiltration > 0.0_RKIND) then
+          tend(minLevelCell(iCell), iCell) = tend(minLevelCell(iCell), iCell) &
+             + remainingFluxInfiltration * surfaceThicknessFluxInfiltration(iCell)
+        end if
+
       end do
 #ifndef MPAS_OPENACC
       !$omp end do
@@ -161,7 +172,7 @@ contains
 #endif
 
 #ifdef MPAS_OPENACC
-      !$acc exit data delete(transmissionCoefficients, transmissionCoefficientsRunoff)
+      !$acc exit data delete(transmissionCoefficients, transmissionCoefficientsRunoff ,transmissionCoefficientsInfiltration)
 #endif
 
       call mpas_timer_stop("thick surface flux")

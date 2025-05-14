@@ -123,7 +123,7 @@ contains
 
         real (kind=RKIND) :: zTop, zBot, transmissionCoeffTop, transmissionCoeffBot
 
-        real (kind=RKIND), dimension(:,:), pointer :: layerThickness, fractionAbsorbed, fractionAbsorbedRunoff, fractionAbsorbedSubglacialRunoff
+        real (kind=RKIND), dimension(:,:), pointer :: layerThickness, fractionAbsorbed, fractionAbsorbedRunoff, fractionAbsorbedSubglacialRunoff, fractionAbsorbedInfiltration
 
         integer :: iCell, k, timeLevel, nCells
 
@@ -149,6 +149,7 @@ contains
         call mpas_pool_get_array(forcingPool, 'fractionAbsorbed', fractionAbsorbed)
         call mpas_pool_get_array(forcingPool, 'fractionAbsorbedRunoff', fractionAbsorbedRunoff)
         call mpas_pool_get_array(forcingPool, 'fractionAbsorbedSubglacialRunoff', fractionAbsorbedSubglacialRunoff)
+        call mpas_pool_get_array(forcingPool, 'fractionAbsorbedInfiltration', fractionAbsorbedInfiltration)
 
         nCells = nCellsArray( 2 )
 
@@ -222,6 +223,23 @@ contains
                    end do
                 end do
             end if
+        end if
+
+! do land infiltration separately
+
+        if (config_use_land_infiltration_flux) then
+           do iCell = 1, nCells
+              zTop = 0.0_RKIND
+              transmissionCoeffTop = ocn_forcing_transmission(zTop, surfaceFluxAttenuationCoefficientInfiltration(iCell))
+              do k = maxLevelCell(iCell), minLevelCell(iCell), -1
+                 zBot = zTop - layerThickness(k,iCell)
+                 transmissionCoeffBot = ocn_forcing_transmission(zBot, surfaceFluxAttenuationCoefficientInfiltration(iCell))
+                 fractionAbsorbedInfiltration(k, iCell) = transmissionCoeffTop - transmissionCoeffBot
+                 zTop = zBot
+                 transmissionCoeffTop = transmissionCoeffBot
+              end do
+        
+           end do
         end if
 
     end subroutine ocn_forcing_build_fraction_absorbed_array!}}}

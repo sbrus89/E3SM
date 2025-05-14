@@ -129,13 +129,15 @@ contains
       real (kind=RKIND), dimension(:), pointer, contiguous :: &
          surfaceThicknessFlux,     &! surface thickness flux
          surfaceThicknessFluxRunoff, &! surface thickness flux from runoff
-         surfaceThicknessFluxSubglacialRunoff ! surface thickness flux from runoff
+         surfaceThicknessFluxSubglacialRunoff, & ! surface thickness flux from runoff
+         surfaceThicknessFluxInfiltration ! surface thickness flux from land infiltration
 
       real (kind=RKIND), dimension(:,:), pointer, contiguous :: &
          tendThick,        &! accumulated layer thickness tendency
          fractionAbsorbed, &! fraction of sfc flux absorbed
          fractionAbsorbedRunoff, &! fraction of sfc flux absorbed
-         fractionAbsorbedSubglacialRunoff ! fraction of subglacial runoff flux absorbed
+         fractionAbsorbedSubglacialRunoff, & ! fraction of subglacial runoff flux absorbed
+         fractionAbsorbedInfiltration  ! frac infiltration flux absorbed
 
       !-----------------------------------------------------------------
       ! local variables
@@ -158,12 +160,16 @@ contains
                                              surfaceThicknessFluxRunoff)
       call mpas_pool_get_array(forcingPool, 'surfaceThicknessFluxSubglacialRunoff', &
                                              surfaceThicknessFluxSubglacialRunoff)
+      call mpas_pool_get_array(forcingPool, 'surfaceThicknessFluxInfiltration', &
+                                             surfaceThicknessFluxInfiltration)
       call mpas_pool_get_array(forcingPool, 'fractionAbsorbed', &
                                              fractionAbsorbed)
       call mpas_pool_get_array(forcingPool, 'fractionAbsorbedRunoff', &
                                              fractionAbsorbedRunoff)
       call mpas_pool_get_array(forcingPool, 'fractionAbsorbedSubglacialRunoff', &
                                              fractionAbsorbedSubglacialRunoff)
+      call mpas_pool_get_array(forcingPool, 'fractionAbsorbedInfiltration', &
+                                             fractionAbsorbedInfiltration)
 
 
 
@@ -220,7 +226,8 @@ contains
       ! Compute surface mass flux array from bulk forcing
       call ocn_surface_bulk_forcing_thick(forcingPool, &
                                           surfaceThicknessFlux, &
-                                          surfaceThicknessFluxRunoff, err)
+                                          surfaceThicknessFluxRunoff, &
+                                          surfaceThicknessFluxInfiltration, err)
 
       if (trim(config_subglacial_runoff_mode) == 'data') then
             call ocn_surface_bulk_forcing_thick_subglacial_runoff(forcingPool, &
@@ -246,8 +253,10 @@ contains
       ! Compute surface flux tendency
       call ocn_thick_surface_flux_tend(fractionAbsorbed, &
                                        fractionAbsorbedRunoff, &
+                                       fractionAbsorbedInfiltration, &
                                        surfaceThicknessFlux, &
                                        surfaceThicknessFluxRunoff, &
+                                       surfaceThicknessFluxInfiltration, &
                                        tendThick, err)
       if (trim(config_subglacial_runoff_mode) == 'data') then
             call ocn_thick_surface_flux_tend_subglacial_runoff(fractionAbsorbedSubglacialRunoff, &

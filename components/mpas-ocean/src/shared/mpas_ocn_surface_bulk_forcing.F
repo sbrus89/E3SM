@@ -367,7 +367,7 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_surface_bulk_forcing_thick(forcingPool, surfaceThicknessFlux, surfaceThicknessFluxRunoff, err)!{{{
+   subroutine ocn_surface_bulk_forcing_thick(forcingPool, surfaceThicknessFlux, surfaceThicknessFluxRunoff, surfaceThicknessFluxInfiltration, err)!{{{
 
       !-----------------------------------------------------------------
       !
@@ -377,7 +377,8 @@ contains
       type (mpas_pool_type), intent(inout) :: forcingPool !< Input: Forcing information
       real (kind=RKIND), dimension(:), intent(inout) :: surfaceThicknessFlux !< Input/Output: Array for surface thickness flux
       real (kind=RKIND), dimension(:), intent(inout) ::  &
-         surfaceThicknessFluxRunoff !< Input/Output: Array for surface thickness flux due to river runoff
+         surfaceThicknessFluxRunoff, & !< Input/Output: Array for surface thickness flux due to river runoff
+         surfaceThicknessFluxInfiltration !< Input/Output: Array for surface thickness flux due to land infiltration
 
       !-----------------------------------------------------------------
       !
@@ -398,6 +399,7 @@ contains
       real (kind=RKIND), dimension(:), pointer :: evaporationFlux, snowFlux
       real (kind=RKIND), dimension(:), pointer :: seaIceFreshWaterFlux, icebergFreshWaterFlux, riverRunoffFlux, iceRunoffFlux
       real (kind=RKIND), dimension(:), pointer :: rainFlux
+      real (kind=RKIND), dimension(:), pointer :: landInfiltrationFlux
 
       err = 0
 
@@ -411,6 +413,7 @@ contains
       call mpas_pool_get_array(forcingPool, 'icebergFreshWaterFlux', icebergFreshWaterFlux)
       call mpas_pool_get_array(forcingPool, 'riverRunoffFlux', riverRunoffFlux)
       call mpas_pool_get_array(forcingPool, 'iceRunoffFlux', iceRunoffFlux)
+      call mpas_pool_get_array(forcingPool, 'landInfiltrationFlux', landInfiltrationFlux)
       call mpas_pool_get_array(forcingPool, 'rainFlux', rainFlux)
 
       nCells = nCellsHalo( 2 )
@@ -433,6 +436,7 @@ contains
         surfaceThicknessFlux(iCell) = surfaceThicknessFlux(iCell) + ( snowFlux(iCell) + rainFlux(iCell) + evaporationFlux(iCell) &
                                     + seaIceFreshWaterFlux(iCell) + icebergFreshWaterFlux(iCell) + iceRunoffFlux(iCell) ) / rho_sw
         surfaceThicknessFluxRunoff(iCell) = riverRunoffFlux(iCell) / rho_sw
+        surfaceThicknessFluxInfiltration(iCell) = landInfiltrationFlux(iCell) / rho_sw
       end do
 #ifndef MPAS_OPENACC
       !$omp end do
