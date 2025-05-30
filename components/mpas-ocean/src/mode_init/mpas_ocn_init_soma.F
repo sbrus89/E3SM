@@ -133,16 +133,19 @@ contains
 
       ! assign config variables
       nVertLevels  = config_soma_vert_levels
+      print*, nVertLevels
       nVertLevelsP1 = nVertLevels + 1
 
       ! Define interface locations
       allocate( interfaceLocations( nVertLevelsP1 ) )
-      call ocn_generate_vertical_grid( config_vertical_grid, interfaceLocations )
+      !call ocn_generate_vertical_grid( config_vertical_grid, interfaceLocations )
 
       ! set center of SOMA domain
       ! Convert center locations to radians from degrees
-      latCenter = config_soma_center_latitude * pii / 180.0_RKIND
-      lonCenter = config_soma_center_longitude * pii / 180.0_RKIND
+      !latCenter = config_soma_center_latitude * pii / 180.0_RKIND
+      !lonCenter = config_soma_center_longitude * pii / 180.0_RKIND
+      latCenter = 45.0
+      lonCenter = 0.0 
 
       ! Setup the vertical grid and layerThickness initial condition
       call mpas_log_write( 'setting up vertical grid and layer thickness')
@@ -162,15 +165,50 @@ contains
 
         ! Set layerThickness and restingThickness
         ! Uniform layer thickness across lat/lon
+        layerThickness(1, :) = 10.0
+        layerThickness(2, :) = 11.33 
+        layerThickness(3, :) = 12.83
+        layerThickness(4, :) = 14.53
+        layerThickness(5, :) = 16.45
+        layerThickness(6, :) = 18.63
+        layerThickness(7, :) = 21.1
+        layerThickness(8, :) = 23.9
+        layerThickness(9, :) = 27.07
+        layerThickness(10, :) = 30.65
+        layerThickness(11, :) = 34.72
+        layerThickness(12, :) = 39.32
+        layerThickness(13, :) = 44.53
+        layerThickness(14, :) = 50.43
+        layerThickness(15, :) = 57.12
+        layerThickness(16, :) = 64.69
+        layerThickness(17, :) = 73.26
+        layerThickness(18, :) = 82.97
+        layerThickness(19, :) = 93.97
+        layerThickness(20, :) = 106.42
+        layerThickness(21, :) = 120.53
+        layerThickness(22, :) = 136.5
+        layerThickness(23, :) = 154.59
+        layerThickness(24, :) = 175.08
+        layerThickness(25, :) = 198.29
+        layerThickness(26, :) = 224.57
+        layerThickness(27, :) = 254.34
+        layerThickness(28, :) = 288.05
+        layerThickness(29, :) = 326.23
+        layerThickness(30, :) = 369.47
+        layerThickness(31, :) = 418.43
         do k = 1, nVertLevels
-           layerThickness(k, :) = config_soma_bottom_depth * ( interfaceLocations(k+1) - interfaceLocations(k) )
            restingThickness(k, :) = layerThickness(k, :)
         end do
 
+
          ! Set refBottomDepth
+         refBottomDepth(1) = layerThickness(1,1)
+         do k = 2, nVertLevels
+            refBottomDepth(k) = refBottomDepth(k-1) + layerThickness(k,1) 
+            print*, k,refBottomDepth(k)
+         end do
          do k = 1, nVertLevels
-            refBottomDepth(k) = config_soma_bottom_depth * interfaceLocations(k+1)
-            refZMid(k) = -config_soma_bottom_depth * (interfaceLocations(k)+interfaceLocations(k+1))/2.0_RKIND
+            refZMid(k) = -(refBottomDepth(k) + refBottomDepth(k+1)) / 2.0
          end do
 
         block_ptr => block_ptr % next
@@ -194,20 +232,20 @@ contains
         ! set bottomDepth
         bottomDepth(:) = 0.0_RKIND
         do iCell = 1, nCells
-           lonCurrent = lonCell(iCell)
-           latCurrent = latCell(iCell)
+           lonCurrent = lonCell(iCell) * 180.0/pii
+           latCurrent = latCell(iCell) * 180.0/pii
 
            deltaLon = abs(lonCurrent - lonCenter)
-           if (deltaLon .gt. pii) deltaLon = deltaLon - 2.0_RKIND*pii
+           if (deltaLon .gt. 180.0) deltaLon = deltaLon - 360.0
            deltaLat = latCurrent - latCenter
-           xDistance = deltaLon * sphereRadius * cos(latCurrent)
-           yDistance = deltaLat * sphereRadius
-           distance = sqrt( xDistance**2 + yDistance**2 )
-           factor = 1.0 - distance**2 / config_soma_domain_width**2
+           distance = sqrt( deltaLon**2 + deltaLat**2 )
+           factor = 1.0 - (distance / 28.0_RKIND)**2
 
-           if(factor > config_soma_shelf_width) then
-              bottomDepth(iCell) = config_soma_shelf_depth + (config_soma_bottom_depth-config_soma_shelf_depth)/2.0_RKIND &
-                                 * (1.0 + tanh(factor/config_soma_phi))
+           if(factor > -0.14) then
+              bottomDepth(iCell) = 100.0 + 3400.0/2.0_RKIND &
+                                 * (1.0 + tanh(factor/0.02))
+              !bottomDepth(iCell) = 3400.0 + 100.0/2.0_RKIND &
+              !                   * (1.0 + tanh(factor/0.02))
            else
               bottomDepth(iCell) = -1.0_RKIND
            endif
@@ -278,37 +316,53 @@ contains
           'activeTracersSurfaceRestoringValue', activeTracersSurfaceRestoringValue, 1)
 
         do iCell = 1, nCells
-           lonCurrent = lonCell(iCell)
-           latCurrent = latCell(iCell)
+           lonCurrent = lonCell(iCell) * 180.0/pii
+           latCurrent = latCell(iCell) * 180.0/pii
 
            ! Set initial temperature and salinity
            do k = 1, nVertLevels
-              zMid = refZMid(k)
-
-              distance = config_soma_ref_density &
-                  - (1.0_RKIND - config_soma_density_difference_linear) * config_soma_density_difference &
-                  * tanh(zMid / config_soma_thermocline_depth) &
-                  - config_soma_density_difference_linear * config_soma_density_difference &
-                  * zMid / config_soma_bottom_depth
-              factor = (config_soma_ref_density - distance) / config_eos_linear_alpha
-              temperature = config_soma_surface_temperature + factor
-
-              factor = - zMid / config_soma_bottom_depth
-              salinity = config_soma_surface_salinity + 2.0_RKIND * factor
-
               if ( associated(activeTracers) ) then
-                 activeTracers(index_temperature, k, iCell) = temperature
-                 activeTracers(index_salinity, k, iCell) = salinity
+                 activeTracers(index_salinity, k, iCell) = 31.0
               end if
            enddo
+           if ( associated(activeTracers) ) then
+             activeTracers(index_temperature, 1, iCell) = 23.0
+             activeTracers(index_temperature, 2, iCell) = 23.0
+             activeTracers(index_temperature, 3, iCell) = 23.0
+             activeTracers(index_temperature, 4, iCell) = 22.0
+             activeTracers(index_temperature, 5, iCell) = 21.0
+             activeTracers(index_temperature, 6, iCell) = 20.0
+             activeTracers(index_temperature, 7, iCell) = 19.0
+             activeTracers(index_temperature, 8, iCell) = 17.0
+             activeTracers(index_temperature, 9, iCell) = 16.0
+             activeTracers(index_temperature, 10, iCell) = 15.0
+             activeTracers(index_temperature, 11, iCell) = 14.0
+             activeTracers(index_temperature, 12, iCell) = 12.0
+             activeTracers(index_temperature, 13, iCell) = 11.0
+             activeTracers(index_temperature, 14, iCell) = 10.0
+             activeTracers(index_temperature, 15, iCell) =  9.0
+             activeTracers(index_temperature, 16, iCell) =  8.0
+             activeTracers(index_temperature, 17, iCell) =  7.0
+             activeTracers(index_temperature, 18, iCell) =  6.0
+             activeTracers(index_temperature, 19, iCell) =  6.0
+             activeTracers(index_temperature, 20, iCell) =  5.0
+             activeTracers(index_temperature, 21, iCell) =  5.0
+             activeTracers(index_temperature, 22, iCell) =  4.0
+             activeTracers(index_temperature, 23, iCell) =  4.0
+             activeTracers(index_temperature, 24, iCell) =  3.0
+             activeTracers(index_temperature, 25, iCell) =  3.0
+             activeTracers(index_temperature, 26, iCell) =  2.0
+             activeTracers(index_temperature, 27, iCell) =  2.0
+             activeTracers(index_temperature, 28, iCell) =  1.0
+             activeTracers(index_temperature, 29, iCell) =  1.0
+             activeTracers(index_temperature, 30, iCell) =  1.0
+             activeTracers(index_temperature, 31, iCell) =  1.0
+          end if
 
            if (config_soma_use_surface_temp_restoring) then
              ! surface restoring
              idx = index_temperature
-             activeTracersSurfaceRestoringValue(idx,iCell) = &
-               config_soma_surface_temp_restoring_at_center_latitude &
-               + config_soma_surface_temp_restoring_latitude_gradient &
-               *(latCurrent*180.0_RKIND/pii - config_soma_center_latitude)
+             activeTracersSurfaceRestoringValue(idx,iCell) = (30.0 - 0.0)/60 * (75.0-latCurrent) + 0.0
              activeTracersPistonVelocity(idx,iCell) = config_soma_restoring_temp_piston_vel
 
              idx = index_salinity
@@ -326,13 +380,13 @@ contains
 
         ! Set wind stress
         do iCell = 1, nCells
-           lonCurrent = lonCell(iCell)
-           latCurrent = latCell(iCell)
+           lonCurrent = lonCell(iCell) * 180.0/pii
+           latCurrent = latCell(iCell) * 180.0/pii
 
-           deltay =  sphereRadius * ( latCurrent - latCenter )
-           factor = 1.0_RKIND - 0.5_RKIND * deltay / config_soma_domain_width
-           windstress = factor * 0.1_RKIND * exp( -(deltay / config_soma_domain_width)**2 ) &
-                 * cos(pii * deltay / config_soma_domain_width)
+           deltay =   (latCurrent - 47.5)/35.0
+           factor = 1.0_RKIND -  deltay 
+           windstress = factor * 0.08_RKIND * exp( -deltay )**2  &
+                 * cos(pii * deltay )
 
            windStressZonal(iCell) = windStress
            windStressMeridional(iCell) = 0.0_RKIND
