@@ -57,9 +57,6 @@ class VertCoord {
    VertCoord(const VertCoord &) = delete;
    VertCoord(VertCoord &&)      = delete;
 
-   void minMaxLevelEdge();
-   void minMaxLevelVertex();
-
  public:
    I4 NVertLevels;
    I4 NVertLevelsP1;
@@ -101,6 +98,9 @@ class VertCoord {
    HostArray1DI4 MaxLevelVertexTopH;
    HostArray1DI4 MinLevelVertexBotH;
    HostArray1DI4 MaxLevelVertexBotH;
+
+   void minMaxLevelEdge();
+   void minMaxLevelVertex();
 
    // p star coordinate variables
    Array2DReal VertCoordMovementWeights;
@@ -156,13 +156,14 @@ class VertCoord {
    /// loading
    void computeGeopotential(const Array2DReal &GeopotentialMid,
                             const Array2DReal &ZMid,
-                            const Array2DReal &TidalPotential,
-                            const Array2DReal &SelfAttractionLoading);
+                            const Array1DReal &TidalPotential,
+                            const Array1DReal &SelfAttractionLoading);
 
    /// Determine mass thickness used for the p-star vertical coordinate
    void computePStarThickness(const Array2DReal &LayerThicknessPStar,
                               const Array2DReal &VertCoordMovementWeights,
-                              const Array2DReal &RefLayerThickness);
+                              const Array2DReal &RefLayerThickness,
+                              const Array2DReal &PressureInterface);
 
 }; // end class VertCoord
 

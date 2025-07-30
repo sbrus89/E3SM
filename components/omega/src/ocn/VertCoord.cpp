@@ -220,8 +220,8 @@ void VertCoord::minMaxLevelEdge() {
                                                           : LocMinLevelCell(ICell2);
           LocMinLevelEdgeTop(IEdge) = Kokkos::min(Lvl1, Lvl2);
 
-          Lvl1 = LocMaxLevelCell(ICell1) == -1 ? -1 : LocMinLevelCell(ICell1);
-          Lvl2 = LocMaxLevelCell(ICell2) == -1 ? -1 : LocMinLevelCell(ICell2);
+          Lvl1 = LocMaxLevelCell(ICell1) == -1 ? 0 : LocMinLevelCell(ICell1);
+          Lvl2 = LocMaxLevelCell(ICell2) == -1 ? 0 : LocMinLevelCell(ICell2);
           LocMinLevelEdgeBot(IEdge) = Kokkos::max(Lvl1, Lvl2);
 
           LocMaxLevelEdgeTop(IEdge) =
@@ -267,11 +267,11 @@ void VertCoord::minMaxLevelVertex() {
        {NVerticesAll}, KOKKOS_LAMBDA(int IVertex) {
           I4 Lvl;
           I4 ICell = LocCellsOnVertex(IVertex, 0);
-          Lvl      = LocMaxLevelCell(ICell) == -1 ? -1 : LocMinLevelCell(ICell);
+          Lvl      = LocMaxLevelCell(ICell) == -1 ? 0 : LocMinLevelCell(ICell);
           LocMinLevelVertexBot(IVertex) = Lvl;
           for (int I = 1; I < LocVertexDegree; ++I) {
              ICell = LocCellsOnVertex(IVertex, I);
-             Lvl   = LocMaxLevelCell(ICell) == -1 ? -1 : LocMinLevelCell(ICell);
+             Lvl   = LocMaxLevelCell(ICell) == -1 ? 0 : LocMinLevelCell(ICell);
              LocMinLevelVertexBot(IVertex) =
                  Kokkos::max(LocMinLevelVertexBot(IVertex), Lvl);
           }
@@ -338,9 +338,12 @@ void VertCoord::computePressure(const Array2DReal &PressureInterface,
           const I4 KMin  = LocMinLevelCell(ICell);
           const I4 KMax  = LocMaxLevelCell(ICell);
           const I4 Range = KMax - KMin + 1;
+          // const I4 KMax  = LocMaxLevelCell(ICell) + 1;
+          // const I4 Range = KMax - KMin; //+ 1;
 
           PressureInterface(ICell, KMin) = SurfacePressure(ICell);
           Kokkos::parallel_scan(
+              // TeamThreadRange(Member, KMin, KMax),
               TeamThreadRange(Member, Range),
               [&](int K, Real &Accum, bool IsFinal) {
                  const I4 KLvl  = K + KMin;
@@ -371,7 +374,7 @@ void VertCoord::computeZHeight(const Array2DReal &ZInterface,
 
    const auto Policy = TeamPolicy(NCellsAll, OMEGA_TEAMSIZE, 1);
    Kokkos::parallel_for(
-       "computePressure", Policy, KOKKOS_LAMBDA(const TeamMember &Member) {
+       "computeZHeight", Policy, KOKKOS_LAMBDA(const TeamMember &Member) {
           const I4 ICell = Member.league_rank();
           const I4 KMin  = LocMinLevelCell(ICell);
           const I4 KMax  = LocMaxLevelCell(ICell);
@@ -380,6 +383,7 @@ void VertCoord::computeZHeight(const Array2DReal &ZInterface,
           ZInterface(ICell, KMax + 1) = -BottomDepth(ICell);
           Kokkos::parallel_scan(
               TeamThreadRange(Member, Range),
+              // TeamThreadRange(Member, KMin, KMax + 1),
               [&](int K, Real &Accum, bool IsFinal) {
                  const I4 KLvl = KMax - K;
                  Real DZ =
@@ -387,7 +391,7 @@ void VertCoord::computeZHeight(const Array2DReal &ZInterface,
                  Accum += DZ;
                  if (IsFinal) {
                     ZInterface(ICell, KLvl) = -BottomDepth(ICell) + Accum;
-                    ZMid(ICell, KLvl) = BottomDepth(ICell) + Accum - 0.5 * DZ;
+                    ZMid(ICell, KLvl) = -BottomDepth(ICell) + Accum - 0.5 * DZ;
                  }
               });
        });
@@ -396,8 +400,8 @@ void VertCoord::computeZHeight(const Array2DReal &ZInterface,
 //------------------------------------------------------------------------------
 void VertCoord::computeGeopotential(const Array2DReal &GeopotentialMid,
                                     const Array2DReal &ZMid,
-                                    const Array2DReal &TidalPotential,
-                                    const Array2DReal &SelfAttractionLoading) {
+                                    const Array1DReal &TidalPotential,
+                                    const Array1DReal &SelfAttractionLoading) {
 
    Real Gravity = 9.80616_Real;
 
@@ -422,8 +426,8 @@ void VertCoord::computeGeopotential(const Array2DReal &GeopotentialMid,
                  for (int KVec = 0; KVec < KLen; ++KVec) {
                     const I4 K                = KStart + KVec;
                     GeopotentialMid(ICell, K) = Gravity * ZMid(ICell, K) +
-                                                TidalPotential(ICell, K) +
-                                                SelfAttractionLoading(ICell, K);
+                                                TidalPotential(ICell) +
+                                                SelfAttractionLoading(ICell);
                  }
               });
        });
@@ -433,14 +437,14 @@ void VertCoord::computeGeopotential(const Array2DReal &GeopotentialMid,
 void VertCoord::computePStarThickness(
     const Array2DReal &LayerThicknessPStar,
     const Array2DReal &VertCoordMovementWeights,
-    const Array2DReal &RefLayerThickness) {
+    const Array2DReal &RefLayerThickness,
+    const Array2DReal &PressureInterface) {
 
    Real Gravity = 9.80616_Real;
    Real Rho0    = 1035._Real;
 
    OMEGA_SCOPE(LocMinLevelCell, MinLevelCell);
    OMEGA_SCOPE(LocMaxLevelCell, MaxLevelCell);
-   OMEGA_SCOPE(LocPressInterf, PressureInterface);
 
    Kokkos::parallel_for(
        "computePStarThickness", TeamPolicy(NCellsAll, OMEGA_TEAMSIZE),
@@ -449,18 +453,27 @@ void VertCoord::computePStarThickness(
           const I4 KMin  = LocMinLevelCell(ICell);
           const I4 KMax  = LocMaxLevelCell(ICell);
 
-          Real Coeff =
-              (LocPressInterf(ICell, KMax + 1) - LocPressInterf(ICell, KMin)) /
-              (Gravity * Rho0);
+          Real Coeff = (PressureInterface(ICell, KMax + 1) -
+                        PressureInterface(ICell, KMin)) /
+                       (Gravity * Rho0);
 
           Real SumWh = 0;
           Kokkos::parallel_reduce(
-              Kokkos::TeamThreadRange(Member, KMin, KMax),
+              Kokkos::TeamThreadRange(Member, KMin, KMax + 1),
               [=](const int K, Real &LocalWh) {
                  LocalWh += VertCoordMovementWeights(ICell, K) *
                             RefLayerThickness(ICell, K);
               },
               SumWh);
+
+          Real SumRefH = 0;
+          Kokkos::parallel_reduce(
+              Kokkos::TeamThreadRange(Member, KMin, KMax + 1),
+              [=](const int K, Real &LocalSum) {
+                 LocalSum += RefLayerThickness(ICell, K);
+              },
+              SumRefH);
+          Coeff -= SumRefH;
 
           const I4 KRange  = KMax - KMin + 1;
           const I4 NChunks = (KRange + VecLength - 1) / VecLength;
