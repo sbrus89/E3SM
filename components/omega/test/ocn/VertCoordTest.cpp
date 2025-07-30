@@ -464,7 +464,8 @@ int main(int argc, char *argv[]) {
          I4 Count = 0;
 
          /// Skip edges on boundary
-         if (DefMesh->CellsOnEdgeH(IEdge, 1) == NCellsAll) {
+         if ((DefMesh->CellsOnEdgeH(IEdge, 1) == NCellsAll) ||
+             (DefMesh->CellsOnEdgeH(IEdge, 0) == NCellsAll)) {
             continue;
          }
 
