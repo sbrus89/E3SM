@@ -47,6 +47,7 @@ userGuide/TimeStepping
 userGuide/Reductions
 userGuide/Tracers
 userGuide/TridiagonalSolvers
+userGuide/VertCoord
 ```
 
 ```{toctree}
@@ -84,6 +85,7 @@ devGuide/TimeStepping
 devGuide/Reductions
 devGuide/Tracers
 devGuide/TridiagonalSolvers
+devGuide/VertCoord
 ```
 
 ```{toctree}
