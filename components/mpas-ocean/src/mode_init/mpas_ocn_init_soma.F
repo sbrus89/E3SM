@@ -385,7 +385,7 @@ contains
 
            deltay =   (latCurrent - 47.5)/35.0
            factor = 1.0_RKIND -  deltay 
-           windstress = factor * 0.08_RKIND * exp( -deltay )**2  &
+           windstress = factor * 0.08_RKIND * exp( -deltay**2 )  &
                  * cos(pii * deltay )
 
            windStressZonal(iCell) = windStress
