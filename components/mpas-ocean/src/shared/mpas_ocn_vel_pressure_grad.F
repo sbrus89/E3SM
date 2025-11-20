@@ -257,37 +257,72 @@ contains
          ! pressure for generalized coordinates
          ! -1/density_0 (grad p_k + density g grad z_k^{mid})
 
-#ifdef MPAS_OPENACC
-         !$acc parallel loop &
-         !$acc    present(cellsOnEdge, minLevelEdgeBot, maxLevelEdgeTop, dcEdge, zMid, &
-         !$acc            tend, edgeMask, pressure, density) &
-         !$acc    private(cell1, cell2, invdcEdge, k, kMin, kMax)
-#else
-         !$omp parallel
-         !$omp do schedule(runtime) &
-         !$omp    private(cell1, cell2, invdcEdge, k, kMin, kMax)
-#endif
-         do iEdge=1,nEdgesOwned
-            cell1 = cellsOnEdge(1,iEdge)
-            cell2 = cellsOnEdge(2,iEdge)
-            invdcEdge = 1.0_RKIND / dcEdge(iEdge)
-            kMin = minLevelEdgeBot(iEdge)
-            kMax = maxLevelEdgeTop(iEdge)
+         if (config_non_boussinesq) then
 
-            do k=kMin,kMax
-               tend(k,iEdge) = tend(k,iEdge) + &
-                               edgeMask(k,iEdge)*invdcEdge*( &
-                               - density0Inv*(pressure(k,cell2) - &
-                                              pressure(k,cell1)) &
-                               - gdensity0Inv*0.5_RKIND* &
-                                 (density(k,cell1)+density(k,cell2))* &
-                                 (zMid(k,cell2)-zMid(k,cell1)))
-            end do
-         end do
-#ifndef MPAS_OPENACC
-         !$omp end do
-         !$omp end parallel
+#ifdef MPAS_OPENACC
+            !$acc parallel loop &
+            !$acc    present(cellsOnEdge, minLevelEdgeBot, maxLevelEdgeTop, dcEdge, zMid, &
+            !$acc            tend, edgeMask, pressure, density) &
+            !$acc    private(cell1, cell2, invdcEdge, k, kMin, kMax)
+#else
+            !$omp parallel
+            !$omp do schedule(runtime) &
+            !$omp    private(cell1, cell2, invdcEdge, k, kMin, kMax)
 #endif
+            do iEdge=1,nEdgesOwned
+               cell1 = cellsOnEdge(1,iEdge)
+               cell2 = cellsOnEdge(2,iEdge)
+               invdcEdge = 1.0_RKIND / dcEdge(iEdge)
+               kMin = minLevelEdgeBot(iEdge)
+               kMax = maxLevelEdgeTop(iEdge)
+
+               do k=kMin,kMax
+                  tend(k,iEdge) = tend(k,iEdge) + &
+                                  edgeMask(k,iEdge)*invdcEdge*( &
+                                  - (pressure(k,cell2) - &
+                                     pressure(k,cell1)) &
+                                  / (0.5_RKIND*(density(k,cell1)+density(k,cell2)))
+                                  - gravity* &
+                                    (zMid(k,cell2)-zMid(k,cell1)))
+               end do
+            end do
+#ifndef MPAS_OPENACC
+            !$omp end do
+            !$omp end parallel
+#endif
+         else
+#ifdef MPAS_OPENACC
+            !$acc parallel loop &
+            !$acc    present(cellsOnEdge, minLevelEdgeBot, maxLevelEdgeTop, dcEdge, zMid, &
+            !$acc            tend, edgeMask, pressure, density) &
+            !$acc    private(cell1, cell2, invdcEdge, k, kMin, kMax)
+#else
+            !$omp parallel
+            !$omp do schedule(runtime) &
+            !$omp    private(cell1, cell2, invdcEdge, k, kMin, kMax)
+#endif
+            do iEdge=1,nEdgesOwned
+               cell1 = cellsOnEdge(1,iEdge)
+               cell2 = cellsOnEdge(2,iEdge)
+               invdcEdge = 1.0_RKIND / dcEdge(iEdge)
+               kMin = minLevelEdgeBot(iEdge)
+               kMax = maxLevelEdgeTop(iEdge)
+
+               do k=kMin,kMax
+                  tend(k,iEdge) = tend(k,iEdge) + &
+                                  edgeMask(k,iEdge)*invdcEdge*( &
+                                  - density0Inv*(pressure(k,cell2) - &
+                                                 pressure(k,cell1)) &
+                                  - gdensity0Inv*0.5_RKIND* &
+                                    (density(k,cell1)+density(k,cell2))* &
+                                    (zMid(k,cell2)-zMid(k,cell1)))
+               end do
+            end do
+#ifndef MPAS_OPENACC
+            !$omp end do
+            !$omp end parallel
+#endif
+         endif
 
       case (pGradTypeMontPot)
 

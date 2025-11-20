@@ -2851,33 +2851,64 @@ contains
 
       else
 
+         if (config_non_boussinesq) then
 #ifdef MPAS_OPENACC
-         !$acc parallel loop &
-         !$acc    present(pressure, surfacePressure, density, &
-         !$acc            layerThickness, minLevelCell, maxLevelCell) &
-         !$acc    private(k, kmin, kmax)
+            !$acc parallel loop &
+            !$acc    present(pressure, surfacePressure, density, &
+            !$acc            layerThickness, minLevelCell, maxLevelCell) &
+            !$acc    private(k, kmin, kmax)
 #else
-         !$omp parallel
-         !$omp do schedule(runtime) private(k, kmin, kmax)
+            !$omp parallel
+            !$omp do schedule(runtime) private(k, kmin, kmax)
 #endif
-         do iCell = 1, nCells
-            kmin = minLevelCell(iCell)
-            kmax = maxLevelCell(iCell)
-            pressure(kmin,iCell) = surfacePressure(iCell) &
-                                 + density(kmin,iCell)*gravity* &
-                                   0.5_RKIND*layerThickness(kmin,iCell)
+            do iCell = 1, nCells
+               kmin = minLevelCell(iCell)
+               kmax = maxLevelCell(iCell)
+               pressure(kmin,iCell) = surfacePressure(iCell) &
+                                    + gravity* &
+                                      0.5_RKIND*layerThickness(kmin,iCell)
 
-            do k = kmin+1, kmax
-               pressure(k,iCell) = pressure(k-1,iCell) &
-                                 + 0.5_RKIND*gravity* &
-                    (  density(k-1,iCell)*layerThickness(k-1,iCell) &
-                     + density(k  ,iCell)*layerThickness(k  ,iCell))
+               do k = kmin+1, kmax
+                  pressure(k,iCell) = pressure(k-1,iCell) &
+                                    + 0.5_RKIND*gravity* &
+                                    (  layerThickness(k-1,iCell) &
+                                     + layerThickness(k  ,iCell))
+               end do
             end do
-         end do
 #ifndef MPAS_OPENACC
-         !$omp end do
-         !$omp end parallel
+            !$omp end do
+            !$omp end parallel
 #endif
+
+         else
+#ifdef MPAS_OPENACC
+            !$acc parallel loop &
+            !$acc    present(pressure, surfacePressure, density, &
+            !$acc            layerThickness, minLevelCell, maxLevelCell) &
+            !$acc    private(k, kmin, kmax)
+#else
+            !$omp parallel
+            !$omp do schedule(runtime) private(k, kmin, kmax)
+#endif
+            do iCell = 1, nCells
+               kmin = minLevelCell(iCell)
+               kmax = maxLevelCell(iCell)
+               pressure(kmin,iCell) = surfacePressure(iCell) &
+                                    + density(kmin,iCell)*gravity* &
+                                      0.5_RKIND*layerThickness(kmin,iCell)
+
+               do k = kmin+1, kmax
+                  pressure(k,iCell) = pressure(k-1,iCell) &
+                                    + 0.5_RKIND*gravity* &
+                       (  density(k-1,iCell)*layerThickness(k-1,iCell) &
+                        + density(k  ,iCell)*layerThickness(k  ,iCell))
+               end do
+            end do
+#ifndef MPAS_OPENACC
+            !$omp end do
+            !$omp end parallel
+#endif
+         endif
 
       endif
 
@@ -4749,6 +4780,42 @@ contains
       end if
 
     end subroutine ocn_diagnostics_init!}}}
+
+!***********************************************************************
+!
+!  routine ocn_non_boussinesq_init
+!
+!> \brief   Initializes pressure thickness variable for non-Boussinesq
+!> \author  Steven Brus
+!> \date    18 September 2024
+!> \details
+!>  This routine initializes the pressure thickness variable based on
+!>  typical input for non-Boussinesq configurations 
+!
+!-----------------------------------------------------------------------
+
+    subroutine ocn_non_boussinesq_init(domain, err)
+
+      integer :: timeLevelIn
+
+      type (block_type), pointer :: block
+
+      type (mpas_pool_type), pointer :: meshPool, statePool, tracersPool
+      type (mpas_pool_type), pointer :: forcingPool
+
+      block => domain % blocklist
+
+      call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+      call mpas_pool_get_subpool(block % structs, 'state', statePool)
+      call mpas_pool_get_subpool(block % structs, 'forcing', forcingPool)
+      call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
+
+    call ocn_equation_of_state_density_openacc(statePool, meshPool, activeTracers, tracersSurfaceValue, &
+                               nCells, kDisplaced, displacement_type, density, err,       &   
+                               thermalExpansionCoeff, salineContractionCoeff, timeLevelIn)
+
+    end subroutine ocn_non_boussinesq_init
+
 
 !***********************************************************************
 
