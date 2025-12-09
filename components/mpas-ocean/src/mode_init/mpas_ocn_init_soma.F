@@ -362,7 +362,7 @@ contains
            if (config_soma_use_surface_temp_restoring) then
              ! surface restoring
              idx = index_temperature
-             activeTracersSurfaceRestoringValue(idx,iCell) = (30.0 - 0.0)/60 * (75.0-latCurrent) + 0.0
+             activeTracersSurfaceRestoringValue(idx,iCell) = (config_soma_surface_temp_restoring_max - 0.0)/60 * (75.0-latCurrent) + 0.0
              activeTracersPistonVelocity(idx,iCell) = config_soma_restoring_temp_piston_vel
 
              idx = index_salinity
