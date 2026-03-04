@@ -71,6 +71,9 @@ OBJS = mpas_ocn_init_routines.o \
 	   mpas_ocn_time_varying_forcing.o \
 	   mpas_ocn_subgrid.o \
 	   mpas_ocn_wetting_drying.o \
+	   mpas_ocn_astronomy.o \
+	   mpas_ocn_ephemeris.o \
+	   mpas_ocn_full_tidal_potential.o \
 	   mpas_ocn_vel_tidal_potential.o \
 	   mpas_ocn_vel_forcing_topographic_wave_drag.o \
 	   mpas_ocn_transport_tests.o \
@@ -227,7 +230,13 @@ mpas_ocn_vel_self_attraction_loading.o: mpas_ocn_constants.o mpas_ocn_config.o m
 
 mpas_ocn_vel_pressure_grad.o: mpas_ocn_constants.o
 
-mpas_ocn_vel_tidal_potential.o: mpas_ocn_diagnostics_variables.o
+mpas_ocn_astronomy.o:
+
+mpas_ocn_ephemeris.o: mpas_ocn_astronomy.o
+
+mpas_ocn_full_tidal_potential.o: mpas_ocn_astronomy.o mpas_ocn_ephemeris.o
+
+mpas_ocn_vel_tidal_potential.o: mpas_ocn_diagnostics_variables.o mpas_ocn_full_tidal_potential.o
 
 mpas_ocn_vertical_advection.o: mpas_ocn_config.o
 
