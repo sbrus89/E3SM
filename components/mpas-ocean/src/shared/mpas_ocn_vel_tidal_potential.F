@@ -31,6 +31,8 @@ module ocn_vel_tidal_potential
    use ocn_config
    use ocn_mesh
    use ocn_diagnostics_variables
+   use ocn_full_tidal_potential, only: ocn_full_tidal_potential_init, &
+                                        ocn_compute_full_tidal_potential
 
    implicit none
    private
@@ -60,8 +62,9 @@ module ocn_vel_tidal_potential
    !--------------------------------------------------------------------
 
    logical :: &
-      tidalPotentialOff, &! on/off switch for tidal potential
-      timeIntegratorLTS   ! flag for Local Time Stepping
+      tidalPotentialOff,     &! on/off switch for tidal potential
+      timeIntegratorLTS,     &! flag for Local Time Stepping
+      useFullTidalPotential   ! flag for full lunar-solar tidal potential
 
    !*** physical constants
    real (kind=RKIND) ::  &
@@ -278,29 +281,43 @@ contains
       t = daysSinceStartOfSim*86400.0_RKIND + forcingTimeIncrement
       ramp = tanh((2.0_RKIND*t/86400.0_RKIND)/tidalPotRamp)
 
-      do iCell = 1, nCellsAll
-         tidalPotEta(iCell) = 0.0_RKIND
-      end do
+      if (useFullTidalPotential) then
 
-      !*** Compute eta by summing all constituent contributions
-      do jCon = 1, nTidalConstituents
-         period = 2.0_RKIND*pi/tidalConstituentFrequency(jCon)
-         nCycles = real(int(t/period),RKIND)
-         targ = tidalConstituentFrequency(jCon)*(t - nCycles*period) + &
-                tidalConstituentNodalPhase(jCon) + &
-                tidalConstituentAstronomical(jCon)
-         conType = tidalConstituentType(jCon)
+         !*** Full lunar-solar tidal potential
+         call ocn_compute_full_tidal_potential(tidalPotEta, t, lonCell, latCell)
+
          do iCell = 1, nCellsAll
-           lon = lonCell(iCell)
-           tidalPotEta(iCell) = tidalPotEta(iCell) + &
-                         ramp * tidalConstituentAmplitude(jCon) &
-                              * tidalConstituentNodalAmplitude(jCon) &
-                              * tidalConstituentLoveNumbers(jCon) &
-                              * latitudeFunction(iCell,conType+1) &
-                              * cos(tArg  + real(conType,RKIND)*lon)
+            tidalPotEta(iCell) = ramp * tidalPotEta(iCell)
          end do
-        
-      end do
+
+      else
+
+         !*** Equilibrium tidal potential from major constituents
+         do iCell = 1, nCellsAll
+            tidalPotEta(iCell) = 0.0_RKIND
+         end do
+
+         !*** Compute eta by summing all constituent contributions
+         do jCon = 1, nTidalConstituents
+            period = 2.0_RKIND*pi/tidalConstituentFrequency(jCon)
+            nCycles = real(int(t/period),RKIND)
+            targ = tidalConstituentFrequency(jCon)*(t - nCycles*period) + &
+                   tidalConstituentNodalPhase(jCon) + &
+                   tidalConstituentAstronomical(jCon)
+            conType = tidalConstituentType(jCon)
+            do iCell = 1, nCellsAll
+              lon = lonCell(iCell)
+              tidalPotEta(iCell) = tidalPotEta(iCell) + &
+                            ramp * tidalConstituentAmplitude(jCon) &
+                                 * tidalConstituentNodalAmplitude(jCon) &
+                                 * tidalConstituentLoveNumbers(jCon) &
+                                 * latitudeFunction(iCell,conType+1) &
+                                 * cos(tArg  + real(conType,RKIND)*lon)
+            end do
+
+         end do
+
+      end if
 
    end subroutine ocn_compute_tidal_potential_forcing!}}}
 
@@ -340,17 +357,20 @@ contains
          refTime            ! internal reference time
 
       integer :: &
-         iCell, iCon        ! loop indices for cell, constituent loops
+         iCell, iCon,  &! loop indices for cell, constituent loops
+         iPos           ! position of underscore in date string
 
       real (kind=RKIND) :: &
          lat                ! latitude temporary
 
+      character(len=24) :: startDateStr ! start date in 'YYYY-MM-DD HH:MM:SS' format
+
       ! pointers for pool variables
-      type (block_type), pointer :: block_ptr 
+      type (block_type), pointer :: block_ptr
       type (mpas_pool_type), pointer :: forcingPool
       type (mpas_pool_type), pointer :: meshPool
       integer, pointer :: nCells
-      real (kind=RKIND), dimension(:), pointer :: latCell
+      real (kind=RKIND), dimension(:), pointer :: latCellLocal
 
       ! End preamble
       !-----------------------------------------------------------------
@@ -358,10 +378,12 @@ contains
 
       !*** Set error flags and default values
       err = 0
-      tidalPotentialOff = .true.
-      betaSelfAttrLoad  = 0.0_RKIND
-      tidalPotRamp      = 1.0e20_RKIND
+      tidalPotentialOff     = .true.
+      useFullTidalPotential = .false.
+      betaSelfAttrLoad      = 0.0_RKIND
+      tidalPotRamp          = 1.0e20_RKIND
       rho0gInv = 1.0_RKIND / rho_sw / gravity
+
       !*** If tidal potential turned on, set all relevant variables
 
       if (config_use_tidal_potential_forcing) then
@@ -389,126 +411,161 @@ contains
 
          call mpas_pool_get_dimension(block_ptr % dimensions, 'nCells', nCells)
 
-         call mpas_pool_get_array(meshPool, 'latCell', latCell)
-
          call mpas_pool_get_array(forcingPool, 'tidalPotentialEta', &
                                                 tidalPotEta)
 
          call mpas_pool_get_array(forcingPool, &
-                            'tidalPotentialConstituentAmplitude', & 
-                             tidalConstituentAmplitude)
-         call mpas_pool_get_array(forcingPool, &
-                            'tidalPotentialConstituentFrequency', &
-                            tidalConstituentFrequency)
-         call mpas_pool_get_array(forcingPool, &
-                            'tidalPotentialConstituentLoveNumbers', &
-                            tidalConstituentLoveNumbers)
-         call mpas_pool_get_array(forcingPool, &
-                            'tidalPotentialConstituentNodalAmplitude', &
-                            tidalConstituentNodalAmplitude)
-         call mpas_pool_get_array(forcingPool, &
-                            'tidalPotentialConstituentAstronomical', &
-                            tidalConstituentAstronomical)
-         call mpas_pool_get_array(forcingPool, &
-                            'tidalPotentialConstituentNodalPhase', &
-                            tidalConstituentNodalPhase)
-         call mpas_pool_get_array(forcingPool, &
-                            'tidalPotentialConstituentType', &
-                            tidalConstituentType)
-         call mpas_pool_get_array(forcingPool, &
-                            'tidalPotentialLatitudeFunction', &
-                            latitudeFunction)
-         call mpas_pool_get_array(forcingPool, &
                             'forcingTimeIncrement', &
                             forcingTimeIncrement)
 
-         call mpas_set_time(refTime, &
-               dateTimeString=config_tidal_potential_reference_time)
-
-         do iCell = 1,nCells
+         do iCell = 1, nCells
             tidalPotEta(iCell) = 0.0_RKIND
          end do
 
-         nTidalConstituents = 0
-         if (config_use_tidal_potential_forcing_M2) then
-            nTidalConstituents = nTidalConstituents + 1
-            constituentList(nTidalConstituents)%constituent = 'M2'
-         end if 
+         if (config_use_full_tidal_potential_forcing) then
 
-         if (config_use_tidal_potential_forcing_S2) then
-            nTidalConstituents = nTidalConstituents + 1
-            constituentList(nTidalConstituents)%constituent = 'S2'
-         end if 
- 
-         if (config_use_tidal_potential_forcing_N2) then
-            nTidalConstituents = nTidalConstituents + 1
-            constituentList(nTidalConstituents)%constituent = 'N2'
-         end if 
+            !*** Full lunar-solar tidal potential initialization
+            useFullTidalPotential = .true.
 
-         if (config_use_tidal_potential_forcing_K2) then
-            nTidalConstituents = nTidalConstituents + 1
-            constituentList(nTidalConstituents)%constituent = 'K2'
-         end if 
+            !*** Convert MPAS time format 'YYYY-MM-DD_HH:MM:SS'
+            !*** to 'YYYY-MM-DD HH:MM:SS' expected by ocn_full_tidal_potential_init
+            startDateStr = config_tidal_potential_reference_time
+            iPos = index(startDateStr, '_')
+            if (iPos > 0) startDateStr(iPos:iPos) = ' '
 
-         if (config_use_tidal_potential_forcing_K1) then
-            nTidalConstituents = nTidalConstituents + 1
-            constituentList(nTidalConstituents)%constituent = 'K1'
-         end if 
+            call ocn_full_tidal_potential_init( &
+                 startDateStr, nCells, &
+                 config_full_tidal_potential_order, &
+                 config_full_tidal_potential_include_nutation, &
+                 config_full_tidal_potential_k2, &
+                 config_full_tidal_potential_h2, &
+                 err)
 
-         if (config_use_tidal_potential_forcing_O1) then
-            nTidalConstituents = nTidalConstituents + 1
-            constituentList(nTidalConstituents)%constituent = 'O1'
-         end if 
+            call mpas_log_write('Full lunar-solar tidal potential enabled')
+            call mpas_log_write('  Reference time: '// &
+                                trim(config_tidal_potential_reference_time))
+            call mpas_log_write('  Order $i', &
+                 intArgs=(/ config_full_tidal_potential_order /))
+            call mpas_log_write('  k2 Love number $r', &
+                 realArgs=(/ config_full_tidal_potential_k2 /))
+            call mpas_log_write('  h2 Love number $r', &
+                 realArgs=(/ config_full_tidal_potential_h2 /))
 
-         if (config_use_tidal_potential_forcing_Q1) then
-            nTidalConstituents = nTidalConstituents + 1
-            constituentList(nTidalConstituents)%constituent = 'Q1'
-         end if 
+         else
 
-         if (config_use_tidal_potential_forcing_P1) then
-            nTidalConstituents = nTidalConstituents + 1
-            constituentList(nTidalConstituents)%constituent = 'P1'
-         end if 
+            !*** Major-constituent tidal potential initialization
+            call mpas_set_time(refTime, &
+                  dateTimeString=config_tidal_potential_reference_time)
 
-         call tidal_constituent_factors(constituentList, &
-                                       nTidalConstituents, refTime, &
-                                       tidalConstituentFrequency, &
-                                       tidalConstituentAmplitude, &
-                                       tidalConstituentLoveNumbers, &
-                                       tidalConstituentNodalAmplitude, &
-                                       tidalConstituentAstronomical, &
-                                       tidalConstituentNodalPhase, &
-                                       tidalConstituentType, &
-                                       err)
+            call mpas_pool_get_array(meshPool, 'latCell', latCellLocal)
 
-         do iCell = 1,nCells
-            lat = latCell(iCell)
-            latitudeFunction(iCell,1) = 3.0_RKIND*sin(lat)**2 -1.0_RKIND 
-            latitudeFunction(iCell,2) = sin(2.0_RKIND*lat)
-            latitudeFunction(iCell,3) = cos(lat)**2
-         end do
-        
-         do iCon = 1,nTidalConstituents
-            call mpas_log_write( &
-                 'Constituent '//constituentList(iCon)%constituent)
-            call mpas_log_write('  Frequency $r', &
-                 realArgs=(/ tidalConstituentFrequency(iCon) /))
-            call mpas_log_write('  Amplitude $r', &
-                 realArgs=(/ tidalConstituentAmplitude(iCon) /))
-            call mpas_log_write('  LoveNumbers $r', &
-                 realArgs=(/ tidalConstituentLoveNumbers(iCon) /))
-            call mpas_log_write('  NodalAmplitude $r', &
-                 realArgs=(/ tidalConstituentNodalAmplitude(iCon) /))
-            call mpas_log_write('  Astronomical argument $r', &
-                 realArgs=(/ tidalConstituentAstronomical(iCon) /))
-            call mpas_log_write('  NodalPhase $r', &
-                 realArgs=(/ tidalConstituentNodalPhase(iCon) /))
-            call mpas_log_write('  Type $i', &
-                 intArgs=(/ tidalConstituentType(iCon) /))
-            call mpas_log_write(' ')
-         end do
+            call mpas_pool_get_array(forcingPool, &
+                               'tidalPotentialConstituentAmplitude', &
+                                tidalConstituentAmplitude)
+            call mpas_pool_get_array(forcingPool, &
+                               'tidalPotentialConstituentFrequency', &
+                               tidalConstituentFrequency)
+            call mpas_pool_get_array(forcingPool, &
+                               'tidalPotentialConstituentLoveNumbers', &
+                               tidalConstituentLoveNumbers)
+            call mpas_pool_get_array(forcingPool, &
+                               'tidalPotentialConstituentNodalAmplitude', &
+                               tidalConstituentNodalAmplitude)
+            call mpas_pool_get_array(forcingPool, &
+                               'tidalPotentialConstituentAstronomical', &
+                               tidalConstituentAstronomical)
+            call mpas_pool_get_array(forcingPool, &
+                               'tidalPotentialConstituentNodalPhase', &
+                               tidalConstituentNodalPhase)
+            call mpas_pool_get_array(forcingPool, &
+                               'tidalPotentialConstituentType', &
+                               tidalConstituentType)
+            call mpas_pool_get_array(forcingPool, &
+                               'tidalPotentialLatitudeFunction', &
+                               latitudeFunction)
 
-         if ( (config_time_integrator == 'LTS') & 
+            nTidalConstituents = 0
+            if (config_use_tidal_potential_forcing_M2) then
+               nTidalConstituents = nTidalConstituents + 1
+               constituentList(nTidalConstituents)%constituent = 'M2'
+            end if
+
+            if (config_use_tidal_potential_forcing_S2) then
+               nTidalConstituents = nTidalConstituents + 1
+               constituentList(nTidalConstituents)%constituent = 'S2'
+            end if
+
+            if (config_use_tidal_potential_forcing_N2) then
+               nTidalConstituents = nTidalConstituents + 1
+               constituentList(nTidalConstituents)%constituent = 'N2'
+            end if
+
+            if (config_use_tidal_potential_forcing_K2) then
+               nTidalConstituents = nTidalConstituents + 1
+               constituentList(nTidalConstituents)%constituent = 'K2'
+            end if
+
+            if (config_use_tidal_potential_forcing_K1) then
+               nTidalConstituents = nTidalConstituents + 1
+               constituentList(nTidalConstituents)%constituent = 'K1'
+            end if
+
+            if (config_use_tidal_potential_forcing_O1) then
+               nTidalConstituents = nTidalConstituents + 1
+               constituentList(nTidalConstituents)%constituent = 'O1'
+            end if
+
+            if (config_use_tidal_potential_forcing_Q1) then
+               nTidalConstituents = nTidalConstituents + 1
+               constituentList(nTidalConstituents)%constituent = 'Q1'
+            end if
+
+            if (config_use_tidal_potential_forcing_P1) then
+               nTidalConstituents = nTidalConstituents + 1
+               constituentList(nTidalConstituents)%constituent = 'P1'
+            end if
+
+            call tidal_constituent_factors(constituentList, &
+                                          nTidalConstituents, refTime, &
+                                          tidalConstituentFrequency, &
+                                          tidalConstituentAmplitude, &
+                                          tidalConstituentLoveNumbers, &
+                                          tidalConstituentNodalAmplitude, &
+                                          tidalConstituentAstronomical, &
+                                          tidalConstituentNodalPhase, &
+                                          tidalConstituentType, &
+                                          err)
+
+            do iCell = 1, nCells
+               lat = latCellLocal(iCell)
+               latitudeFunction(iCell,1) = 3.0_RKIND*sin(lat)**2 - 1.0_RKIND
+               latitudeFunction(iCell,2) = sin(2.0_RKIND*lat)
+               latitudeFunction(iCell,3) = cos(lat)**2
+            end do
+
+            do iCon = 1, nTidalConstituents
+               call mpas_log_write( &
+                    'Constituent '//constituentList(iCon)%constituent)
+               call mpas_log_write('  Frequency $r', &
+                    realArgs=(/ tidalConstituentFrequency(iCon) /))
+               call mpas_log_write('  Amplitude $r', &
+                    realArgs=(/ tidalConstituentAmplitude(iCon) /))
+               call mpas_log_write('  LoveNumbers $r', &
+                    realArgs=(/ tidalConstituentLoveNumbers(iCon) /))
+               call mpas_log_write('  NodalAmplitude $r', &
+                    realArgs=(/ tidalConstituentNodalAmplitude(iCon) /))
+               call mpas_log_write('  Astronomical argument $r', &
+                    realArgs=(/ tidalConstituentAstronomical(iCon) /))
+               call mpas_log_write('  NodalPhase $r', &
+                    realArgs=(/ tidalConstituentNodalPhase(iCon) /))
+               call mpas_log_write('  Type $i', &
+                    intArgs=(/ tidalConstituentType(iCon) /))
+               call mpas_log_write(' ')
+            end do
+
+         end if ! full vs constituent tidal potential
+
+         if ( (config_time_integrator == 'LTS') &
               .or. (config_time_integrator == 'FB_LTS') ) then
             timeIntegratorLTS = .true.
          else

@@ -1039,6 +1039,26 @@
 					description="Coefficient for SAL scalar approximation"
 					possible_values="0.0 to turn off, 0.09 is typical value to use for scalar approximation"
 		/>
+		<nml_option name="config_use_full_tidal_potential_forcing" type="logical" default_value=".false."
+					description="Controls if the full lunar-solar tidal potential is used instead of the 8 major constituent approach."
+					possible_values=".true. or .false."
+		/>
+		<nml_option name="config_full_tidal_potential_order" type="integer" default_value="2"
+					description="Order of approximation for the full tidal potential: 2 (P2 only), 3 (P2 and P3), or any integer >= 4 (exact Proudman formulation)."
+					possible_values="2, 3, or any integer >= 4"
+		/>
+		<nml_option name="config_full_tidal_potential_include_nutation" type="logical" default_value=".true."
+					description="Controls whether nutation correction is included in the full tidal potential calculation."
+					possible_values=".true. or .false."
+		/>
+		<nml_option name="config_full_tidal_potential_k2" type="real" default_value="0.302"
+					description="k2 Love number for the full tidal potential calculation."
+					possible_values="Any positive real number"
+		/>
+		<nml_option name="config_full_tidal_potential_h2" type="real" default_value="0.609"
+					description="h2 Love number for the full tidal potential calculation."
+					possible_values="Any positive real number"
+		/>
 	</nml_record>
 	<nml_record name="frazil_ice" mode="forward">
 		<nml_option name="config_use_frazil_ice_formation" type="logical" default_value=".false."
