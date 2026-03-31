@@ -29,16 +29,11 @@ void ForwardBackwardStepper::doStep(
     TimeInstant &SimTime // current simulation time
 ) const {
 
-   int Err = 0;
-
    const int CurLevel  = 0;
    const int NextLevel = 1;
 
-   Array3DReal CurTracerArray, NextTracerArray;
-   Err = Tracers::getAll(CurTracerArray, CurLevel);
-   Err = Tracers::getAll(NextTracerArray, NextLevel);
-   if (Err != 0)
-      ABORT_ERROR("ForwardBackward doStep: error retrieving tracers");
+   Array3DReal CurTracerArray  = Tracers::getAll(CurLevel);
+   Array3DReal NextTracerArray = Tracers::getAll(NextLevel);
 
    if (State == nullptr)
       LOG_CRITICAL("Invalid State");
@@ -61,8 +56,8 @@ void ForwardBackwardStepper::doStep(
                        CurLevel, TimeStep);
 
    // R_u^{n+1} = RHS_u(u^{n}, h^{n+1}, t^{n+1})
-   Tend->computeVelocityTendencies(State, AuxState, NextLevel, CurLevel,
-                                   SimTime + TimeStep);
+   Tend->computeVelocityTendencies(State, AuxState, NextTracerArray, NextLevel,
+                                   CurLevel, NextLevel, SimTime + TimeStep);
 
    // u^{n+1} = u^{n} + R_u^{n+1}
    updateVelocityByTend(State, NextLevel, State, CurLevel, TimeStep);

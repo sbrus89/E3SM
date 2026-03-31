@@ -69,18 +69,13 @@ void RungeKutta4Stepper::doStep(OceanState *State,   // model state
                                 TimeInstant &SimTime // current simulation time
 ) const {
 
-   int Err = 0;
-
    const MPI_Comm Comm = MeshHalo->getComm();
 
    const int CurLevel  = 0;
    const int NextLevel = 1;
 
-   Array3DReal NextTracerArray, CurTracerArray;
-   Err = Tracers::getAll(CurTracerArray, CurLevel);
-   Err = Tracers::getAll(NextTracerArray, NextLevel);
-   if (Err != 0)
-      ABORT_ERROR("RungeKutte4 doStep: error retrieving tracers.");
+   Array3DReal CurTracerArray  = Tracers::getAll(CurLevel);
+   Array3DReal NextTracerArray = Tracers::getAll(NextLevel);
 
    for (int Stage = 0; Stage < NStages; ++Stage) {
       const TimeInstant StageTime = SimTime + RKC[Stage] * TimeStep;
@@ -90,7 +85,7 @@ void RungeKutta4Stepper::doStep(OceanState *State,   // model state
       if (Stage == 0) {
          weightTracers(NextTracerArray, CurTracerArray, State, CurLevel);
          Tend->computeAllTendencies(State, AuxState, CurTracerArray, CurLevel,
-                                    CurLevel, StageTime);
+                                    CurLevel, CurLevel, StageTime);
          updateStateByTend(State, NextLevel, State, CurLevel,
                            RKB[Stage] * TimeStep);
          accumulateTracersUpdate(NextTracerArray, RKB[Stage] * TimeStep);
@@ -104,17 +99,19 @@ void RungeKutta4Stepper::doStep(OceanState *State,   // model state
          updateTracersByTend(ProvisTracers, CurTracerArray, ProvisState,
                              CurLevel, State, CurLevel, RKA[Stage] * TimeStep);
 
+         Pacer::timingBarrier("RK4:haloExchProvisBarrier", 3, Comm);
+         Pacer::start("RK4:haloExchProvis", 3);
          // TODO(mwarusz) this depends on halo width actually
          if (Stage == 2) {
-            Pacer::timingBarrier("RK4:haloExchProvisBarrier", 3, Comm);
-            Pacer::start("RK4:haloExchProvis", 3);
             ProvisState->exchangeHalo(CurLevel);
-            MeshHalo->exchangeFullArrayHalo(ProvisTracers, OnCell);
-            Pacer::stop("RK4:haloExchProvis", 3);
          }
+         // We need to exchange tracer halos at every stage for high-order
+         // advection
+         MeshHalo->exchangeFullArrayHalo(ProvisTracers, OnCell);
+         Pacer::stop("RK4:haloExchProvis", 3);
 
          Tend->computeAllTendencies(ProvisState, AuxState, ProvisTracers,
-                                    CurLevel, CurLevel, StageTime);
+                                    CurLevel, CurLevel, CurLevel, StageTime);
          updateStateByTend(State, NextLevel, State, NextLevel,
                            RKB[Stage] * TimeStep);
          accumulateTracersUpdate(NextTracerArray, RKB[Stage] * TimeStep);

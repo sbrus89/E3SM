@@ -11,6 +11,7 @@
 #include "Config.h"
 #include "DataTypes.h"
 #include "Decomp.h"
+#include "Eos.h"
 #include "Error.h"
 #include "Field.h"
 #include "Halo.h"
@@ -21,11 +22,13 @@
 #include "MachEnv.h"
 #include "OceanDriver.h"
 #include "OceanState.h"
+#include "PGrad.h"
 #include "Pacer.h"
 #include "Tendencies.h"
 #include "TimeMgr.h"
 #include "TimeStepper.h"
 #include "Tracers.h"
+#include "VertAdv.h"
 #include "VertCoord.h"
 
 #include "mpi.h"
@@ -131,7 +134,10 @@ int initOmegaModules(MPI_Comm Comm) {
    HorzMesh::init();
    VertCoord::init();
    Tracers::init();
+   VertAdv::init();
    AuxiliaryState::init();
+   PressureGrad::init();
+   Eos::init();
    Tendencies::init();
    TimeStepper::init2();
 
@@ -193,10 +199,7 @@ int initOmegaModules(MPI_Comm Comm) {
    if (Err != 0) {
       ABORT_ERROR("Error updating tracer halo after restart");
    }
-   Err = Tracers::copyToHost(CurTimeLevel);
-   if (Err != 0) {
-      ABORT_ERROR("Error updating tracer device arrays after restart");
-   }
+   Tracers::copyToHost(CurTimeLevel);
 
    return Err;
 

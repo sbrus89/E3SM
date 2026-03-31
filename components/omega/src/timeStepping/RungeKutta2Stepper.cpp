@@ -28,30 +28,28 @@ void RungeKutta2Stepper::doStep(OceanState *State,   // model state
                                 TimeInstant &SimTime // current simulation time
 ) const {
 
-   int Err = 0;
-
    const int CurLevel  = 0;
    const int NextLevel = 1;
 
-   Array3DReal CurTracerArray, NextTracerArray;
-   Err = Tracers::getAll(CurTracerArray, CurLevel);
-   Err = Tracers::getAll(NextTracerArray, NextLevel);
-   if (Err != 0)
-      ABORT_ERROR("RungeKutt2 doStep: error retrieving tracers");
+   Array3DReal CurTracerArray  = Tracers::getAll(CurLevel);
+   Array3DReal NextTracerArray = Tracers::getAll(NextLevel);
 
    // q = (h,u,phi)
    // R_q^{n} = RHS_q(u^{n}, h^{n}, phi^{n}, t^{n})
    Tend->computeAllTendencies(State, AuxState, CurTracerArray, CurLevel,
-                              CurLevel, SimTime);
+                              CurLevel, CurLevel, SimTime);
 
    // q^{n+0.5} = q^{n} + 0.5*dt*R_q^{n}
    updateStateByTend(State, NextLevel, State, CurLevel, 0.5 * TimeStep);
    updateTracersByTend(NextTracerArray, CurTracerArray, State, NextLevel, State,
                        CurLevel, 0.5 * TimeStep);
 
+   // We need to exchange tracer halos at every stage for high-order advection
+   MeshHalo->exchangeFullArrayHalo(NextTracerArray, OnCell);
+
    // R_q^{n+0.5} = RHS_q(u^{n+0.5}, h^{n+0.5}, phi^{n+0.5}, t^{n+0.5})
    Tend->computeAllTendencies(State, AuxState, NextTracerArray, NextLevel,
-                              NextLevel, SimTime + 0.5 * TimeStep);
+                              NextLevel, NextLevel, SimTime + 0.5 * TimeStep);
 
    // q^{n+1} = q^{n} + dt*R_q^{n+0.5}
    updateStateByTend(State, NextLevel, State, CurLevel, TimeStep);

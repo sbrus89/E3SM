@@ -347,6 +347,17 @@ add_omega_test(
 )
 
 ##################
+# Pressure gradient test
+##################
+
+add_omega_test(
+  PGRAD_TEST
+  testPGrad.exe
+  ocn/PGradTest.cpp
+  "-n;1"
+)
+
+##################
 # State test
 ##################
 
@@ -493,4 +504,15 @@ add_omega_test(
     testVertMix.exe
     ocn/VertMixTest.cpp
     "-n;4"
+)
+
+##################
+# VAdv test
+##################
+
+add_omega_test(
+    VERTADV_TEST
+    testVertAdv.exe
+    ocn/VertAdvTest.cpp
+    "-n;1"
 )

@@ -55,12 +55,9 @@ int initState() {
    auto *State  = OceanState::getDefault();
    auto *VCoord = VertCoord::getDefault();
 
-   Array2DReal LayerThickCell;
-   Array2DReal NormalVelEdge;
-   Err = State->getLayerThickness(LayerThickCell, 0);
-   Err += State->getNormalVelocity(NormalVelEdge, 0);
-   Array3DReal TracerArray;
-   Err += Tracers::getAll(TracerArray, 0);
+   Array2DReal LayerThickCell = State->getLayerThickness(0);
+   Array2DReal NormalVelEdge  = State->getNormalVelocity(0);
+   Array3DReal TracerArray    = Tracers::getAll(0);
 
    int NTracers = Tracers::getNumTracers();
 
@@ -127,6 +124,8 @@ int initAuxStateTest(const std::string &mesh) {
       LOG_ERROR("AuxStateTest: error initializing default state");
    }
 
+   VertAdv::init();
+
    return Err;
 }
 
@@ -150,8 +149,11 @@ int testAuxState() {
    const auto *Mesh   = HorzMesh::getDefault();
    auto *MeshHalo     = Halo::getDefault();
    const auto *VCoord = VertCoord::getDefault();
+   auto *VAdv         = VertAdv::getDefault();
+   TimeInterval TimeStep;
    // test creation of another auxiliary state
-   AuxiliaryState::create("AnotherAuxState", Mesh, MeshHalo, VCoord, 3);
+   AuxiliaryState::create("AnotherAuxState", Mesh, MeshHalo, VCoord, VAdv, 3,
+                          TimeStep);
 
    // test retrievel of another
    if (AuxiliaryState::get("AnotherAuxState")) {
@@ -188,13 +190,11 @@ int testAuxState() {
    deepCopy(DefAuxState->VelocityDel2Aux.Del2DivCell, NAN);
    deepCopy(DefAuxState->VelocityDel2Aux.Del2RelVortVertex, NAN);
 
-   deepCopy(DefAuxState->TracerAux.HTracersEdge, NAN);
    deepCopy(DefAuxState->TracerAux.Del2TracersCell, NAN);
 
    // compute auxiliary variables
-   const auto *State = OceanState::getDefault();
-   Array3DReal TracerArray;
-   Err += Tracers::getAll(TracerArray, 0);
+   const auto *State       = OceanState::getDefault();
+   Array3DReal TracerArray = Tracers::getAll(0);
    DefAuxState->computeAll(State, TracerArray, 0);
 
    // check that everything got computed correctly
@@ -299,14 +299,6 @@ int testAuxState() {
       LOG_ERROR("AuxStateTest: Del2RelVortVertex FAIL");
    }
 
-   const Real HTracersESum =
-       sum(DefAuxState->TracerAux.HTracersEdge, NTracers, NEdgesOwned,
-           VCoord->MinLayerEdgeBot, VCoord->MaxLayerEdgeTop);
-   if (!Kokkos::isfinite(HTracersESum)) {
-      Err++;
-      LOG_ERROR("AuxStateTest: HTracersOnEdge FAIL");
-   }
-
    const Real Del2TracersCSum =
        sum(DefAuxState->TracerAux.Del2TracersCell, NTracers, NCellsOwned,
            VCoord->MinLayerCell, VCoord->MaxLayerCell);
@@ -323,6 +315,7 @@ int testAuxState() {
 void finalizeAuxStateTest() {
    Tracers::clear();
    OceanState::clear();
+   VertAdv::clear();
    VertCoord::clear();
    HorzMesh::clear();
    Field::clear();

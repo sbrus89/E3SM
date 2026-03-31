@@ -19,6 +19,7 @@
 #include "DataTypes.h"
 #include "Decomp.h"
 #include "Dimension.h"
+#include "Eos.h"
 #include "Error.h"
 #include "Field.h"
 #include "Halo.h"
@@ -28,6 +29,7 @@
 #include "MachEnv.h"
 #include "OceanState.h"
 #include "OmegaKokkos.h"
+#include "PGrad.h"
 #include "Pacer.h"
 #include "TendencyTerms.h"
 #include "TimeMgr.h"
@@ -56,10 +58,9 @@ struct DecayVelocityTendency {
                    const AuxiliaryState *AuxState, int ThickTimeLevel,
                    int VelTimeLevel, TimeInstant Time) const {
 
-      auto *Mesh       = HorzMesh::getDefault();
-      auto NVertLayers = NormalVelTend.extent_int(1);
-      Array2DReal NormalVelEdge;
-      State->getNormalVelocity(NormalVelEdge, VelTimeLevel);
+      auto *Mesh                = HorzMesh::getDefault();
+      auto NVertLayers          = NormalVelTend.extent_int(1);
+      Array2DReal NormalVelEdge = State->getNormalVelocity(VelTimeLevel);
 
       OMEGA_SCOPE(LocCoeff, Coeff);
 
@@ -73,15 +74,12 @@ struct DecayVelocityTendency {
 int initState() {
    int Err = 0;
 
-   auto *Mesh  = HorzMesh::getDefault();
-   auto *State = OceanState::get("TestState");
-   Array3DReal TracerArray;
-   Err = Tracers::getAll(TracerArray, 0);
+   auto *Mesh              = HorzMesh::getDefault();
+   auto *State             = OceanState::get("TestState");
+   Array3DReal TracerArray = Tracers::getAll(0);
 
-   Array2DReal LayerThickCell;
-   Array2DReal NormalVelEdge;
-   State->getLayerThickness(LayerThickCell, 0);
-   State->getNormalVelocity(NormalVelEdge, 0);
+   Array2DReal LayerThickCell = State->getLayerThickness(0);
+   Array2DReal NormalVelEdge  = State->getNormalVelocity(0);
 
    // Initially set thickness and velocity and tracers to 1
    deepCopy(LayerThickCell, 1);
@@ -94,18 +92,15 @@ int initState() {
 int createExactSolution(Real TimeEnd) {
    int Err = 0;
 
-   auto *DefHalo = Halo::getDefault();
-   auto *DefMesh = HorzMesh::getDefault();
-   Array3DReal TracerArray;
-   Err = Tracers::getAll(TracerArray, 0);
+   auto *DefHalo           = Halo::getDefault();
+   auto *DefMesh           = HorzMesh::getDefault();
+   Array3DReal TracerArray = Tracers::getAll(0);
 
    auto *ExactState =
        OceanState::create("Exact", DefMesh, DefHalo, NVertLayers, 1);
 
-   Array2DReal LayerThickCell;
-   Array2DReal NormalVelEdge;
-   ExactState->getLayerThickness(LayerThickCell, 0);
-   ExactState->getNormalVelocity(NormalVelEdge, 0);
+   Array2DReal LayerThickCell = ExactState->getLayerThickness(0);
+   Array2DReal NormalVelEdge  = ExactState->getNormalVelocity(0);
 
    // There are no thickness tendencies in this test, so exact thickness ==
    // initial thickness
@@ -124,10 +119,8 @@ ErrorMeasures computeErrors() {
    const auto *State      = OceanState::get("TestState");
    const auto *ExactState = OceanState::get("Exact");
 
-   Array2DReal NormalVelEdge;
-   Array2DReal ExactNormalVelEdge;
-   State->getNormalVelocity(NormalVelEdge, 0);
-   ExactState->getNormalVelocity(ExactNormalVelEdge, 0);
+   Array2DReal NormalVelEdge      = State->getNormalVelocity(0);
+   Array2DReal ExactNormalVelEdge = ExactState->getNormalVelocity(0);
 
    // Only velocity errors matters, because thickness remains constant
    ErrorMeasures VelErrors;
@@ -177,7 +170,13 @@ int initTimeStepperTest(const std::string &mesh) {
    auto *DefVertCoord = VertCoord::getDefault();
 
    Tracers::init();
+
+   VertAdv::init();
+   auto *DefVAdv = VertAdv::getDefault();
+
    AuxiliaryState::init();
+   Eos::init();
+   PressureGrad::init();
    Tendencies::init();
 
    // finish initializing default time stepper
@@ -192,8 +191,10 @@ int initTimeStepperTest(const std::string &mesh) {
    // Creating non-default state and auxiliary state to use only one vertical
    // layer
 
-   auto *DefMesh = HorzMesh::getDefault();
-   auto *DefHalo = Halo::getDefault();
+   auto *DefMesh  = HorzMesh::getDefault();
+   auto *DefHalo  = Halo::getDefault();
+   auto *DefEos   = Eos::getInstance();
+   auto *DefPGrad = PressureGrad::getDefault();
 
    int NTracers          = Tracers::getNumTracers();
    const int NTimeLevels = 2;
@@ -204,8 +205,10 @@ int initTimeStepperTest(const std::string &mesh) {
       LOG_ERROR("TimeStepperTest: error creating test state");
    }
 
-   auto *TestAuxState = AuxiliaryState::create("TestAuxState", DefMesh, DefHalo,
-                                               DefVertCoord, NTracers);
+   TimeInterval ZeroTimeStep; // Zero-length time step placeholder
+   auto *TestAuxState =
+       AuxiliaryState::create("TestAuxState", DefMesh, DefHalo, DefVertCoord,
+                              DefVAdv, NTracers, ZeroTimeStep);
 
    Config *OmegaConfig = Config::getOmegaConfig();
    TestAuxState->readConfigOptions(OmegaConfig);
@@ -219,8 +222,9 @@ int initTimeStepperTest(const std::string &mesh) {
 
    // Creating non-default tendencies with custom velocity tendencies
    auto *TestTendencies = Tendencies::create(
-       "TestTendencies", DefMesh, DefVertCoord, NTracers, &Options,
-       Tendencies::CustomTendencyType{}, DecayVelocityTendency{});
+       "TestTendencies", DefMesh, DefVertCoord, DefVAdv, DefPGrad, DefEos,
+       NTracers, ZeroTimeStep, &Options, Tendencies::CustomTendencyType{},
+       DecayVelocityTendency{});
    if (!TestTendencies) {
       Err++;
       LOG_ERROR("TimeStepperTest: error creating test tendencies");
@@ -238,6 +242,9 @@ int initTimeStepperTest(const std::string &mesh) {
    TestTendencies->TracerHyperDiff.Enabled    = false;
    TestTendencies->WindForcing.Enabled        = false;
    TestTendencies->BottomDrag.Enabled         = false;
+   DefVAdv->ThickVertAdvEnabled               = false;
+   DefVAdv->VelVertAdvEnabled                 = false;
+   DefVAdv->TracerVertAdvEnabled              = false;
 
    return Err;
 }
@@ -275,9 +282,12 @@ void timeLoop(TimeInstant TimeStart, Real TimeEnd) {
 void finalizeTimeStepperTest() {
    Tracers::clear();
    TimeStepper::clear();
+   PressureGrad::clear();
+   Eos::destroyInstance();
    Tendencies::clear();
    AuxiliaryState::clear();
    OceanState::clear();
+   VertAdv::clear();
    VertCoord::clear();
    HorzMesh::clear();
    Dimension::clear();

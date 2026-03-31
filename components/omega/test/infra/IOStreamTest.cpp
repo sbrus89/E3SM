@@ -23,7 +23,9 @@
 #include "MachEnv.h"
 #include "OceanState.h"
 #include "OmegaKokkos.h"
+#include "PGrad.h"
 #include "Pacer.h"
+#include "Tendencies.h"
 #include "TimeMgr.h"
 #include "TimeStepper.h"
 #include "Tracers.h"
@@ -103,6 +105,11 @@ void initIOStreamTest(Clock *&ModelClock // Model clock
    if (TmpErr != 0)
       ABORT_ERROR("IOStreamTest: Error initializing OceanState");
 
+   PressureGrad::init();
+
+   // Intialize Tendencies
+   Tendencies::init();
+
    // Initialize Tracers
    Tracers::init();
 
@@ -171,9 +178,7 @@ int main(int argc, char **argv) {
       // Overwrite salinity array with values associated with global cell
       // ID to test proper indexing of IO
       Array2DReal Test("Test", NCellsSize, NVertLayers);
-      Array2DReal Salt;
-      Err1 = Tracers::getByIndex(Salt, 0, Tracers::IndxSalt);
-      TestEval("Retrieve Salinity", Err1, ErrRef, Err);
+      Array2DReal Salt = Tracers::getByIndex(0, Tracers::IndxSalt);
 
       parallelFor(
           {NCellsSize, NVertLayers}, KOKKOS_LAMBDA(int Cell, int K) {
@@ -222,6 +227,8 @@ int main(int argc, char **argv) {
 
    // Clean up environments
    TimeStepper::clear();
+   PressureGrad::clear();
+   Tendencies::clear();
    Tracers::clear();
    OceanState::clear();
    AuxiliaryState::clear();

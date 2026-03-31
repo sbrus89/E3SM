@@ -180,12 +180,12 @@ int main(int argc, char *argv[]) {
       LocCells = Mesh->NCellsOwned;
       Err = MPI_Allreduce(&LocCells, &SumCells, 1, MPI_INT32_T, MPI_SUM, Comm);
 
-      if (SumCells == DefDecomp->NCellsGlobal) {
+      if (SumCells == Mesh->NCellsGlobal) {
          LOG_INFO("HorzMeshTest: Sum cell ID test PASS");
       } else {
          RetVal += 1;
          LOG_INFO("HorzMeshTest: Sum cell ID test FAIL {} {}", SumCells,
-                  DefDecomp->NCellsGlobal);
+                  Mesh->NCellsGlobal);
       }
 
       // Test that cell centers are on sphere
@@ -247,12 +247,12 @@ int main(int argc, char *argv[]) {
       LocEdges = Mesh->NEdgesOwned;
       Err = MPI_Allreduce(&LocEdges, &SumEdges, 1, MPI_INT32_T, MPI_SUM, Comm);
 
-      if (SumEdges == DefDecomp->NEdgesGlobal) {
+      if (SumEdges == Mesh->NEdgesGlobal) {
          LOG_INFO("HorzMeshTest: Sum edge ID test PASS");
       } else {
          RetVal += 1;
          LOG_INFO("HorzMeshTest: Sum edge ID test FAIL {} {}", SumEdges,
-                  DefDecomp->NEdgesGlobal);
+                  Mesh->NEdgesGlobal);
       }
 
       // Test that edge coordinates are on sphere
@@ -366,28 +366,6 @@ int main(int argc, char *argv[]) {
          LOG_INFO("HorzMeshTest: Vertex lon/lat test FAIL");
       } else {
          LOG_INFO("HorzMeshTest: Vertex lon/lat test PASS");
-      }
-
-      // Test bounds of bathymetry
-      // Find minimum and maximum values of the bottom depth
-      // and compares to reasonable values
-      // Tests that the bottom depth has been read in correctly
-      R8 MaxBathy = -1e10;
-      R8 MinBathy = 1e10;
-      for (int Cell = 0; Cell < LocCells; Cell++) {
-         if (Mesh->BottomDepthH(Cell) < MinBathy) {
-            MinBathy = Mesh->BottomDepthH(Cell);
-         }
-         if (Mesh->BottomDepthH(Cell) > MaxBathy) {
-            MaxBathy = Mesh->BottomDepthH(Cell);
-         }
-      }
-
-      if ((MinBathy > 0) && (MaxBathy < 11000.0)) {
-         LOG_INFO("HorzMeshTest: Bathy min/max test PASS");
-      } else {
-         RetVal += 1;
-         LOG_INFO("HorzMeshTest: Bathy min/max test FAIL");
       }
 
       // Test cell areas
@@ -767,6 +745,25 @@ int main(int argc, char *argv[]) {
          RetVal += 1;
          LOG_INFO("HorzMeshTest: vertex halo exhange FAIL");
       }
+
+      // Test that all Cell IDs are accounted for by
+      // summing the list of owned values by all tasks. The result should
+      // be the sum of the integers from 1 to NCellsGlobal
+      OMEGA::I4 RefSumIDs = 0, LocSumIDs = 0, SumIDs = 0;
+      OMEGA::HostArray1DI4 CellIDH = OMEGA::createHostMirrorCopy(Mesh->CellID);
+      for (int n = 0; n < Mesh->NCellsGlobal; ++n)
+         RefSumIDs += n + 1;
+      for (int n = 0; n < Mesh->NCellsOwned; ++n)
+         LocSumIDs += CellIDH(n);
+      Err = MPI_Allreduce(&LocSumIDs, &SumIDs, 1, MPI_INT32_T, MPI_SUM, Comm);
+
+      if (SumIDs == RefSumIDs) {
+         LOG_INFO("DecompTest: Sum cell ID test PASS");
+      } else {
+         RetVal += 1;
+         LOG_INFO("DecompTest: Sum cell ID test FAIL {} {}", SumIDs, RefSumIDs);
+      }
+
       // Finalize Omega objects
       HorzMesh::clear();
       Dimension::clear();
