@@ -717,7 +717,7 @@ CONTAINS
       !   -------------------------------------------------
       !        6                          Wave-ocean layer 
       !   -------------------------------------------------
-      !  F  F  6     1   S[XX,YY,XY] SXY  Radiation stresses.
+      !  F  T  6     1   S[XX,YY,XY] SXY  Radiation stresses.
       !  F  F  6     2   TAUO[X,Y]  TWO   Wave to ocean momentum flux
       !  F  F  6     3   BHD        BHD   Bernoulli head (J term) 
       !  F  F  6     4   PHIOC      FOC   Wave to ocean energy flux
