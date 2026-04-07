@@ -147,6 +147,7 @@
                           nogrp, ngrpp, noge, idout, fnmpre, iostyp, notype, flout, &
                           fnmpre, ifile4, ofiles
       use w3servmd, only: w3xyrtn
+      use constants, only: DERA
       use wmscrpmd, only: grid_area
       use w3parall, only: init_get_isea
       use w3dispmd, only: wavnu1
@@ -989,6 +990,7 @@ CONTAINS
       real, dimension(:), allocatable :: wx, wy 
       real :: xxx
       real :: wlveff, depth
+      real :: cosA, sinA, sxx_tmp, syy_tmp, sxy_tmp
 
       character(len=*),parameter :: subname = '(wav_run_mct)'
       character(15) :: restart_date
@@ -1173,10 +1175,28 @@ CONTAINS
       do i = 1,usspf(2)
         call w3xyrtn(nseal,USSP(1:nseal,i),USSP(1:nseal,nk+i),AnglDL)
       enddo
-      ! rotate surface stress variables for momentum coupling 
+      ! rotate surface stress variables for momentum coupling
       call w3xyrtn(nseal, TAUWIX(1:nseal), TAUWIY(1:nseal), AnglDL)
       call w3xyrtn(nseal, TAUOX(1:nseal), TAUOY(1:nseal), AnglDL)
       call w3xyrtn(nseal, TAUOCX(1:nseal), TAUOCY(1:nseal), AnglDL)
+
+      ! rotate radiation stress tensor from model grid to geographic coords
+      ! Tensor rotation: S_geo = R * S_model * R^T where R is the w3xyrtn rotation
+      if (wav_ocn_coup .eq. 'twoway') then
+        do jsea = 1, nseal
+          cosA = cos(AnglDL(jsea)*DERA)
+          sinA = sin(AnglDL(jsea)*DERA)
+          sxx_tmp = cosA**2 * SXX(jsea) + 2.0*sinA*cosA * SXY(jsea) &
+                  + sinA**2 * SYY(jsea)
+          syy_tmp = sinA**2 * SXX(jsea) - 2.0*sinA*cosA * SXY(jsea) &
+                  + cosA**2 * SYY(jsea)
+          sxy_tmp = sinA*cosA * (SYY(jsea) - SXX(jsea)) &
+                  + (cosA**2 - sinA**2) * SXY(jsea)
+          SXX(jsea) = sxx_tmp
+          SYY(jsea) = syy_tmp
+          SXY(jsea) = sxy_tmp
+        enddo
+      endif
 
       ! copy ww3 data to coupling datatype
       do jsea=1, nseal
@@ -1220,6 +1240,11 @@ CONTAINS
 
                w2x_w%rattr(index_w2x_Sw_ustokes_wavenumber_6,jsea) = USSP(jsea,6)
                w2x_w%rattr(index_w2x_Sw_vstokes_wavenumber_6,jsea) = USSP(jsea,nk+6)
+
+               ! Radiation stress tensor (already rotated to geographic coords, units N/m)
+               w2x_w%rattr(index_w2x_Sw_Sxx,jsea) = SXX(jsea)
+               w2x_w%rattr(index_w2x_Sw_Syy,jsea) = SYY(jsea)
+               w2x_w%rattr(index_w2x_Sw_Sxy,jsea) = SXY(jsea)
             endif
          else
             if (wav_ocn_coup .eq. 'twoway' .or. wav_atm_coup .eq. 'twoway') then
@@ -1256,6 +1281,10 @@ CONTAINS
 
                w2x_w%rattr(index_w2x_Sw_ustokes_wavenumber_6,jsea) = 0.0
                w2x_w%rattr(index_w2x_Sw_vstokes_wavenumber_6,jsea) = 0.0
+
+               w2x_w%rattr(index_w2x_Sw_Sxx,jsea) = 0.0
+               w2x_w%rattr(index_w2x_Sw_Syy,jsea) = 0.0
+               w2x_w%rattr(index_w2x_Sw_Sxy,jsea) = 0.0
             endif
          endif
       enddo

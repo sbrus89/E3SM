@@ -2145,7 +2145,10 @@ contains
                                   waveToOceanZonalWindStressField, &
                                   waveToOceanMeridionalWindStressField, &
                                   waveNetOceanZonalWindStressField, &
-                                  waveNetOceanMeridionalWindStressField
+                                  waveNetOceanMeridionalWindStressField, &
+                                  radiationStressSxxField, &
+                                  radiationStressSyyField, &
+                                  radiationStressSxyField
                                   !landIcePressureField
 
    type (field2DReal), pointer :: iceFluxPhytoCField, &
@@ -2206,7 +2209,10 @@ contains
                                                waveToOceanZonalWindStress, &
                                                waveToOceanMeridionalWindStress, &
                                                waveNetOceanZonalWindStress, &
-                                               waveNetOceanMeridionalWindStress
+                                               waveNetOceanMeridionalWindStress, &
+                                               radiationStressSxx, &
+                                               radiationStressSyy, &
+                                               radiationStressSxy
                                                !landIcePressure
 
    real (kind=RKIND), dimension(:), pointer :: latCell
@@ -2314,6 +2320,9 @@ contains
       call mpas_pool_get_field(forcingPool, 'waveToOceanMeridionalWindStress', waveToOceanMeridionalWindStressField)
       call mpas_pool_get_field(forcingPool, 'waveNetOceanZonalWindStress', waveNetOceanZonalWindStressField)
       call mpas_pool_get_field(forcingPool, 'waveNetOceanMeridionalWindStress', waveNetOceanMeridionalWindStressField)
+      call mpas_pool_get_field(forcingPool, 'radiationStressSxx', radiationStressSxxField)
+      call mpas_pool_get_field(forcingPool, 'radiationStressSyy', radiationStressSyyField)
+      call mpas_pool_get_field(forcingPool, 'radiationStressSxy', radiationStressSxyField)
 
       call mpas_pool_get_field(forcingPool, 'landIceFreshwaterFlux', landIceFreshwaterFluxField)
       call mpas_pool_get_field(forcingPool, 'landIceHeatFlux', landIceHeatFluxField)
@@ -2369,6 +2378,9 @@ contains
       waveToOceanMeridionalWindStress => waveToOceanMeridionalWindStressField % array
       waveNetOceanZonalWindStress => waveNetOceanZonalWindStressField % array
       waveNetOceanMeridionalWindStress => waveNetOceanMeridionalWindStressField % array
+      radiationStressSxx => radiationStressSxxField % array
+      radiationStressSyy => radiationStressSyyField % array
+      radiationStressSxy => radiationStressSxyField % array
       !landIcePressure => landIcePressureField % array
 
       call mpas_pool_get_array(meshPool, 'latCell', latCell)
@@ -2614,6 +2626,15 @@ contains
            if ( waveNetOceanMeridionalWindStressField  % isActive ) then
               waveNetOceanMeridionalWindStress(i) = x2o_o % rAttr(index_x2o_Faow_Tocy, n)
            end if
+           if ( radiationStressSxxField % isActive ) then
+              radiationStressSxx(i) = x2o_o % rAttr(index_x2o_Sw_Sxx, n)
+           end if
+           if ( radiationStressSyyField % isActive ) then
+              radiationStressSyy(i) = x2o_o % rAttr(index_x2o_Sw_Syy, n)
+           end if
+           if ( radiationStressSxyField % isActive ) then
+              radiationStressSxy(i) = x2o_o % rAttr(index_x2o_Sw_Sxy, n)
+           end if
         endif
 
         if (config_cvmix_kpp_use_theory_wave .or. config_eke_correction_enable) then
@@ -2801,6 +2822,9 @@ contains
    call mpas_pool_get_field(forcingPool, 'waveToOceanMeridionalWindStress', waveToOceanMeridionalWindStressField)
    call mpas_pool_get_field(forcingPool, 'waveNetOceanZonalWindStress', waveNetOceanZonalWindStressField)
    call mpas_pool_get_field(forcingPool, 'waveNetOceanMeridionalWindStress', waveNetOceanMeridionalWindStressField)
+   call mpas_pool_get_field(forcingPool, 'radiationStressSxx', radiationStressSxxField)
+   call mpas_pool_get_field(forcingPool, 'radiationStressSyy', radiationStressSyyField)
+   call mpas_pool_get_field(forcingPool, 'radiationStressSxy', radiationStressSxyField)
 
    call mpas_pool_get_field(forcingPool, 'landIceFreshwaterFlux', landIceFreshwaterFluxField)
    call mpas_pool_get_field(forcingPool, 'landIceHeatFlux', landIceHeatFluxField)
@@ -2963,6 +2987,15 @@ contains
    end if
    if ( waveNetOceanMeridionalWindStressField % isActive ) then
       call mpas_dmpar_exch_halo_field(waveNetOceanMeridionalWindStressField)
+   end if
+   if ( radiationStressSxxField % isActive ) then
+      call mpas_dmpar_exch_halo_field(radiationStressSxxField)
+   end if
+   if ( radiationStressSyyField % isActive ) then
+      call mpas_dmpar_exch_halo_field(radiationStressSyyField)
+   end if
+   if ( radiationStressSxyField % isActive ) then
+      call mpas_dmpar_exch_halo_field(radiationStressSxyField)
    end if
 
    if ( landIceFreshwaterFluxField % isActive ) then

@@ -44,8 +44,12 @@ module ww3_cpl_indices
   integer :: index_w2x_Faww_Tawy
   integer :: index_w2x_Fwow_Twox     
   integer :: index_w2x_Fwow_Twoy
-  integer :: index_w2x_Faow_Tocx    
+  integer :: index_w2x_Faow_Tocx
   integer :: index_w2x_Faow_Tocy
+
+  integer :: index_w2x_Sw_Sxx
+  integer :: index_w2x_Sw_Syy
+  integer :: index_w2x_Sw_Sxy
 
 contains
 
@@ -88,6 +92,9 @@ contains
        index_w2x_Fwow_Twoy    = mct_avect_indexra(w2x,'Fwow_Twoy')  ! MeridionalWave to ocean stress (Not total ocean momentum stress)
        index_w2x_Faow_Tocx   = mct_avect_indexra(w2x,'Faow_Tocx')  ! Zonal Net ocean stress (total ocean momentum stress )
        index_w2x_Faow_Tocy   = mct_avect_indexra(w2x,'Faow_Tocy')  !Meridional Net ocean stress (total ocean momentum stress)
+       index_w2x_Sw_Sxx = mct_avect_indexra(w2x,'Sw_Sxx') ! Radiation stress Sxx (geographic)
+       index_w2x_Sw_Syy = mct_avect_indexra(w2x,'Sw_Syy') ! Radiation stress Syy (geographic)
+       index_w2x_Sw_Sxy = mct_avect_indexra(w2x,'Sw_Sxy') ! Radiation stress Sxy (geographic)
        index_w2x_Sw_ustokes_wavenumber_1 = mct_avect_indexra(w2x,'Sw_ustokes_wavenumber_1') ! partitioned Stokes drift u 1
        index_w2x_Sw_vstokes_wavenumber_1 = mct_avect_indexra(w2x,'Sw_vstokes_wavenumber_1') ! partitioned Stokes drift v 1
        index_w2x_Sw_ustokes_wavenumber_2 = mct_avect_indexra(w2x,'Sw_ustokes_wavenumber_2') ! partitioned Stokes drift u 2

@@ -2694,7 +2694,31 @@ contains
        units    = 'deg'
        attname  = 'Sw_Dp'
        call metadata_set(attname, longname, stdname, units)
-    
+
+       call seq_flds_add(w2x_states,'Sw_Sxx')
+       call seq_flds_add(x2o_states,'Sw_Sxx')
+       longname = 'Radiation stress Sxx component'
+       stdname  = 'wave_radiation_stress_xx'
+       units    = 'N m-1'
+       attname  = 'Sw_Sxx'
+       call metadata_set(attname, longname, stdname, units)
+
+       call seq_flds_add(w2x_states,'Sw_Syy')
+       call seq_flds_add(x2o_states,'Sw_Syy')
+       longname = 'Radiation stress Syy component'
+       stdname  = 'wave_radiation_stress_yy'
+       units    = 'N m-1'
+       attname  = 'Sw_Syy'
+       call metadata_set(attname, longname, stdname, units)
+
+       call seq_flds_add(w2x_states,'Sw_Sxy')
+       call seq_flds_add(x2o_states,'Sw_Sxy')
+       longname = 'Radiation stress Sxy component'
+       stdname  = 'wave_radiation_stress_xy'
+       units    = 'N m-1'
+       attname  = 'Sw_Sxy'
+       call metadata_set(attname, longname, stdname, units)
+
        call seq_flds_add(w2x_fluxes,'Faww_Tawx')
        call seq_flds_add(x2o_fluxes,'Faww_Tawx')
        longname = 'Zonal wave supported stress'

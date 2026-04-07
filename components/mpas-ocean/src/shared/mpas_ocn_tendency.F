@@ -492,7 +492,8 @@ contains
       call ocn_vel_forcing_tend(normalVelocity, sfcFlxAttCoeff, &
                                 sfcStress, kineticEnergyCell, &
                                 layerThickEdgeDrag, &
-                                layerThickEdgeMean, tendVel, err)
+                                layerThickEdgeMean, &
+                                forcingPool, tendVel, err)
  
       ! Compute tendency term for manufactured solution
       call ocn_manufactured_solution_tend_vel(forcingPool, &

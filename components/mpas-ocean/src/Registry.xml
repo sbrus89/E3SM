@@ -681,6 +681,10 @@
 					description="Flag for correcting momentum coupling in ocean due to waves. Requires config_use_active_wave = .true."
 					possible_values=".true. or .false."
 		/>
+		<nml_option name="config_use_radiation_stress_forcing" type="logical" default_value=".false."
+					description="Enable radiation stress gradient forcing from waves in momentum equation. Requires config_use_active_wave = .true."
+					possible_values=".true. or .false."
+		/>
 		<nml_option name="config_n_stokes_drift_wavenumber_partitions" type="integer" default_value="6"
 					description="Number of wavenumber partitions to be used in reconstructing wave-induced Stokes drift profile"
 					possible_values="3,4,6"
@@ -4102,6 +4106,26 @@
                 <var name="waveNetOceanMeridionalWindStress" type="real" dimensions="nCells Time" units="N m^{-2}"
                          description="Meridional Net ocean wind stress by wave model"
                          packages="activeWavePKG"
+		/>
+		<var name="radiationStressSxx" type="real" dimensions="nCells Time" units="N m^{-1}"
+			 description="Wave radiation stress Sxx component in geographic coordinates"
+			 packages="activeWavePKG"
+		/>
+		<var name="radiationStressSyy" type="real" dimensions="nCells Time" units="N m^{-1}"
+			 description="Wave radiation stress Syy component in geographic coordinates"
+			 packages="activeWavePKG"
+		/>
+		<var name="radiationStressSxy" type="real" dimensions="nCells Time" units="N m^{-1}"
+			 description="Wave radiation stress Sxy component in geographic coordinates"
+			 packages="activeWavePKG"
+		/>
+		<var name="radiationStressDivX" type="real" dimensions="nCells Time" units="N m^{-2}"
+			 description="Zonal component of radiation stress divergence"
+			 packages="activeWavePKG"
+		/>
+		<var name="radiationStressDivY" type="real" dimensions="nCells Time" units="N m^{-2}"
+			 description="Meridional component of radiation stress divergence"
+			 packages="activeWavePKG"
 		/>
 		<var name="langmuirNumber" type="real" dimensions="nCells Time" units="m"
 			 description="Projected surface layer averaged Langmuir number from Van Roekel et al. 2012."
