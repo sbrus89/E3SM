@@ -104,6 +104,7 @@ module ocn_vel_self_attraction_loading
     real(kind=RKIND), dimension(:),   allocatable :: Snm_local, SnmRe_local, SnmIm_local
     real(kind=RKIND), dimension(:,:), allocatable :: Snm_local_reproSum, SnmRe_local_reproSum, SnmIm_local_reproSum
     real(kind=RKIND), dimension(:),   allocatable :: btrPressure
+    real(kind=RKIND), dimension(:),   pointer :: sshInitSAL
     real(kind=RKIND), dimension(:), pointer :: coastalSmoothingFactor
     integer, dimension(:,:), allocatable :: blockIdxForward
     integer, dimension(:,:), allocatable :: blockIdxInverse
@@ -178,7 +179,7 @@ contains
         do iCell = 1,nCellsAll
           ! compute SAL wrt. the full barotropic bottom pressure
           btrPressure(iCell) = coastalSmoothingFactor(iCell) * ( &
-              ssh(iCell) + rho0gInv * surfacePressure(iCell) )
+              (ssh(iCell) - sshInitSAL(iCell)) + rho0gInv * surfacePressure(iCell) )
         enddo
 
         if (.not. config_use_parallel_self_attraction_loading) then
@@ -681,6 +682,13 @@ contains
 
         ! Set up coastal smoothing
         allocate(btrPressure(nCellsAll))
+
+        call mpas_pool_get_array(forcingPool, 'sshInitSAL', sshInitSAL)
+        if (.not. config_do_restart) then
+           do iCell = 1,nCellsAll
+              sshInitSAL(iCell) = ssh(iCell)
+           enddo
+        endif
 
         ! Set-up smoothing mask for shallow regions where SAL should not
         ! be computed across e.g. wet-dry cells
