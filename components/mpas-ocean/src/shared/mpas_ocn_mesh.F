@@ -1359,6 +1359,17 @@ contains
       end do
       end do
 
+      do iCell = 1, nCellsAll
+         if (bottomDepth(iCell) < -70.0_RKIND) then
+            do i = 1, nEdgesOnCell(iCell)
+               iEdge = edgesOnCell(i, iCell)
+               do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
+                  edgeMask(k, iEdge) = 0.0_RKIND
+               end do
+            enddo
+         endif
+      enddo
+
       ! Find cells and vertices that have an edge on the boundary
       boundaryCell(:,1:nCellsAll+1) = 0.0_RKIND
       cellMask(:,1:nCellsAll+1) = 0.0_RKIND
