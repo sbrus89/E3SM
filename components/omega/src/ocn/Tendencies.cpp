@@ -375,12 +375,13 @@ Tendencies::Tendencies(const std::string &Name_, ///< [in] Name for tendencies
                        CustomTendencyType InCustomThicknessTend,
                        CustomTendencyType InCustomVelocityTend)
     : Mesh(Mesh), VCoord(VCoord), VAdv(VAdv), ThicknessFluxDiv(Mesh, VCoord),
-      PotentialVortHAdv(Mesh, VCoord), KEGrad(Mesh, VCoord),
-      SSHGrad(Mesh, VCoord), VelocityDiffusion(Mesh, VCoord),
-      VelocityHyperDiff(Mesh, VCoord), WindForcing(Mesh, VCoord),
-      BottomDrag(Mesh, VCoord), TracerDiffusion(Mesh, VCoord),
-      TracerHyperDiff(Mesh, VCoord), TracerHorzAdv(Mesh, VCoord),
-      SurfaceTracerRestoring(Mesh), CustomThicknessTend(InCustomThicknessTend),
+      PotentialVortHAdv(Mesh, VCoord), CoriolisAcceleration(Mesh, VCoord),
+      KEGrad(Mesh, VCoord), SSHGrad(Mesh, VCoord),
+      VelocityDiffusion(Mesh, VCoord), VelocityHyperDiff(Mesh, VCoord),
+      WindForcing(Mesh, VCoord), BottomDrag(Mesh, VCoord),
+      TracerDiffusion(Mesh, VCoord), TracerHyperDiff(Mesh, VCoord),
+      TracerHorzAdv(Mesh, VCoord), SurfaceTracerRestoring(Mesh),
+      CustomThicknessTend(InCustomThicknessTend),
       CustomVelocityTend(InCustomVelocityTend), EqState(EqState), PGrad(PGrad) {
 
    // Tendency arrays
@@ -412,6 +413,51 @@ Tendencies::Tendencies(const std::string &Name_, ///< [in] Name for tendencies
     : Tendencies(Name_, Mesh, VCoord, VAdv, PGrad, EqState, NTracersIn,
                  TimeStepIn, Options, CustomTendencyType{},
                  CustomTendencyType{}) {}
+
+//------------------------------------------------------------------------------
+// Compute f times tangential velocity reconstruction for edge-centered 2D fields
+void Tendencies::computeCoriolisAccelerationOnEdge(
+    const Array2DReal &Accel,         ///< [out] Coriolis acceleration
+    const Array2DReal &NormalVelEdge, ///< [in] normal velocity on edges
+    const Array1DReal &FEdge          ///< [in] Coriolis parameter on edges
+) const {
+
+   OMEGA_SCOPE(LocCoriolisAcceleration, CoriolisAcceleration);
+   OMEGA_SCOPE(MinLayerEdgeBot, VCoord->MinLayerEdgeBot);
+   OMEGA_SCOPE(MaxLayerEdgeTop, VCoord->MaxLayerEdgeTop);
+
+   Pacer::start("Tend:coriolisAccelerationOnEdge2D", 2);
+   parallelForOuter(
+       {Mesh->NEdgesAll}, KOKKOS_LAMBDA(int IEdge, const TeamMember &Team) {
+          const int KMin   = MinLayerEdgeBot(IEdge);
+          const int KMax   = MaxLayerEdgeTop(IEdge);
+          const int KRange = vertRangeChunked(KMin, KMax);
+          parallelForInner(
+              Team, KRange, INNER_LAMBDA(int KChunk) {
+                 LocCoriolisAcceleration(Accel, IEdge, KChunk, NormalVelEdge,
+                                         FEdge);
+              });
+       });
+   Pacer::stop("Tend:coriolisAccelerationOnEdge2D", 2);
+}
+
+//------------------------------------------------------------------------------
+// Compute f times tangential velocity reconstruction for edge-centered 1D fields
+void Tendencies::computeCoriolisAccelerationOnEdge(
+    const Array1DReal &Accel,         ///< [out] Coriolis acceleration
+    const Array1DReal &NormalVelEdge, ///< [in] normal velocity on edges
+    const Array1DReal &FEdge          ///< [in] Coriolis parameter on edges
+) const {
+
+   OMEGA_SCOPE(LocCoriolisAcceleration, CoriolisAcceleration);
+
+   Pacer::start("Tend:coriolisAccelerationOnEdge1D", 2);
+   parallelFor(
+       {Mesh->NEdgesAll}, KOKKOS_LAMBDA(int IEdge) {
+          LocCoriolisAcceleration(Accel, IEdge, NormalVelEdge, FEdge);
+       });
+   Pacer::stop("Tend:coriolisAccelerationOnEdge1D", 2);
+}
 
 //------------------------------------------------------------------------------
 // Compute tendencies for layer thickness equation
