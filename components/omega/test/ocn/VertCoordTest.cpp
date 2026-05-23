@@ -145,10 +145,21 @@ int main(int argc, char *argv[]) {
       DefVertCoord->computePressure(LayerThickness, SurfacePressure);
       auto PressInterfH = createHostMirrorCopy(DefVertCoord->PressureInterface);
       auto PressMidH    = createHostMirrorCopy(DefVertCoord->PressureMid);
+      auto TotalPseudoThicknessH =
+          createHostMirrorCopy(DefVertCoord->TotalPseudoThickness);
 
       /// Check results
       Err = 0;
       for (int ICell = 0; ICell < NCellsAll; ICell++) {
+         Real ExpectedTotal =
+             (DefVertCoord->MaxLayerCellH(ICell) -
+              DefVertCoord->MinLayerCellH(ICell) + 1) /
+             (Gravity * Rho0);
+         Real TotalDiff =
+             std::abs(TotalPseudoThicknessH(ICell) - ExpectedTotal);
+         if (TotalDiff > 1e-10) {
+            Err += 1;
+         }
          for (int K = DefVertCoord->MinLayerCellH(ICell);
               K < DefVertCoord->MaxLayerCellH(ICell) + 1; K++) {
             // Interface pressure at layer K should be K+1
@@ -220,6 +231,8 @@ int main(int argc, char *argv[]) {
       // Tests for computeZHeight
 
       Array2DReal SpecVol("SpecVol", NCellsSize, NVertLayers);
+      Array1DReal DepthIntegSpecificVolume("DepthIntegSpecificVolume",
+                                           NCellsSize);
       Array1DReal BottomDepth("BottomDepth", NCellsSize);
       Array1DReal MaxLyrCellReal("MaxLyrCellReal", NCellsSize);
       deepCopy(MaxLyrCellReal, DefVertCoord->MaxLayerCell);
@@ -239,13 +252,31 @@ int main(int argc, char *argv[]) {
       Kokkos::fence();
 
       /// Call functions and get host copy of output
+      OMEGA_SCOPE(MinLayerCell, DefVertCoord->MinLayerCell);
+      OMEGA_SCOPE(MaxLayerCell, DefVertCoord->MaxLayerCell);
+      parallelFor(
+          {NCellsAll}, KOKKOS_LAMBDA(int ICell) {
+             DepthIntegSpecificVolume(ICell) =
+                 (MaxLayerCell(ICell) - MinLayerCell(ICell) + 1) / Rho0;
+          });
+      DefVertCoord->computeTotalGeometricThickness(DepthIntegSpecificVolume);
       DefVertCoord->computeZHeight(LayerThickness, SpecVol);
       auto ZInterfH = createHostMirrorCopy(DefVertCoord->ZInterface);
       auto ZMidH    = createHostMirrorCopy(DefVertCoord->ZMid);
+      auto TotalGeometricThicknessH =
+          createHostMirrorCopy(DefVertCoord->TotalGeometricThickness);
 
       /// Check results
       Err = 0;
       for (int ICell = 0; ICell < NCellsAll; ICell++) {
+         Real ExpectedTotal =
+             DefVertCoord->MaxLayerCellH(ICell) -
+             DefVertCoord->MinLayerCellH(ICell) + 1;
+         Real TotalDiff =
+             std::abs(TotalGeometricThicknessH(ICell) - ExpectedTotal);
+         if (TotalDiff > 1e-10) {
+            Err += 1;
+         }
          for (int K = DefVertCoord->MinLayerCellH(ICell);
               K < DefVertCoord->MaxLayerCellH(ICell) + 1; K++) {
             /// Z value at interface K should be -K
