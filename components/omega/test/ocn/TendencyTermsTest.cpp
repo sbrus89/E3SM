@@ -545,7 +545,7 @@ int testCoriolisAccelerationOnEdge(int NVertLayers, Real RTol) {
 
                  for (int KVec = 0; KVec < KLen; ++KVec) {
                     const int K = KStart + KVec;
-                    ExactCoriolis2D(IEdge, K) = CoriolisTmp[KVec];
+                    ExactCoriolis2D(IEdge, K) -= CoriolisTmp[KVec];
                  }
               });
        });
@@ -561,7 +561,7 @@ int testCoriolisAccelerationOnEdge(int NVertLayers, Real RTol) {
              CoriolisTmp += WeightsOnEdge(IEdge, J) *
                             NormalBarotropicVelEdge(JEdge) * FEdge(JEdge);
           }
-          ExactCoriolis1D(IEdge) = CoriolisTmp;
+          ExactCoriolis1D(IEdge) -= CoriolisTmp;
        });
 
    ErrorMeasures Coriolis2DErrors;
