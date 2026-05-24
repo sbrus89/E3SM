@@ -728,10 +728,10 @@ void Tendencies::computeBaroclinicVelocityTendenciesOnly(
     const AuxiliaryState *AuxState, ///< [in] Auxilary state variables
     int ThickTimeLevel,             ///< [in] Time level
     int VelTimeLevel,               ///< [in] Time level
-    int /*BarotropicVelocityTimeLevel*/, ///< [in] Barotropic velocity time level
-    int BarotropicPressureTimeLevel ///< [in] Barotropic pressure time level
+    int BarotropicVelocityTimeLevel, ///< [in] Barotropic velocity time level
+    int BarotropicPressureTimeLevel, ///< [in] Barotropic pressure time level
+    Real SplitFactor                ///< [in] Split-explicit forcing factor
 ) {
-
    OMEGA_SCOPE(LocNormalVelocityTend, NormalVelocityTend);
    OMEGA_SCOPE(LocPotentialVortHAdv, PotentialVortHAdv);
    OMEGA_SCOPE(LocKEGrad, KEGrad);
@@ -867,7 +867,8 @@ void Tendencies::computeBaroclinicVelocityTendenciesOnly(
              parallelForInner(
                  Team, KRange, INNER_LAMBDA(int KChunk) {
                     LocSSHGrad(LocNormalVelocityTend, IEdge, KChunk,
-                               BtrPressAnomaly, DepthMeanSpecVol);
+                               BtrPressAnomaly, DepthMeanSpecVol,
+                               SplitFactor);
                  });
           });
       Pacer::stop("Tend:BclBtrPressureGrad", 2);
@@ -885,6 +886,7 @@ void Tendencies::computeBaroclinicVelocityTendencies(
     int VelTimeLevel,               ///< [in] Time level
     int BarotropicVelocityTimeLevel, ///< [in] Barotropic velocity time level
     int BarotropicPressureTimeLevel, ///< [in] Barotropic pressure time level
+    Real SplitFactor,               ///< [in] Split-explicit forcing factor
     TimeInterval ProjDt ///< [in] Time interval for projection over the current
                         ///< time stepper stage
 ) {
@@ -896,7 +898,8 @@ void Tendencies::computeBaroclinicVelocityTendencies(
    computeBaroclinicVelocityTendenciesOnly(State, AuxState, ThickTimeLevel,
                                            VelTimeLevel,
                                            BarotropicVelocityTimeLevel,
-                                           BarotropicPressureTimeLevel);
+                                           BarotropicPressureTimeLevel,
+                                           SplitFactor);
 
    Pacer::stop("Tend:computeBaroclinicVelocityTendencies", 1);
 }
