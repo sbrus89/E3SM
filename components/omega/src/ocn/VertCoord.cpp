@@ -144,14 +144,12 @@ VertCoord::VertCoord(const std::string &Name_, //< [in] Name for new VertCoord
    BottomDepth  = Array1DReal("BottomDepth", NCellsSize);
    PressureInterface =
        Array2DReal("PressureInterface", NCellsSize, NVertLayersP1);
-   PressureMid = Array2DReal("PressureMid", NCellsSize, NVertLayers);
-   ZInterface  = Array2DReal("ZInterface", NCellsSize, NVertLayersP1);
-   ZMid        = Array2DReal("ZMid", NCellsSize, NVertLayers);
-   SshCell     = Array1DReal("SshCell", NCellsSize);
-   TotalPseudoThickness =
-       Array1DReal("TotalPseudoThickness", NCellsSize);
-   TotalGeometricThickness =
-       Array1DReal("TotalGeometricThickness", NCellsSize);
+   PressureMid          = Array2DReal("PressureMid", NCellsSize, NVertLayers);
+   ZInterface           = Array2DReal("ZInterface", NCellsSize, NVertLayersP1);
+   ZMid                 = Array2DReal("ZMid", NCellsSize, NVertLayers);
+   SshCell              = Array1DReal("SshCell", NCellsSize);
+   TotalPseudoThickness = Array1DReal("TotalPseudoThickness", NCellsSize);
+   TotalGeometricThickness = Array1DReal("TotalGeometricThickness", NCellsSize);
    deepCopy(SshCell, 0._Real);
    deepCopy(TotalPseudoThickness, 0._Real);
    deepCopy(TotalGeometricThickness, 0._Real);
@@ -169,14 +167,13 @@ VertCoord::VertCoord(const std::string &Name_, //< [in] Name for new VertCoord
    deepCopy(SurfacePressure, 0);
 
    // Make host copies for device arrays not being read from file
-   PressureInterfaceH = createHostMirrorCopy(PressureInterface);
-   PressureMidH       = createHostMirrorCopy(PressureMid);
-   ZInterfaceH        = createHostMirrorCopy(ZInterface);
-   ZMidH              = createHostMirrorCopy(ZMid);
-   SshCellH           = createHostMirrorCopy(SshCell);
-   TotalPseudoThicknessH = createHostMirrorCopy(TotalPseudoThickness);
-   TotalGeometricThicknessH =
-       createHostMirrorCopy(TotalGeometricThickness);
+   PressureInterfaceH       = createHostMirrorCopy(PressureInterface);
+   PressureMidH             = createHostMirrorCopy(PressureMid);
+   ZInterfaceH              = createHostMirrorCopy(ZInterface);
+   ZMidH                    = createHostMirrorCopy(ZMid);
+   SshCellH                 = createHostMirrorCopy(SshCell);
+   TotalPseudoThicknessH    = createHostMirrorCopy(TotalPseudoThickness);
+   TotalGeometricThicknessH = createHostMirrorCopy(TotalGeometricThickness);
 
    GeopotentialMidH      = createHostMirrorCopy(GeopotentialMid);
    LayerThicknessTargetH = createHostMirrorCopy(LayerThicknessTarget);
@@ -229,16 +226,16 @@ VertCoord *VertCoord::create(
 void VertCoord::defineFields() {
 
    // Set field names (append Name if not default)
-   MinLayerCellFldName   = "MinLayerCell";
-   MaxLayerCellFldName   = "MaxLayerCell";
-   BottomDepthFldName    = "BottomDepth";
-   RefPseudoThickFldName = "RefPseudoThickness";
-   VCoordMvmtWgtsFldName = "VertCoordMovementWeights";
-   PressInterfFldName    = "PressureInterface";
-   PressMidFldName       = "PressureMid";
-   ZInterfFldName        = "ZInterface";
-   ZMidFldName           = "ZMid";
-   SshFldName            = "SshCell";
+   MinLayerCellFldName     = "MinLayerCell";
+   MaxLayerCellFldName     = "MaxLayerCell";
+   BottomDepthFldName      = "BottomDepth";
+   RefPseudoThickFldName   = "RefPseudoThickness";
+   VCoordMvmtWgtsFldName   = "VertCoordMovementWeights";
+   PressInterfFldName      = "PressureInterface";
+   PressMidFldName         = "PressureMid";
+   ZInterfFldName          = "ZInterface";
+   ZMidFldName             = "ZMid";
+   SshFldName              = "SshCell";
    TotalPseudoThickFldName = "TotalPseudoThickness";
    TotalGeomThickFldName   = "TotalGeometricThickness";
 
@@ -318,20 +315,20 @@ void VertCoord::defineFields() {
        DimNames                             // dimension names
    );
 
-   auto TotalPseudoThicknessField = Field::create(
-       TotalPseudoThickFldName, // field name
-       "Total pseudo thickness in each cell column", // long name
-       "m",                                           // units
-       "",                                            // CF standard Name
-       0.0,                                           // min valid value
-       std::numeric_limits<Real>::max(),              // max valid value
-       FillValueReal, // scalar for undefined entries
-       NDims,         // number of dimensions
-       DimNames       // dimension names
-   );
+   auto TotalPseudoThicknessField =
+       Field::create(TotalPseudoThickFldName,                      // field name
+                     "Total pseudo thickness in each cell column", // long name
+                     "m",                                          // units
+                     "",                               // CF standard Name
+                     0.0,                              // min valid value
+                     std::numeric_limits<Real>::max(), // max valid value
+                     FillValueReal, // scalar for undefined entries
+                     NDims,         // number of dimensions
+                     DimNames       // dimension names
+       );
 
    auto TotalGeometricThicknessField = Field::create(
-       TotalGeomThickFldName, // field name
+       TotalGeomThickFldName,                           // field name
        "Total geometric thickness in each cell column", // long name
        "m",                                             // units
        "",                                              // CF standard Name
@@ -1024,9 +1021,10 @@ void VertCoord::computeTotalPseudoThickness(
               },
               ColumnThickness);
 
-          Kokkos::single(PerTeam(Team), INNER_LAMBDA() {
-             LocTotalPseudoThickness(ICell) = ColumnThickness;
-          });
+          Kokkos::single(
+              PerTeam(Team), INNER_LAMBDA() {
+                 LocTotalPseudoThickness(ICell) = ColumnThickness;
+              });
        });
 } // end computeTotalPseudoThickness
 
@@ -1084,8 +1082,7 @@ void VertCoord::computeTotalGeometricThickness(
    OMEGA_SCOPE(LocTotalGeometricThickness, TotalGeometricThickness);
 
    parallelFor(
-       "computeTotalGeometricThickness", {NCellsAll},
-       KOKKOS_LAMBDA(int ICell) {
+       "computeTotalGeometricThickness", {NCellsAll}, KOKKOS_LAMBDA(int ICell) {
           LocTotalGeometricThickness(ICell) =
               RhoSw * DepthIntegSpecificVolume(ICell);
        });

@@ -183,8 +183,8 @@ class VertCoord {
    std::string ZInterfFldName;     ///< Field name for interface Z height
    std::string ZMidFldName;        ///< Field name for midpoint Z height
    std::string GeopotFldName;      ///< Field name for geopotential
-   std::string LyrThickTargetFldName; ///< Field name for target thickness
-   std::string SshFldName;            ///< Field name for sea surface height
+   std::string LyrThickTargetFldName;   ///< Field name for target thickness
+   std::string SshFldName;              ///< Field name for sea surface height
    std::string TotalPseudoThickFldName; ///< Field name for total pseudo
                                         ///< thickness
    std::string TotalGeomThickFldName;   ///< Field name for total geometric

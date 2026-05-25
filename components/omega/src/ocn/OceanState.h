@@ -107,10 +107,10 @@ class OceanState {
    // These are appended with the State name for non-Default state instances
    std::string LayerThicknessFldName; ///< Field name for LayerThickness
    std::string NormalVelocityFldName; ///< Field name for NormalVelocity
-   std::string NormalBaroclinicVelocityFldName; ///< Field name for
-                                                ///< NormalBaroclinicVelocity
-   std::string NormalBarotropicVelocityFldName; ///< Field name for
-                                                ///< NormalBarotropicVelocity
+   std::string NormalBaroclinicVelocityFldName;  ///< Field name for
+                                                 ///< NormalBaroclinicVelocity
+   std::string NormalBarotropicVelocityFldName;  ///< Field name for
+                                                 ///< NormalBarotropicVelocity
    std::string BarotropicPressureAnomalyFldName; ///< Field name for
                                                  ///< BarotropicPressureAnomaly
    std::string StateGroupName;
