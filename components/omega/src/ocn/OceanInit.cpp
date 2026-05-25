@@ -137,7 +137,8 @@ int ocnInit(MPI_Comm Comm ///< [in] ocean MPI communicator
    }
 
    // If reading from restart, reset the current time to the input time
-   if (SimTimeStr != " ") {
+   const bool ReadRestart = SimTimeStr != " ";
+   if (ReadRestart) {
       TimeInstant NewCurrentTime(SimTimeStr);
       ModelClock->setCurrentTime(NewCurrentTime);
    }
@@ -146,7 +147,7 @@ int ocnInit(MPI_Comm Comm ///< [in] ocean MPI communicator
    // fields
 
    OceanState *DefState = OceanState::getDefault();
-   DefStepper->initializeStateFromInput(DefState, !Err2.isFail());
+   DefStepper->initializeStateFromInput(DefState, ReadRestart);
 
    I4 CurTimeLevel      = 0;
    DefState->exchangeHalo(CurTimeLevel);
