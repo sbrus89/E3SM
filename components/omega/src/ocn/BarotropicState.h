@@ -96,7 +96,6 @@ class BarotropicState {
    create(const std::string &Name, ///< [in] Name for mesh
           HorzMesh *Mesh,          ///< [in] Horizontal mesh
           Halo *MeshHalo,          ///< [in] Halo for Mesh
-          const int NVertLayers,   ///< [in] Number of vertical layers
           const int NTimeLevels    ///< [in] Number of time levels
    );
 

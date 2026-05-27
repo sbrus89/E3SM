@@ -42,9 +42,8 @@ int BarotropicState::init() {
       LOG_ERROR("TimeStepper needs to be initialized before BarotropicState");
    }
    int NTimeLevels = DefTimeStepper->getNTimeLevels();
-   LOG_INFO("BarotropicState: Initializing default state with {} vertical layers "
-            "and {} time levels",
-            NVertLayers, NTimeLevels);
+   LOG_INFO("BarotropicState: Initializing default state with {} time levels",
+             NTimeLevels);
 
    if (NTimeLevels < 2) {
       LOG_ERROR("BarotropicState: the number of time level is lower than 2");
@@ -127,7 +126,7 @@ BarotropicState::create(const std::string &Name, //< [in] Name for new state
    // create a new state on the heap and put it in a map of
    // unique_ptrs, which will manage its lifetime
    auto *NewBarotropicState =
-       new BarotropicState(Name, Mesh, MeshHalo, NVertLayers, NTimeLevels);
+       new BarotropicState(Name, Mesh, MeshHalo, NTimeLevels);
    AllBarotropicStates.emplace(Name, NewBarotropicState);
 
    return NewBarotropicState;
