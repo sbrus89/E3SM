@@ -62,10 +62,6 @@ void initBarotropicStateTest() {
 
    HorzMesh::init();
    VertCoord::init();
-
-   Err = BarotropicState::init();
-   if (Err != 0)
-      ABORT_ERROR("BarotropicState: error initializing default barotropic state");
 }
 
 //------------------------------------------------------------------------------
@@ -102,7 +98,7 @@ int checkDevice(BarotropicState *RefState, BarotropicState *TstState,
 }
 
 //------------------------------------------------------------------------------
-// Test driver for BarotropicState: tests zero initialization, state creation,
+// Test driver for BarotropicState: tests construction, zero initialization,
 // and time level updates.
 
 int main(int argc, char *argv[]) {
@@ -118,59 +114,60 @@ int main(int argc, char *argv[]) {
 
       HorzMesh *DefHorzMesh = HorzMesh::getDefault();
       Halo *DefHalo         = Halo::getDefault();
+      int CurTime           = 0;
+      int NewTime           = 1;
 
-      // Test retrieval of the default state
-      BarotropicState *DefState = BarotropicState::getDefault();
-      int NCellsAll             = DefState->NCellsAll;
-      int NEdgesAll             = DefState->NEdgesAll;
-      int CurTime               = 0;
-      int NewTime               = 1;
+      // Test construction and zero initialization
+      {
+         BarotropicState State("TestState", DefHorzMesh, DefHalo, 2);
+         int NCellsAll = State.NCellsAll;
+         int NEdgesAll = State.NEdgesAll;
 
-      if (DefState) {
-         LOG_INFO("BarotropicState: Default state retrieval PASS");
-      } else {
-         RetVal += 1;
-         LOG_INFO("BarotropicState: Default state retrieval FAIL");
-      }
+         if (State.NTimeLevels == 2 and NCellsAll > 0 and NEdgesAll > 0) {
+            LOG_INFO("BarotropicState: Construction PASS");
+         } else {
+            RetVal += 1;
+            LOG_INFO("BarotropicState: Construction FAIL");
+         }
 
-      // Check that default state arrays are zero-initialized on device
-      Array1DReal VelDef   = DefState->getNormalBarotropicVelocity(CurTime);
-      Array1DReal PressDef = DefState->getBarotropicPressureAnomaly(CurTime);
+         Array1DReal VelDef   = State.getNormalBarotropicVelocity(CurTime);
+         Array1DReal PressDef = State.getBarotropicPressureAnomaly(CurTime);
 
-      int Count1 = 0;
-      parallelReduce(
-          "checkVelZero", {NEdgesAll},
-          KOKKOS_LAMBDA(int Edge, int &Accum) {
-             if (VelDef(Edge) != 0.0)
-                Accum++;
-          },
-          Count1);
+         int Count1 = 0;
+         parallelReduce(
+             "checkVelZero", {NEdgesAll},
+             KOKKOS_LAMBDA(int Edge, int &Accum) {
+                if (VelDef(Edge) != 0.0)
+                   Accum++;
+             },
+             Count1);
 
-      int Count2 = 0;
-      parallelReduce(
-          "checkPressZero", {NCellsAll},
-          KOKKOS_LAMBDA(int Cell, int &Accum) {
-             if (PressDef(Cell) != 0.0)
-                Accum++;
-          },
-          Count2);
+         int Count2 = 0;
+         parallelReduce(
+             "checkPressZero", {NCellsAll},
+             KOKKOS_LAMBDA(int Cell, int &Accum) {
+                if (PressDef(Cell) != 0.0)
+                   Accum++;
+             },
+             Count2);
 
-      if (Count1 == 0 and Count2 == 0) {
-         LOG_INFO("BarotropicState: Zero initialization PASS");
-      } else {
-         RetVal += 1;
-         LOG_INFO("BarotropicState: Zero initialization FAIL");
+         if (Count1 == 0 and Count2 == 0) {
+            LOG_INFO("BarotropicState: Zero initialization PASS");
+         } else {
+            RetVal += 1;
+            LOG_INFO("BarotropicState: Zero initialization FAIL");
+         }
       }
 
       // Test time swapping with 2 and higher numbers of time levels
       for (int NTimeLevels = 2; NTimeLevels < 5; NTimeLevels++) {
 
-         BarotropicState *RefState = BarotropicState::create(
-             "Reference", DefHorzMesh, DefHalo, NTimeLevels);
-         BarotropicState *TstState = BarotropicState::create(
-             "Test", DefHorzMesh, DefHalo, NTimeLevels);
+         BarotropicState RefState("Reference", DefHorzMesh, DefHalo,
+                                  NTimeLevels);
+         BarotropicState TstState("Test", DefHorzMesh, DefHalo, NTimeLevels);
 
-         if (TstState and RefState) {
+         if (RefState.NTimeLevels == NTimeLevels and
+             TstState.NTimeLevels == NTimeLevels) {
             LOG_INFO("BarotropicState: State creation (NTimeLevels={}) PASS",
                      NTimeLevels);
          } else {
@@ -180,20 +177,20 @@ int main(int argc, char *argv[]) {
          }
 
          // Fill reference and test states at CurTime with value 1.0
-         deepCopy(RefState->getNormalBarotropicVelocity(CurTime), 1.0);
-         deepCopy(TstState->getNormalBarotropicVelocity(CurTime), 1.0);
-         deepCopy(RefState->getBarotropicPressureAnomaly(CurTime), 1.0);
-         deepCopy(TstState->getBarotropicPressureAnomaly(CurTime), 1.0);
+         deepCopy(RefState.getNormalBarotropicVelocity(CurTime), 1.0);
+         deepCopy(TstState.getNormalBarotropicVelocity(CurTime), 1.0);
+         deepCopy(RefState.getBarotropicPressureAnomaly(CurTime), 1.0);
+         deepCopy(TstState.getBarotropicPressureAnomaly(CurTime), 1.0);
 
          // Fill reference and test states at NewTime with value 2.0
-         deepCopy(RefState->getNormalBarotropicVelocity(NewTime), 2.0);
-         deepCopy(TstState->getNormalBarotropicVelocity(NewTime), 2.0);
-         deepCopy(RefState->getBarotropicPressureAnomaly(NewTime), 2.0);
-         deepCopy(TstState->getBarotropicPressureAnomaly(NewTime), 2.0);
+         deepCopy(RefState.getNormalBarotropicVelocity(NewTime), 2.0);
+         deepCopy(TstState.getNormalBarotropicVelocity(NewTime), 2.0);
+         deepCopy(RefState.getBarotropicPressureAnomaly(NewTime), 2.0);
+         deepCopy(TstState.getBarotropicPressureAnomaly(NewTime), 2.0);
 
          // Check initial values match between ref and test states
          for (int N = 0; N <= 1; ++N) {
-            int Count = checkDevice(RefState, TstState, N, N);
+            int Count = checkDevice(&RefState, &TstState, N, N);
             if (Count == 0) {
                LOG_INFO("BarotropicState: State compare "
                         "(TimeLevel {}, NTimeLevels {}) PASS",
@@ -210,7 +207,7 @@ int main(int argc, char *argv[]) {
          // After each update, CurTimeIndex advances by 1 (mod NTimeLevels),
          // so the original CurTime and NewTime data appear at shifted indices.
          for (int N = 1; N < NTimeLevels; ++N) {
-            TstState->updateTimeLevels();
+            TstState.updateTimeLevels();
 
             // The time index represents the n+Ith level: new=1, current=0,
             // previous=-1, etc. After N updates, indices shift by -N and wrap
@@ -223,7 +220,7 @@ int main(int argc, char *argv[]) {
             if (NewTimeUpdate < NMin)
                NewTimeUpdate += NTimeLevels;
 
-            int Count = checkDevice(RefState, TstState, CurTime, CurTimeUpdate);
+            int Count = checkDevice(&RefState, &TstState, CurTime, CurTimeUpdate);
             if (Count == 0) {
                LOG_INFO("BarotropicState: NTimeLevels={} After update {} "
                         "Current level: PASS",
@@ -235,7 +232,7 @@ int main(int argc, char *argv[]) {
                         NTimeLevels, N);
             }
 
-            Count = checkDevice(RefState, TstState, NewTime, NewTimeUpdate);
+            Count = checkDevice(&RefState, &TstState, NewTime, NewTimeUpdate);
             if (Count == 0) {
                LOG_INFO("BarotropicState: NTimeLevels={} After update {} "
                         "New time level: PASS",
@@ -247,13 +244,10 @@ int main(int argc, char *argv[]) {
                         NTimeLevels, N);
             }
          }
-
-         BarotropicState::erase("Reference");
-         BarotropicState::erase("Test");
+         // RefState and TstState destructors called at end of loop body
       }
 
       // Finalize Omega objects
-      BarotropicState::clear();
       TimeStepper::clear();
       HorzMesh::clear();
       VertCoord::clear();

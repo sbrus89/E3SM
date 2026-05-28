@@ -30,20 +30,6 @@ class BarotropicState {
  private:
    Halo *MeshHalo;
 
-   static BarotropicState *DefaultBarotropicState;
-
-   static std::map<std::string, std::unique_ptr<BarotropicState>> AllBarotropicStates;
-
-   /// Construct a new local state for a given decomposition
-   BarotropicState(const std::string &Name, ///< [in] Name for mesh
-                   HorzMesh *Mesh,          ///< [in] Horizontal mesh
-                   Halo *MeshHalo_,         ///< [in] Halo for Mesh
-                   const int NTimeLevels_   ///< [in] Number of time levels
-   );
-
-   // Forbid copy and move construction
-   BarotropicState(const BarotropicState &) = delete;
-   BarotropicState(BarotropicState &&)      = delete;
 
    // Current time index
    // this index is circular so that it returns to index 0
@@ -87,16 +73,11 @@ class BarotropicState {
 
    // Methods
 
-   /// Initialize Omega local state
-   static int init();
-
-   /// Create a new state by calling the constructor and put it in the
-   /// AllBarotropicStates map
-   static BarotropicState *
-   create(const std::string &Name, ///< [in] Name for mesh
-          HorzMesh *Mesh,          ///< [in] Horizontal mesh
-          Halo *MeshHalo,          ///< [in] Halo for Mesh
-          const int NTimeLevels    ///< [in] Number of time levels
+   /// Construct a new local state for a given decomposition
+   BarotropicState(const std::string &Name, ///< [in] Name for mesh
+                   HorzMesh *Mesh,          ///< [in] Horizontal mesh
+                   Halo *MeshHalo_,         ///< [in] Halo for Mesh
+                   const int NTimeLevels_   ///< [in] Number of time levels
    );
 
    /// Get normal barotropic velocity device array at given time level
@@ -113,17 +94,6 @@ class BarotropicState {
 
    /// Destructor - deallocates all memory and deletes an BarotropicState
    ~BarotropicState();
-
-   /// Deallocates arrays
-   static void clear();
-
-   /// Remove state by name
-   static void erase(std::string InName ///< [in] name of state to remove
-   );
-
-   static BarotropicState *getDefault();
-
-   static BarotropicState *get(std::string name);
 
 }; // end class BarotropicState
 
