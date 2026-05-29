@@ -15,10 +15,14 @@
 #include "Halo.h"
 #include "HorzMesh.h"
 #include "MachEnv.h"
+#include "VertCoord.h"
 
 #include <string>
 
+
 namespace OMEGA {
+
+class BarotropicState;
 
 /// A class for the ocean prognostic variable information
 
@@ -67,6 +71,9 @@ class OceanState {
    // Note that all sizes are actual counts (1-based) so that loop extents
    // should always use the 0:NCellsXX-1 form.
 
+   HorzMesh *Mesh;
+   VertCoord *VCoord;
+
    I4 NCellsOwned; ///< Number of cells owned by this task
    I4 NCellsAll;   ///< Total number of local cells (owned + all halo)
    I4 NCellsSize;  ///< Array size (incl padding, bndy cell) for cell arrays
@@ -93,26 +100,12 @@ class OceanState {
    std::vector<HostArray2DReal>
        NormalBaroclinicVelocityH; ///< Host baroclinic velocity array
 
-   std::vector<Array1DReal>
-       NormalBarotropicVelocity; ///< Device barotropic velocity array
-   std::vector<HostArray1DReal>
-       NormalBarotropicVelocityH; ///< Host barotropic velocity array
-
-   std::vector<Array1DReal>
-       BarotropicPressureAnomaly; ///< Device barotropic pressure anomaly array
-   std::vector<HostArray1DReal>
-       BarotropicPressureAnomalyH; ///< Host barotropic pressure anomaly array
-
    // Field names
    // These are appended with the State name for non-Default state instances
    std::string LayerThicknessFldName; ///< Field name for LayerThickness
    std::string NormalVelocityFldName; ///< Field name for NormalVelocity
    std::string NormalBaroclinicVelocityFldName;  ///< Field name for
                                                  ///< NormalBaroclinicVelocity
-   std::string NormalBarotropicVelocityFldName;  ///< Field name for
-                                                 ///< NormalBarotropicVelocity
-   std::string BarotropicPressureAnomalyFldName; ///< Field name for
-                                                 ///< BarotropicPressureAnomaly
    std::string StateGroupName;
 
    // Methods
@@ -148,18 +141,6 @@ class OceanState {
    /// Get normal baroclinic velocity host array at given time level
    HostArray2DReal getNormalBaroclinicVelocityH(const I4 TimeLevel) const;
 
-   /// Get normal barotropic velocity device array at given time level
-   Array1DReal getNormalBarotropicVelocity(const I4 TimeLevel) const;
-
-   /// Get normal barotropic velocity host array at given time level
-   HostArray1DReal getNormalBarotropicVelocityH(const I4 TimeLevel) const;
-
-   /// Get barotropic pressure anomaly device array at given time level
-   Array1DReal getBarotropicPressureAnomaly(const I4 TimeLevel) const;
-
-   /// Get barotropic pressure anomaly host array at given time level
-   HostArray1DReal getBarotropicPressureAnomalyH(const I4 TimeLevel) const;
-
    /// Exchange halo
    void exchangeHalo(const I4 TimeLevel);
 
@@ -185,6 +166,14 @@ class OceanState {
    static OceanState *getDefault();
 
    static OceanState *get(std::string name);
+
+   void computeVelocitySplit(const BarotropicState &BaroState,
+                                         I4 TimeLev) const;
+   void computeUnsplitVelocitySplit(const BarotropicState &BaroState,
+                                                    I4 TimeLevel) const;
+
+   void combineVelocitySplit(const BarotropicState &BaroState,
+                                             I4 TimeLevel) const;
 
 }; // end class OceanState
 

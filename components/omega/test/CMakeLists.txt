@@ -368,6 +368,17 @@ add_omega_test(
     "-n;8"
 )
 
+##########################
+# Barotropic State test
+##########################
+
+add_omega_test(
+    BAROTROPIC_STATE_TEST
+    testBarotropicState.exe
+    ocn/BarotropicStateTest.cpp
+    "-n;8"
+)
+
 ##################
 # Time Manager test
 ##################

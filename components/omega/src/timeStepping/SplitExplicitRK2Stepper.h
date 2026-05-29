@@ -10,6 +10,9 @@
 #include "SplitExplicitBarotropicPCStepper.h"
 #include "SplitExplicitTypes.h"
 #include "TimeStepper.h"
+#include "BarotropicState.h"
+#include "HorzMesh.h"
+#include "Halo.h"
 
 #include <functional>
 
@@ -86,17 +89,14 @@ class SplitExplicitRK2Stepper : public TimeStepper {
 
    void
    initializeNextState(OceanState *State, ///< [inout] model state
+                       const BarotropicState &BaroState,
                        I4 CurLevel,       ///< [in] current time level
                        I4 NextLevel       ///< [in] next time level
    ) const;
 
-   void
-   reconstructNormalVelocity(OceanState *State, ///< [inout] model state
-                             I4 TimeLevel ///< [in] time level to reconstruct
-   ) const;
-
    void reconstructFinalNormalVelocity(
        OceanState *State, ///< [inout] model state
+       const BarotropicState &BaroState, ///< [in] barotropic state
        I4 CurLevel,       ///< [in] current time level
        I4 NextLevel       ///< [in] next time level
    ) const;

@@ -1,4 +1,5 @@
 #ifndef OMEGA_SPLIT_EXPLICIT_BAROTROPIC_PC_STEPPER_H
+
 #define OMEGA_SPLIT_EXPLICIT_BAROTROPIC_PC_STEPPER_H
 //===-- SplitExplicitBarotropicPCStepper.h - SE stage 2 ------*- C++ -*-===//
 //
@@ -7,6 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "BarotropicState.h"
 #include "HorzMesh.h"
 #include "OceanState.h"
 #include "SplitExplicitTypes.h"
@@ -17,6 +19,12 @@ namespace OMEGA {
 
 class SplitExplicitBarotropicPCStepper {
  public:
+   SplitExplicitBarotropicPCStepper(HorzMesh *Mesh,
+                                    Halo *MeshHalo,
+                                    const int NTimeLevels);
+
+   BarotropicState BaroState;
+
    void doSplitStage2(
        OceanState *State,             ///< [inout] model state
        SplitExplicitScratch &Scratch, ///< [inout] split-explicit scratch data

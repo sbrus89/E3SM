@@ -32,6 +32,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "AuxiliaryState.h"
+#include "BarotropicState.h"
 #include "Config.h"
 #include "Eos.h"
 #include "HorzMesh.h"
@@ -107,12 +108,14 @@ class Tendencies {
                                       int ThickTimeLevel, int VelTimeLevel,
                                       int TracerTimeLevel, TimeInstant Time);
    void computeBaroclinicVelocityTendencies(
-       const OceanState *State, const AuxiliaryState *AuxState,
+       const OceanState *State, const BarotropicState &BaroState,
+       const AuxiliaryState *AuxState,
        const Array3DReal &TracerArray, int ThickTimeLevel, int VelTimeLevel,
        int BarotropicVelocityTimeLevel, int BarotropicPressureTimeLevel,
        Real SplitFactor, TimeInterval ProjDt);
    void computeBaroclinicVelocityTendenciesOnly(
-       const OceanState *State, const AuxiliaryState *AuxState,
+       const OceanState *State, const BarotropicState &BaroState,
+       const AuxiliaryState *AuxState,
        int ThickTimeLevel, int VelTimeLevel, int BarotropicVelocityTimeLevel,
        int BarotropicPressureTimeLevel, Real SplitFactor);
    void computeTracerTendenciesOnly(const OceanState *State,

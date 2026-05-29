@@ -119,7 +119,7 @@ int main(int argc, char *argv[]) {
 
       // Test construction and zero initialization
       {
-         BarotropicState State("TestState", DefHorzMesh, DefHalo, 2);
+         BarotropicState State(DefHorzMesh, DefHalo, 2);
          int NCellsAll = State.NCellsAll;
          int NEdgesAll = State.NEdgesAll;
 
@@ -162,9 +162,9 @@ int main(int argc, char *argv[]) {
       // Test time swapping with 2 and higher numbers of time levels
       for (int NTimeLevels = 2; NTimeLevels < 5; NTimeLevels++) {
 
-         BarotropicState RefState("Reference", DefHorzMesh, DefHalo,
+         BarotropicState RefState(DefHorzMesh, DefHalo,
                                   NTimeLevels);
-         BarotropicState TstState("Test", DefHorzMesh, DefHalo, NTimeLevels);
+         BarotropicState TstState(DefHorzMesh, DefHalo, NTimeLevels);
 
          if (RefState.NTimeLevels == NTimeLevels and
              TstState.NTimeLevels == NTimeLevels) {

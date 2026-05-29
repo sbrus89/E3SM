@@ -5,6 +5,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "BarotropicState.h"
 #include "SplitExplicitBarotropicPCStepper.h"
 #include "Logging.h"
 #include "OmegaKokkos.h"
@@ -14,6 +15,11 @@
 namespace OMEGA {
 
 //------------------------------------------------------------------------------
+SplitExplicitBarotropicPCStepper::SplitExplicitBarotropicPCStepper(HorzMesh *Mesh,
+                                                                   Halo *MeshHalo,
+                                                                   const int NTimeLevels
+) : BaroState(Mesh, MeshHalo, NTimeLevels) {}
+
 void SplitExplicitBarotropicPCStepper::doSplitStage2(
     OceanState *State, SplitExplicitScratch &Scratch,
     const SplitExplicitConfig &Config, const HorzMesh *Mesh,
@@ -33,7 +39,7 @@ void SplitExplicitBarotropicPCStepper::doSplitStage2(
    Pacer::start("SE-RK2:stage2BtrPC", 2);
 
    Array1DReal NormalBarotropicVelocity =
-       State->getNormalBarotropicVelocity(TimeLevel);
+       BaroState.getNormalBarotropicVelocity(TimeLevel);
 
    deepCopy(Scratch.NormalBarotropicVelocitySubcycleCur,
             NormalBarotropicVelocity);
@@ -49,7 +55,7 @@ void SplitExplicitBarotropicPCStepper::doSplitStage2(
 
    deepCopy(NormalBarotropicVelocity,
             Scratch.NormalBarotropicVelocitySubcycleCur);
-   SplitExplicitInit::combineVelocitySplit(State, Mesh, VCoord, TimeLevel);
+   State->combineVelocitySplit(BaroState, TimeLevel);
 
    Pacer::stop("SE-RK2:stage2BtrPC", 2);
 }

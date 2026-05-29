@@ -24,7 +24,6 @@ namespace OMEGA {
 // Construct a new local state
 
 BarotropicState::BarotropicState(
-    const std::string &Name_, //< [in] Name for new state
     HorzMesh *Mesh,           //< [in] HorzMesh for state
     Halo *MeshHalo_,          //< [in] Halo for Mesh
     const int NTimeLevels_    //< [in] number of time levels
@@ -42,8 +41,6 @@ BarotropicState::BarotropicState(
    NTimeLevels = NTimeLevels_;
 
    MeshHalo = MeshHalo_;
-
-   Name = Name_;
 
    CurTimeIndex = 0;
 
@@ -128,6 +125,47 @@ I4 BarotropicState::getTimeIndex(const I4 TimeLevel) const {
    return (TimeLevel + CurTimeIndex + NTimeLevels) % NTimeLevels;
 } // end get time index
 
+//------------------------------------------------------------------------------
+void BarotropicState::initializeBarotropicPressure(
+    SplitExplicitScratch &Scratch, OceanState *State, const HorzMesh *Mesh,
+    const VertCoord *VCoord, I4 TimeLevel) const {
+
+   if (!State)
+      LOG_CRITICAL("Invalid State");
+   if (!Mesh)
+      LOG_CRITICAL("Invalid mesh");
+   if (!VCoord)
+      LOG_CRITICAL("Invalid vertical coordinate");
+
+   Array1DReal BtrPressure        = Scratch.BarotropicPressure;
+   Array1DReal BtrPressAnomaly    = getBarotropicPressureAnomaly(TimeLevel);
+   Array1DReal SurfacePressure    = VCoord->SurfacePressure;
+   Array2DReal PressureInterface  = VCoord->PressureInterface;
+   Array1DReal BottomDepth        = VCoord->BottomDepth;
+   Array1DI4 MinLayerCell         = VCoord->MinLayerCell;
+   Array1DI4 MaxLayerCell         = VCoord->MaxLayerCell;
+
+   parallelFor(
+       "initializeBarotropicPressure", {Mesh->NCellsAll},
+       KOKKOS_LAMBDA(int ICell) {
+          const I4 KMin = MinLayerCell(ICell);
+          const I4 KMax = MaxLayerCell(ICell);
+
+          if (KMax < KMin) {
+             BtrPressure(ICell)     = 0._Real;
+             BtrPressAnomaly(ICell) = 0._Real;
+             return;
+          }
+
+          const Real Pressure =
+              PressureInterface(ICell, KMax + 1) - SurfacePressure(ICell);
+          BtrPressure(ICell)     = Pressure;
+          BtrPressAnomaly(ICell) = Pressure - RhoSw * Gravity * BottomDepth(ICell);
+       });
+
+   deepCopy(Scratch.BarotropicPressureAnomalySubcycleCur, BtrPressAnomaly);
+   deepCopy(Scratch.BarotropicPressureAnomalySubcycleNew, BtrPressAnomaly);
+}
 } // end namespace OMEGA
 
 //===----------------------------------------------------------------------===//

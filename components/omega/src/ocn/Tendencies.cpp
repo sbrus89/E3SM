@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Tendencies.h"
+#include "BarotropicState.h"
 #include "CustomTendencyTerms.h"
 #include "Eos.h"
 #include "Error.h"
@@ -726,13 +727,14 @@ void Tendencies::computeVelocityTendenciesOnly(
 //------------------------------------------------------------------------------
 // Compute baroclinic velocity tendencies for the split-explicit forcing term
 void Tendencies::computeBaroclinicVelocityTendenciesOnly(
-    const OceanState *State,         ///< [in] State variables
-    const AuxiliaryState *AuxState,  ///< [in] Auxilary state variables
-    int ThickTimeLevel,              ///< [in] Time level
-    int VelTimeLevel,                ///< [in] Time level
-    int BarotropicVelocityTimeLevel, ///< [in] Barotropic velocity time level
-    int BarotropicPressureTimeLevel, ///< [in] Barotropic pressure time level
-    Real SplitFactor                 ///< [in] Split-explicit forcing factor
+    const OceanState *State,          ///< [in] State variables
+    const BarotropicState &BaroState, ///< [in] Barotropic state variables
+    const AuxiliaryState *AuxState,   ///< [in] Auxilary state variables
+    int ThickTimeLevel,               ///< [in] Time level
+    int VelTimeLevel,                 ///< [in] Time level
+    int BarotropicVelocityTimeLevel,  ///< [in] Barotropic velocity time level
+    int BarotropicPressureTimeLevel,  ///< [in] Barotropic pressure time level
+    Real SplitFactor                  ///< [in] Split-explicit forcing factor
 ) {
    OMEGA_SCOPE(LocNormalVelocityTend, NormalVelocityTend);
    OMEGA_SCOPE(LocPotentialVortHAdv, PotentialVortHAdv);
@@ -858,7 +860,7 @@ void Tendencies::computeBaroclinicVelocityTendenciesOnly(
    // Compute the barotropic pressure anomaly gradient term
    if (LocSSHGrad.Enabled && SplitFactor != 0._Real) {
       const Array1DReal &BtrPressAnomaly =
-          State->getBarotropicPressureAnomaly(BarotropicPressureTimeLevel);
+          BaroState.getBarotropicPressureAnomaly(BarotropicPressureTimeLevel);
       const Array1DReal &DepthMeanSpecVol = EqState->DepthMeanSpecificVolume;
 
       Pacer::start("Tend:BclBtrPressureGrad", 2);
@@ -882,6 +884,7 @@ void Tendencies::computeBaroclinicVelocityTendenciesOnly(
 
 void Tendencies::computeBaroclinicVelocityTendencies(
     const OceanState *State,         ///< [in] State variables
+    const BarotropicState &BaroState, ///< [in] Barotropic state variables
     const AuxiliaryState *AuxState,  ///< [in] Auxilary state variables
     const Array3DReal &TracerArray,  ///< [in] Tracer array
     int ThickTimeLevel,              ///< [in] Time level
@@ -897,7 +900,7 @@ void Tendencies::computeBaroclinicVelocityTendencies(
    AuxState->computeMomAux(State, TracerArray, ThickTimeLevel, VelTimeLevel,
                            ProjDt);
    computeBaroclinicVelocityTendenciesOnly(
-       State, AuxState, ThickTimeLevel, VelTimeLevel,
+       State, BaroState, AuxState, ThickTimeLevel, VelTimeLevel,
        BarotropicVelocityTimeLevel, BarotropicPressureTimeLevel, SplitFactor);
 
    Pacer::stop("Tend:computeBaroclinicVelocityTendencies", 1);

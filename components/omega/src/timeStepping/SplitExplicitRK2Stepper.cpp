@@ -6,7 +6,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "SplitExplicitRK2Stepper.h"
+#include "SplitExplicitBarotropicPCStepper.h"
+#include "BarotropicState.h"
 #include "Logging.h"
+#include "HorzMesh.h"
+#include "Halo.h"
 #include "Pacer.h"
 #include "SplitExplicitInit.h"
 #include "VertAdv.h"
@@ -19,6 +23,7 @@ SplitExplicitRK2Stepper::SplitExplicitRK2Stepper(
     const TimeInstant &InStartTime, std::optional<TimeInstant> InStopTime)
     : TimeStepper(InName, TimeStepperType::SplitExplicitRK2, 2, InTimeStep,
                   InStartTime, InStopTime),
+      BarotropicPCStepper(Mesh, MeshHalo, NTimeLevels),
       SEConfig(SplitExplicitInit::readConfigOptions(InTimeStep)) {}
 
 //------------------------------------------------------------------------------
@@ -48,16 +53,16 @@ void SplitExplicitRK2Stepper::initializeStateFromInput(OceanState *State,
    constexpr I4 NextLevel = 1;
    Array3DReal CurTracerArray = Tracers::getAll(CurLevel);
    AuxState->computeMomVertAux(State, CurTracerArray, CurLevel);
-   SplitExplicitInit::initializeBarotropicPressure(SEScratch, State, Mesh,
+   BarotropicPCStepper.BaroState.initializeBarotropicPressure(SEScratch, State, Mesh,
                                                    VCoord, CurLevel);
 
    if (SEConfig.SplitFactor == 0._Real) {
-      SplitExplicitInit::computeUnsplitVelocitySplit(State, CurLevel);
+      State->computeUnsplitVelocitySplit(BarotropicPCStepper.BaroState, CurLevel);
    } else if (!ReadRestart) {
-      SplitExplicitInit::computeVelocitySplit(State, Mesh, VCoord, CurLevel);
+      State->computeVelocitySplit(BarotropicPCStepper.BaroState, CurLevel);
    }
 
-   initializeNextState(State, CurLevel, NextLevel);
+   initializeNextState(State, BarotropicPCStepper.BaroState, CurLevel, NextLevel);
 }
 
 //------------------------------------------------------------------------------
@@ -92,7 +97,7 @@ void SplitExplicitRK2Stepper::doSplitStage1(
    // Compute baroclinic velocity tendencies and update baroclinic velocity for the
    // first half of the stage time step. 
    Tend->computeBaroclinicVelocityTendencies(
-       State, AuxState, TendencyTracerArray, NextLevel, NextLevel, NextLevel,
+       State, BarotropicPCStepper.BaroState, AuxState, TendencyTracerArray, NextLevel, NextLevel, NextLevel,
        NextLevel, SEConfig.SplitFactor,
        0.5 * StageTimeStep);
 
@@ -122,10 +127,10 @@ void SplitExplicitRK2Stepper::doSplitStage3(
 
    if (FinalIteration) {
       // If the final TimeStepIteration, reconstruct the final normal velocity at (n+1) for output and diagnostics
-      reconstructFinalNormalVelocity(State, CurLevel, NextLevel);
+      reconstructFinalNormalVelocity(State, BarotropicPCStepper.BaroState, CurLevel, NextLevel);
    } else {
       // During the time step iteration, reconstruct normal velocity at (n+1/2) for the next iteration
-      reconstructNormalVelocity(State, NextLevel);
+      State->combineVelocitySplit(BarotropicPCStepper.BaroState, NextLevel);
    }
 
    // Compute thickness auxiliary variables at the new time level
@@ -226,7 +231,7 @@ void SplitExplicitRK2Stepper::updateBaroclinicVelocityByTend(
 
 //------------------------------------------------------------------------------
 void SplitExplicitRK2Stepper::initializeNextState(
-    OceanState *State, I4 CurLevel, I4 NextLevel) const {
+    OceanState *State, const BarotropicState &BaroState, I4 CurLevel, I4 NextLevel) const {
 
    Array2DReal LayerThickCur  = State->getLayerThickness(CurLevel);
    Array2DReal LayerThickNext = State->getLayerThickness(NextLevel);
@@ -234,12 +239,12 @@ void SplitExplicitRK2Stepper::initializeNextState(
    Array2DReal NormalVelNext  = State->getNormalVelocity(NextLevel);
    Array2DReal NormalBclVelCur  = State->getNormalBaroclinicVelocity(CurLevel);
    Array2DReal NormalBclVelNext = State->getNormalBaroclinicVelocity(NextLevel);
-   Array1DReal NormalBtrVelCur  = State->getNormalBarotropicVelocity(CurLevel);
-   Array1DReal NormalBtrVelNext = State->getNormalBarotropicVelocity(NextLevel);
+   Array1DReal NormalBtrVelCur  = BaroState.getNormalBarotropicVelocity(CurLevel);
+   Array1DReal NormalBtrVelNext = BaroState.getNormalBarotropicVelocity(NextLevel);
    Array1DReal BtrPressAnomalyCur =
-       State->getBarotropicPressureAnomaly(CurLevel);
+       BaroState.getBarotropicPressureAnomaly(CurLevel);
    Array1DReal BtrPressAnomalyNext =
-       State->getBarotropicPressureAnomaly(NextLevel);
+       BaroState.getBarotropicPressureAnomaly(NextLevel);
 
    deepCopy(LayerThickNext, LayerThickCur);
    deepCopy(NormalVelNext, NormalVelCur);
@@ -249,15 +254,8 @@ void SplitExplicitRK2Stepper::initializeNextState(
 }
 
 //------------------------------------------------------------------------------
-void SplitExplicitRK2Stepper::reconstructNormalVelocity(OceanState *State,
-                                                        I4 TimeLevel) const {
-
-   SplitExplicitInit::combineVelocitySplit(State, Mesh, VCoord, TimeLevel);
-}
-
-//------------------------------------------------------------------------------
 void SplitExplicitRK2Stepper::reconstructFinalNormalVelocity(
-    OceanState *State, I4 CurLevel, I4 NextLevel) const {
+    OceanState *State, const BarotropicState &BaroState, I4 CurLevel, I4 NextLevel) const {
 
    Array2DReal NormalVelNext = State->getNormalVelocity(NextLevel);
    Array2DReal NormalBclVelCur =
@@ -265,7 +263,7 @@ void SplitExplicitRK2Stepper::reconstructFinalNormalVelocity(
    Array2DReal NormalBclVelNext =
        State->getNormalBaroclinicVelocity(NextLevel);
    Array1DReal NormalBtrVelNext =
-       State->getNormalBarotropicVelocity(NextLevel);
+       BaroState.getNormalBarotropicVelocity(NextLevel);
 
    OMEGA_SCOPE(MinLayerEdgeBot, VCoord->MinLayerEdgeBot);
    OMEGA_SCOPE(MaxLayerEdgeTop, VCoord->MaxLayerEdgeTop);
@@ -327,7 +325,7 @@ void SplitExplicitRK2Stepper::doStep(OceanState *State,
 
    // Initialize NextLevel from CurLevel
    // TODO: This can be optimized in the future.
-   initializeNextState(State, CurLevel, NextLevel);
+   initializeNextState(State, BarotropicPCStepper.BaroState, CurLevel, NextLevel);
    deepCopy(NextTracerArray, CurTracerArray);
 
    const TimeInstant StageTime = SimTime;

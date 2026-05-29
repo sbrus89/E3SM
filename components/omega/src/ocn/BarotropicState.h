@@ -15,6 +15,8 @@
 #include "Halo.h"
 #include "HorzMesh.h"
 #include "MachEnv.h"
+#include "OceanState.h"
+#include "../timeStepping/SplitExplicitTypes.h"
 
 #include <string>
 
@@ -44,8 +46,6 @@ class BarotropicState {
    // Since these are used frequently, we make them public to reduce the
    // number of retrievals required.
 
-   std::string Name;
-
    // Sizes and global IDs
    // Note that all sizes are actual counts (1-based) so that loop extents
    // should always use the 0:NCellsXX-1 form.
@@ -74,8 +74,7 @@ class BarotropicState {
    // Methods
 
    /// Construct a new local state for a given decomposition
-   BarotropicState(const std::string &Name, ///< [in] Name for mesh
-                   HorzMesh *Mesh,          ///< [in] Horizontal mesh
+   BarotropicState(HorzMesh *Mesh,          ///< [in] Horizontal mesh
                    Halo *MeshHalo_,         ///< [in] Halo for Mesh
                    const int NTimeLevels_   ///< [in] Number of time levels
    );
@@ -91,6 +90,10 @@ class BarotropicState {
 
    /// Swap time levels to update state arrays
    void updateTimeLevels();
+
+   void initializeBarotropicPressure(
+       SplitExplicitScratch &Scratch, OceanState *State, const HorzMesh *Mesh,
+       const VertCoord *VCoord, I4 TimeLevel) const;
 
    /// Destructor - deallocates all memory and deletes an BarotropicState
    ~BarotropicState();
