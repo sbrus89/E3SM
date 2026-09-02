@@ -750,6 +750,9 @@ contains
   subroutine cime_pre_init1(esmf_log_option)
     use shr_pio_mod, only : shr_pio_init1, shr_pio_init2
     use seq_comm_mct, only: num_inst_driver
+#if defined(MPINIT_WORKAROUND) && (MPINIT_WORKAROUND == 1)
+    use iso_c_binding, only: c_int
+#endif
 #ifndef NO_MPIMOD
     use mpi
 #endif
@@ -775,8 +778,29 @@ contains
 
     integer :: tmode ! Thread mode provided by the MPI library
 
+#if defined(MPINIT_WORKAROUND) && (MPINIT_WORKAROUND == 1)
+    ! Initializing the HIP runtime before mpi_init works around a ROCm 6.2.4
+    ! issue (see #7075). The workaround is a property of the build, not of any
+    ! one component, so bind straight to the HIP runtime rather than routing
+    ! through the atm component: in a C compset the GPU belongs to the ocean
+    ! and the atm is a data model with no HIP entry point. MPINIT_WORKAROUND is
+    ! only defined by craygnu-mphipcc, which always links libamdhip64.
+    integer(c_int) :: hip_err
+
+    interface
+       function hipInit(flags) bind(C, name="hipInit") result(hip_err)
+         use iso_c_binding, only: c_int
+         integer(c_int), value :: flags
+         integer(c_int)        :: hip_err
+       end function hipInit
+    end interface
+#endif
+
     beg_count = shr_sys_irtc(irtc_rate)
 
+#if defined(MPINIT_WORKAROUND) && (MPINIT_WORKAROUND == 1)
+    hip_err = hipInit(0_c_int)
+#endif
 #if defined(MPI_INIT_THREADED)
     call mpi_init_thread(MPI_THREAD_MULTIPLE, tmode, ierr)
 #else
