@@ -147,6 +147,9 @@ module mpaso_cpl_indices
   integer :: index_x2o_Fwow_Twoy     !Wave to Ocean momentum flux
   integer :: index_x2o_Faow_Tocx     !Wave Net Ocean momentum flux
   integer :: index_x2o_Faow_Tocy     !Wave Net Ocean momentum flux
+  integer :: index_x2o_Sw_Sxx        !Radiation stress Sxx (N/m)
+  integer :: index_x2o_Sw_Syy        !Radiation stress Syy (N/m)
+  integer :: index_x2o_Sw_Sxy        !Radiation stress Sxy (N/m)
 
   ! drv -> glc and internal drv fields
 
@@ -379,6 +382,9 @@ contains
        index_x2o_Fwow_Twoy = mct_avect_indexra(x2o,'Fwow_Twoy')
        index_x2o_Faow_Tocx = mct_avect_indexra(x2o,'Faow_Tocx')
        index_x2o_Faow_Tocy = mct_avect_indexra(x2o,'Faow_Tocy')
+       index_x2o_Sw_Sxx = mct_avect_indexra(x2o,'Sw_Sxx')
+       index_x2o_Sw_Syy = mct_avect_indexra(x2o,'Sw_Syy')
+       index_x2o_Sw_Sxy = mct_avect_indexra(x2o,'Sw_Sxy')
     endif
     call mct_aVect_clean(x2o)
     call mct_aVect_clean(o2x)
