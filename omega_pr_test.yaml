@@ -1,0 +1,40 @@
+schema_version: 1
+requester: sbrus89
+pull_request: 597
+pr_head: a82aa31f52beda68d8509b3e34cd1ee78fd207d4
+base_branch: develop
+base_head: ca1387035eed4c427736053d4252e5f2f8cac285
+test_commit: c0fa3546343469932b9998b9e401d085652d7c72
+baseline:
+  commit: ca1387035eed4c427736053d4252e5f2f8cac285
+  source: ca1387035eed4c427736053d4252e5f2f8cac285
+  reason: polaris submodule update not yet merged
+  polaris_commit: b63579dee0c85a1d33551745979ac29c1429a9be
+polaris_commit: b63579dee0c85a1d33551745979ac29c1429a9be
+extra_merges: []
+rows:
+- machine: aurora
+  compiler: oneapi-ifx
+  mpi: mpich
+  template: aurora, oneapi-ifx, mpich
+- machine: chrysalis
+  compiler: intel
+  mpi: openmpi
+  template: chrysalis, oneapi-ifx, openmpi
+- machine: frontier
+  compiler: craygnu
+  mpi: mpich
+  template: frontier, craygnu, mpich
+- machine: frontier
+  compiler: craygnu-mphipcc
+  mpi: mpich
+  template: frontier, craygnu-mphipcc, mpich
+- machine: pm-cpu
+  compiler: gnu
+  mpi: mpich
+  template: pm-cpu, gnu, mpich
+- machine: pm-gpu
+  compiler: gnugpu
+  mpi: mpich
+  template: pm-gpu, gnugpu, mpich
+notes:
