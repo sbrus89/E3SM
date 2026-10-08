@@ -253,10 +253,12 @@ class SecondDerivativeOnCell {
          const Real xx    = x * x;
          const Real xy    = x * y;
          const Real yy    = y * y;
+         // Real(2) rather than 2._Real: nvcc with Kokkos 5 fails to find
+         // the _Real literal operator here
          for (int J = 0; J <= NEdges; ++J)
-            DerivTwo(J, Ind, IEdge) = 2._Real * xx * B(3, J) +
-                                      2._Real * xy * B(4, J) +
-                                      2._Real * yy * B(5, J);
+            DerivTwo(J, Ind, IEdge) = Real(2) * xx * B(3, J) +
+                                      Real(2) * xy * B(4, J) +
+                                      Real(2) * yy * B(5, J);
       }
    }
 
