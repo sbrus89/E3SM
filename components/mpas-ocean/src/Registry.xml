@@ -2100,6 +2100,7 @@
 			<var name="fVertex"/>
 			<var name="fCell"/>
 			<var name="bottomDepth"/>
+			<var name="cullCellMask"/>
 			<var name="minLevelCell"/>
 			<var name="maxLevelCell"/>
 			<var name="refBottomDepth" packages="forwardMode;analysisMode"/>
@@ -2845,6 +2846,10 @@
 		/>
 		<var name="bottomDepth" type="real" dimensions="nCells" units="m"
 			 description="Depth of the bottom of the ocean. Given as a positive distance from sea level."
+		/>
+		<var name="cullCellMask" type="integer" dimensions="nCells" units="unitless"
+			 default_value="1"
+			 description="Mask marking cells present in the reference culled ocean/floodplain mesh (1) versus cells added only to extend fields (e.g. for global SAL) to land coverage (0). Land-cell edge masking uses this instead of a bottomDepth threshold because floodplain cells retained by culling can sit well above sea level."
 		/>
 		<var name="bottomDepthObserved" type="real" dimensions="nCells" units="m"
 			 description="Depth of the bottom of the ocean, before any alterations for modeling purposes. Given as a positive distance from sea level."

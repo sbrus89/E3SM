@@ -478,8 +478,13 @@ contains
             iEdge = edgesOnCell(i, iCell)
             do k = minLevelCell(iCell), maxLevelCell(iCell)
               if (k <= maxLevelEdgeTop(iEdge) .and. k >= minLevelEdgeBot(iEdge) .and. &
+                 edgeMask(k, iEdge) > 0.0_RKIND .and. &
                  layerThicknessCell(k, iCell) <= hCrit ) then
                 ! If edge velocity has been zeroed, check neighbor and currnt cell ssh.
+                ! Skip edges masked out by cullCellMask (e.g. edges bordering an
+                ! added land cell): the land cell's ssh is computed from its
+                ! retained-but-fictitious bottomDepth and is not a valid wet/dry
+                ! neighbor for this comparison.
                 ! Allow flow into current cell if neighbor cell is wet and the ssh gradient
                 ! would cause flow from neighbor cell into current cell.
                 if ( normalVelocity(k,iEdge)*edgeSignOnCell(i, iCell) < 0.0_RKIND ) then
@@ -519,6 +524,7 @@ contains
             iEdge = edgesOnCell(i, iCell)
             do k = minLevelCell(iCell), maxLevelCell(iCell)
               if (k <= maxLevelEdgeTop(iEdge) .and. k >= minLevelEdgeBot(iEdge) .and. &
+                  edgeMask(k, iEdge) > 0.0_RKIND .and. &
                   config_zero_drying_velocity_ramp .and. &
                   (layerThicknessCell(k, iCell) > hCrit) .and. &
                   (layerThicknessCell(k, iCell) <= hRampMax) ) then

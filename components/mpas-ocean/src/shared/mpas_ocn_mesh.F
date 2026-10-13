@@ -84,7 +84,9 @@ module ocn_mesh
       maxLevelVertexBot, &! max ocean level at bottom of each vertex
       indexToCellID, &! global ID of each local cell
       indexToEdgeID, &! global ID of each local edge
-      indexToVertexID    ! global ID of each local vertex
+      indexToVertexID, &! global ID of each local vertex
+      cullCellMask ! 1 if cell is in the reference culled ocean/floodplain
+                   ! mesh, 0 if added only to extend fields to land coverage
 
    integer, public, dimension(:, :), pointer :: &
       edgesOnEdge, &! index of edges connected to each edge
@@ -440,6 +442,8 @@ contains
                                weightsOnEdge)
       call mpas_pool_get_array(meshPool, 'bottomDepth', &
                                bottomDepth)
+      call mpas_pool_get_array(meshPool, 'cullCellMask', &
+                               cullCellMask)
       call mpas_pool_get_array(meshPool, 'refBottomDepth', &
                                refBottomDepth)
       call mpas_pool_get_array(meshPool, 'refBottomDepthTopOfCell', &
@@ -1360,10 +1364,10 @@ contains
       end do
 
       do iCell = 1, nCellsAll
-         if (bottomDepth(iCell) < -70.0_RKIND) then
+         if (cullCellMask(iCell) == 0) then
             do i = 1, nEdgesOnCell(iCell)
                iEdge = edgesOnCell(i, iCell)
-               do k = minLevelEdgeBot(iEdge), maxLevelEdgeTop(iEdge)
+               do k = 1, nVertLevels
                   edgeMask(k, iEdge) = 0.0_RKIND
                end do
             enddo

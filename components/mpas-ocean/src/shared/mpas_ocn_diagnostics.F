@@ -641,9 +641,9 @@ contains
       !
       !-----------------------------------------------------------------
 
-      integer :: iVertex, iEdge, i, k
+      integer :: iVertex, iEdge, i, k, iCell
 
-      real (kind=RKIND) :: invAreaTri1, r_tmp
+      real (kind=RKIND) :: invAreaTri1, r_tmp, oceanArea
 
       err = 0
 
@@ -667,13 +667,33 @@ contains
       !$acc parallel loop &
       !$acc          present(circulation, relativeVorticity, areaTriangle, edgesOnVertex, &
       !$acc                  maxLevelVertexBot, dcEdge, normalVelocity, edgeSignOnVertex, &
-      !$acc                  minLevelVertexTop) &
-      !$acc          private(invAreaTri1, iVertex, iEdge, k, r_tmp)
+      !$acc                  minLevelVertexTop, cellsOnVertex, kiteAreasOnVertex, &
+      !$acc                  cullCellMask) &
+      !$acc          private(invAreaTri1, iVertex, iEdge, iCell, k, r_tmp, oceanArea)
 #else
-      !$omp do schedule(runtime) private(invAreaTri1, i, iEdge, k, r_tmp)
+      !$omp do schedule(runtime) private(invAreaTri1, i, iEdge, iCell, k, r_tmp, oceanArea)
 #endif
       do iVertex = 1, nVerticesAll
-         invAreaTri1 = 1.0_RKIND / areaTriangle(iVertex)
+         ! Use ocean portion of the dual cell area so that raised land cells
+         ! do not inflate the divisor at vertices on the new coastline. For
+         ! interior vertices, the kite areas sum to areaTriangle and this is
+         ! bit-identical to 1/areaTriangle.
+         oceanArea = 0.0_RKIND
+         do i = 1, vertexDegree
+            iCell = cellsOnVertex(i, iVertex)
+            if (iCell >= 1 .and. iCell <= nCellsAll) then
+               if (cullCellMask(iCell) == 1) then
+                  oceanArea = oceanArea + kiteAreasOnVertex(i, iVertex)
+               end if
+            end if
+         end do
+
+         if (oceanArea > 0.0_RKIND) then
+            invAreaTri1 = 1.0_RKIND / oceanArea
+         else
+            invAreaTri1 = 0.0_RKIND
+         end if
+
          do i = 1, vertexDegree
             iEdge = edgesOnVertex(i, iVertex)
             do k = minLevelVertexTop(iVertex), maxLevelVertexBot(iVertex)
@@ -1197,7 +1217,8 @@ contains
 
       real (kind=RKIND) :: &
          rTmp,        &! local tmp for common factors
-         invAreaCell1  ! 1/cell area
+         invAreaCell1,& ! 1/cell area
+         invAreaTri1, oceanArea
 
       ! Scratch Arrays
       real (kind=RKIND), dimension(:,:), allocatable :: &
@@ -1218,19 +1239,41 @@ contains
 #ifdef MPAS_OPENACC
       !$acc parallel loop &
       !$acc    present(kineticEnergyVertex, normalVelocity, &
-      !$acc            areaTriangle, dcEdge, dvEdge, edgesOnVertex) &
-      !$acc    private(iEdge,rTmp,k,i)
+      !$acc            areaTriangle, dcEdge, dvEdge, edgesOnVertex, &
+      !$acc            cellsOnVertex, kiteAreasOnVertex, cullCellMask) &
+      !$acc    private(iEdge,rTmp,k,i,iCell,invAreaTri1,oceanArea)
 #else
       !$omp parallel
-      !$omp do schedule(runtime) private(i, k, iEdge, rTmp)
+      !$omp do schedule(runtime) &
+      !$omp    private(i, k, iEdge, rTmp, iCell, invAreaTri1, oceanArea)
 #endif
       do iVertex = 1, nVerticesAll
          kineticEnergyVertex(:, iVertex) = 0.0_RKIND
+
+         ! Use only the ocean portion of the dual cell area so that raised
+         ! land cells do not inflate the divisor at coastline vertices.
+         ! This does not depend on k, so compute it once per vertex.
+         oceanArea = 0.0_RKIND
+         do i = 1, vertexDegree
+            iCell = cellsOnVertex(i,iVertex)
+            if (iCell >= 1 .and. iCell <= nCellsAll) then
+               if (cullCellMask(iCell) == 1) then
+                  oceanArea = oceanArea + kiteAreasOnVertex(i,iVertex)
+               endif
+            endif
+         end do
+
+         if (oceanArea > 0.0_RKIND) then
+            invAreaTri1 = 1.0_RKIND / oceanArea
+         else
+            invAreaTri1 = 0.0_RKIND
+         end if
+
          !$acc loop seq
          do i = 1, vertexDegree
             iEdge = edgesOnVertex(i, iVertex)
-            rTmp  = dcEdge(iEdge)*dvEdge(iEdge)*0.25_RKIND/ &
-                    areaTriangle(iVertex)
+            rTmp  = dcEdge(iEdge)*dvEdge(iEdge)*0.25_RKIND* &
+                    invAreaTri1
             do k = 1, nVertLevels
                kineticEnergyVertex(k,iVertex) = &
                kineticEnergyVertex(k,iVertex) + rTmp* &
@@ -1360,7 +1403,8 @@ contains
          invAreaCell1,         &! 1/cell area
          invLength,            &! 1/length
          layerThicknessVertex, &! layer thickness at vertex
-         apvm_scale_factor      ! scale factor for APVM form
+         apvm_scale_factor,    &! scale factor for APVM form
+         oceanArea
 
       ! Local arrays
       ! normalizedPlanetaryVorticityVertex: earth's rotational rate
@@ -1401,31 +1445,49 @@ contains
       !$acc            normalizedPlanetaryVorticityVertex, &
       !$acc            relativeVorticity, fVertex, layerThickness, &
       !$acc            areaTriangle, kiteAreasOnVertex, cellsOnVertex, &
-      !$acc            maxLevelVertexBot) &
-      !$acc    private(i, k, iCell, invAreaTri1, layerThicknessVertex)
+      !$acc            cullCellMask, maxLevelVertexBot) &
+      !$acc    private(i, k, iCell, invAreaTri1, layerThicknessVertex, &
+      !$acc            oceanArea)
 #else
       !$omp parallel
       !$omp do schedule(runtime) &
-      !$omp    private(i, k, iCell, invAreaTri1, layerThicknessVertex)
+      !$omp    private(i, k, iCell, invAreaTri1, layerThicknessVertex, &
+      !$omp            oceanArea)
 #endif
       do iVertex = 1, nVertices
-         invAreaTri1 = 1.0_RKIND / areaTriangle(iVertex)
+         !invAreaTri1 = 1.0_RKIND / areaTriangle(iVertex)
          do k = 1, maxLevelVertexBot(iVertex)
             layerThicknessVertex = 0.0_RKIND
+            oceanArea = 0.0_RKIND
             do i = 1, vertexDegree
                iCell = cellsOnVertex(i,iVertex)
-               layerThicknessVertex = layerThicknessVertex &
-                                    + layerThickness(k,iCell) &
-                                    * kiteAreasOnVertex(i,iVertex)
+               if (iCell >= 1 .and. iCell <= nCellsAll) then
+                  if (cullCellMask(iCell) == 1) then
+                     layerThicknessVertex = layerThicknessVertex &
+                                          + layerThickness(k,iCell) &
+                                          * kiteAreasOnVertex(i,iVertex)
+                     oceanArea = oceanArea + kiteAreasOnVertex(i,iVertex)
+                  endif
+               endif
             end do
-            layerThicknessVertex = layerThicknessVertex*invAreaTri1
-            if (layerThicknessVertex == 0) cycle
 
-            normalizedRelativeVorticityVertex(k,iVertex) = &
-                            relativeVorticity(k,iVertex) / &
-                            layerThicknessVertex
-            normalizedPlanetaryVorticityVertex(k,iVertex) = &
-                            fVertex(iVertex)/layerThicknessVertex
+            if (oceanArea > 0.0_RKIND) then
+               invAreaTri1 = 1.0_RKIND / oceanArea
+            else
+               invAreaTri1 = 0.0_RKIND
+            end if
+
+            layerThicknessVertex = layerThicknessVertex*invAreaTri1
+            if (layerThicknessVertex == 0.0_RKIND) then
+               normalizedRelativeVorticityVertex(k,iVertex) = 0.0_RKIND
+               normalizedPlanetaryVorticityVertex(k,iVertex) = 0.0_RKIND
+            else
+               normalizedRelativeVorticityVertex(k,iVertex) = &
+                               relativeVorticity(k,iVertex) / &
+                               layerThicknessVertex
+               normalizedPlanetaryVorticityVertex(k,iVertex) = &
+                               fVertex(iVertex)/layerThicknessVertex
+            endif
          end do
       end do
 #ifndef MPAS_OPENACC
