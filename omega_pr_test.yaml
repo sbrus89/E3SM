@@ -1,0 +1,48 @@
+schema_version: 1
+requester: sbrus89
+pull_request: 570
+pr_head: 41c0616b85ca769dce2eb2f29d16d531694da713
+base_branch: develop
+base_head: cdb935bb5a8d995b0878616e001a2701a2627519
+test_commit: 41bbc6c42f844e0d458796122c66744bf13a17d5
+baseline:
+  commit: cdb935bb5a8d995b0878616e001a2701a2627519
+  source: polaris-submodule
+  reason:
+  polaris_commit: 9dfb48ee52cb2234584e8a6c3351252d662f6207
+polaris_commit: 9dfb48ee52cb2234584e8a6c3351252d662f6207
+extra_merges:
+- pull_request: 466
+  commit: bdddf5b070fdf4a4699d87b324f694077d24e9bf
+  sides:
+  - test
+rows:
+- machine: aurora
+  compiler: intel
+  mpi: mpich
+  template: aurora, intel, mpich
+- machine: aurora
+  compiler: intelgpu
+  mpi: mpich
+  template: aurora, intelgpu, mpich
+- machine: chrysalis
+  compiler: intel
+  mpi: openmpi
+  template: chrysalis, intel, openmpi
+- machine: frontier
+  compiler: craygnu
+  mpi: mpich
+  template: frontier, craygnu, mpich
+- machine: frontier
+  compiler: craygnu-mphipcc
+  mpi: mpich
+  template: frontier, craygnu-mphipcc, mpich
+- machine: pm-cpu
+  compiler: gnu
+  mpi: mpich
+  template: pm-cpu, gnu, mpich
+- machine: pm-gpu
+  compiler: gnugpu
+  mpi: mpich
+  template: pm-gpu, gnugpu, mpich
+notes:
