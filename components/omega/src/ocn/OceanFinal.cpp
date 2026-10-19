@@ -21,6 +21,7 @@
 #include "OceanState.h"
 #include "PGrad.h"
 #include "SfcCoupling.h"
+#include "SubmesoEddies.h"
 #include "Tendencies.h"
 #include "TimeMgr.h"
 #include "TimeStepper.h"
@@ -47,6 +48,7 @@ int ocnFinalize(const TimeInstant &CurrTime ///< [in] current sim time
    SfcCoupling::clear();
    Tracers::clear();
    TimeStepper::clear();
+   SubmesoEddies::destroyInstance();
    PressureGrad::clear();
    Eos::destroyInstance();
    Tendencies::clear();

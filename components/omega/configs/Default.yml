@@ -111,6 +111,12 @@ Omega:
     Phi: 0.75
     DepthLimit: -1.0
     ConservationCheck: true
+  Submeso:
+    Enable: false
+    Tau: 172800.0
+    Ce: 0.08
+    LfMin: 1.0e3
+    DsMax: 100.0e3
   VertMix:
     Background:
       Diffusivity: 1.0e-5
