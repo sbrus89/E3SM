@@ -1,0 +1,28 @@
+schema_version: 1
+requester: sbrus89
+pull_request: 617
+pr_head: b2e98f4dc21e7abe378472170ec7b8665d7b96c5
+base_branch: develop
+base_head: 1feac2f815e3b4545921e31e8d0df2e164e176b6
+test_commit: 41cf5eab367ba87e02d1f0af5346d94cffa49790
+baseline:
+  commit: cdb935bb5a8d995b0878616e001a2701a2627519
+  source: polaris-submodule
+  reason:
+  polaris_commit: 662796b1b7a1ec9980c667326c9be7529a5ea42b
+polaris_commit: 662796b1b7a1ec9980c667326c9be7529a5ea42b
+extra_merges: []
+rows:
+- machine: aurora
+  compiler: intel
+  mpi: mpich
+  template: aurora, intel, mpich
+- machine: aurora
+  compiler: intelgpu
+  mpi: mpich
+  template: aurora, intelgpu, mpich
+- machine: chrysalis
+  compiler: intel
+  mpi: openmpi
+  template: chrysalis, intel, openmpi
+notes:
