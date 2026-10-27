@@ -41,7 +41,8 @@ GradRichardsonNum::GradRichardsonNum(const HorzMesh *Mesh,
       DvEdge(Mesh->DvEdge) {}
 
 OneTwoOneFilter::OneTwoOneFilter(const VertCoord *VCoord)
-    : MinLayerCell(VCoord->MinLayerCell), MaxLayerCell(VCoord->MaxLayerCell) {}
+    : NVertLayersP1(VCoord->NVertLayersP1), MinLayerCell(VCoord->MinLayerCell),
+      MaxLayerCell(VCoord->MaxLayerCell) {}
 
 VelVertMixSetupOnEdge::VelVertMixSetupOnEdge(const HorzMesh *Mesh,
                                              const VertCoord *VCoord)
@@ -204,7 +205,7 @@ void VertMix::init() {
           "VertMix::init: Parameter Shear:Exponent not found in ShearConfig");
 
       Err += ShearConfig.get("RiSmoothLoops",
-                             DefVertMix->ComputeVertMixShear.RiSmoothLoops);
+                             DefVertMix->ComputeOneTwoOneFilter.RiSmoothLoops);
       CHECK_ERROR_ABORT(Err, "VertMix::init: Parameter Shear:RiSmoothLoops not "
                              "found in ShearConfig");
    }
@@ -302,22 +303,14 @@ void VertMix::computeVertMix(const Array2DReal &NormalVelocity,
           });
       /// Smooth Richardson number with 1-2-1 filter the number of times
       /// specified by RiSmoothLoops
-      deepCopy(LocGradRichNumSmoothed, LocGradRichNum);
-      for (int SmoothLoop = 0;
-           SmoothLoop < LocComputeVertMixShear.RiSmoothLoops; ++SmoothLoop) {
-         parallelForOuter(
-             "VertMix-RiSmooth", {Mesh->NCellsAll},
-             KOKKOS_LAMBDA(I4 ICell, const TeamMember &Team) {
-                const int KMin   = MinLayerCell(ICell);
-                const int KMax   = MaxLayerCell(ICell);
-                const int KRange = vertRangeChunked(KMin, KMax);
-                parallelForInner(
-                    Team, KRange, INNER_LAMBDA(int KChunk) {
-                       LocOneTwoOneFilter(LocGradRichNumSmoothed, ICell, KChunk,
-                                          LocGradRichNumSmoothed);
-                    });
-             });
-      }
+      parallelForOuter(
+          "VertMix-RiSmooth",
+          LaunchConfig({Mesh->NCellsAll},
+                       TeamScratch<Real>(2 * VCoord->NVertLayersP1)),
+          KOKKOS_LAMBDA(I4 ICell, const TeamMember &Team) {
+             LocOneTwoOneFilter(Team, LocGradRichNumSmoothed, ICell,
+                                LocGradRichNum);
+          });
       /// Compute shear mixing using smoothed Richardson number
       parallelForOuter(
           "VertMix-Shear", {Mesh->NCellsAll},
