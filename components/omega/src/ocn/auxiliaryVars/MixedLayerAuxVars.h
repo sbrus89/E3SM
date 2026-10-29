@@ -14,9 +14,11 @@ namespace OMEGA {
 // something like that once it exists.
 KOKKOS_INLINE_FUNCTION Real linearInterp(Real x, Real y1, Real x1, Real y2,
                                          Real x2) {
+   if (x1 == x2)
+      return y1;
    const Real A = (y1 - y2) / (x1 - x2);
    const Real B = y1 - A * x1;
-   return (x1 == x2) ? y1 : A * x + B;
+   return A * x + B;
 }
 
 class MixedLayerAuxVars {
