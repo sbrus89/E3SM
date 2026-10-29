@@ -1,0 +1,45 @@
+schema_version: 1
+requester: sbrus89
+pull_request: 645
+pr_head: 4032c8852e71db9cf66897498883a13547cf639c
+base_branch: develop
+base_head: 27765dd1f5e0e4556386de689cbba9df6a19ff7e
+test_commit: ed3199934a070df3158c32ab8a73df1a7db31c70
+baseline:
+  commit: 27765dd1f5e0e4556386de689cbba9df6a19ff7e
+  source: develop
+  reason: the Omega submodule in Polaris has not yet been updated to the current
+    head of develop
+  polaris_commit: 6df435fb7f786aafd144e05400403372245e8ffe
+polaris_commit: 6df435fb7f786aafd144e05400403372245e8ffe
+extra_merges: []
+rows:
+- machine: aurora
+  compiler: intel
+  mpi: mpich
+  template: aurora, intel, mpich
+- machine: aurora
+  compiler: intelgpu
+  mpi: mpich
+  template: aurora, intelgpu, mpich
+- machine: chrysalis
+  compiler: intel
+  mpi: openmpi
+  template: chrysalis, intel, openmpi
+- machine: frontier
+  compiler: craygnu
+  mpi: mpich
+  template: frontier, craygnu, mpich
+- machine: frontier
+  compiler: craygnu-mphipcc
+  mpi: mpich
+  template: frontier, craygnu-mphipcc, mpich
+- machine: pm-cpu
+  compiler: gnu
+  mpi: mpich
+  template: pm-cpu, gnu, mpich
+- machine: pm-gpu
+  compiler: gnugpu
+  mpi: mpich
+  template: pm-gpu, gnugpu, mpich
+notes:
