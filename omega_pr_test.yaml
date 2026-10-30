@@ -1,0 +1,45 @@
+schema_version: 1
+requester: sbrus89
+pull_request: 635
+pr_head: d7d63d2ee4704fb9bbfb414ce75bd4d2d4acdd05
+base_branch: develop
+base_head: 8a1cfdcf934534a47641c989ba7ba9bd60b422c2
+test_commit: 8a53224f2a6e02145393821424e0db1f7dce2b79
+baseline:
+  commit: 8a1cfdcf934534a47641c989ba7ba9bd60b422c2
+  source: develop
+  reason: answer-changing PRs, including E3SM-Project/Omega#645, have merged 
+    into develop since the commit Polaris pins
+  polaris_commit: 74126f75526b08d0a8089d3294935daa841a503c
+polaris_commit: 74126f75526b08d0a8089d3294935daa841a503c
+extra_merges: []
+rows:
+- machine: aurora
+  compiler: intel
+  mpi: mpich
+  template: aurora, intel, mpich
+- machine: aurora
+  compiler: intelgpu
+  mpi: mpich
+  template: aurora, intelgpu, mpich
+- machine: chrysalis
+  compiler: intel
+  mpi: openmpi
+  template: chrysalis, intel, openmpi
+- machine: frontier
+  compiler: craygnu
+  mpi: mpich
+  template: frontier, craygnu, mpich
+- machine: frontier
+  compiler: craygnu-mphipcc
+  mpi: mpich
+  template: frontier, craygnu-mphipcc, mpich
+- machine: pm-cpu
+  compiler: gnu
+  mpi: mpich
+  template: pm-cpu, gnu, mpich
+- machine: pm-gpu
+  compiler: gnugpu
+  mpi: mpich
+  template: pm-gpu, gnugpu, mpich
+notes:
