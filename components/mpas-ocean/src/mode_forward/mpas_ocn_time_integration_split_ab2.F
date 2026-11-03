@@ -38,6 +38,7 @@ module ocn_time_integration_split_ab2
    use ocn_config
    use ocn_mesh
    use ocn_tendency
+   use ocn_river_inflow
    use ocn_diagnostics_variables
    use ocn_diagnostics
    use ocn_gm
@@ -263,6 +264,12 @@ module ocn_time_integration_split_ab2
       real (kind=RKIND), dimension(:), pointer :: &
          sshTend                ! sea-surface height tendency
 
+      real (kind=RKIND), dimension(:), pointer :: &
+         riverInflowVolumeFluxOnCell ! prescribed river inflow per cell
+
+      logical :: &
+         riverInflowActive      ! prescribed river inflow is in use
+
       real (kind=RKIND), dimension(:,:), pointer :: &
          normalVelocityTend,    &! normal velocity tendency
          highFreqThicknessTend, &! thickness tendency for high-freq iter
@@ -401,6 +408,14 @@ module ocn_time_integration_split_ab2
                                           normalVelocityTend)
       call mpas_pool_get_array(tendPool, 'ssh', &
                                           sshTend)
+
+      !*** Prescribed river inflow enters the barotropic continuity
+      !*** equation as a boundary volume flux on the receiving cell.
+      riverInflowActive = ocn_river_inflow_active()
+      if (riverInflowActive) then
+         call mpas_pool_get_array(forcingPool, 'riverInflowVolumeFluxOnCell', &
+                                               riverInflowVolumeFluxOnCell)
+      end if
       call mpas_pool_get_array(tendPool, 'layerThickness', &
                                           layerThicknessTend)
       call mpas_pool_get_array(tendPool, 'normalVelocity', &
@@ -1223,6 +1238,12 @@ module ocn_time_integration_split_ab2
 
                end do ! edges on cell
 
+               ! prescribed river inflow through boundary edges
+               if (riverInflowActive) then
+                  sshTend(iCell) = sshTend(iCell) + &
+                                   riverInflowVolumeFluxOnCell(iCell)
+               end if
+
                ! SSHnew = SSHold + dt/J*(-div(Flux))
                sshSubcycleNew(iCell) = sshSubcycleCur(iCell) &
                                      + dt/nBtrSubcycles* &
@@ -1494,6 +1515,12 @@ module ocn_time_integration_split_ab2
                                       flux*dvEdge(iEdge)
 
                   end do ! edges on cell
+
+                  ! prescribed river inflow through boundary edges
+                  if (riverInflowActive) then
+                     sshTend(iCell) = sshTend(iCell) + &
+                                      riverInflowVolumeFluxOnCell(iCell)
+                  end if
 
                   ! SSHnew = SSHold + dt/J*(-div(Flux))
                   sshSubcycleNew(iCell) = sshSubcycleCur(iCell) &

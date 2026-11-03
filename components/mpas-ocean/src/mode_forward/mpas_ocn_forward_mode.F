@@ -61,6 +61,7 @@ module ocn_forward_mode
    use ocn_surface_land_ice_fluxes
    use ocn_frazil_forcing
    use ocn_tidal_forcing
+   use ocn_river_inflow
    use ocn_vel_tidal_potential
    use ocn_vel_self_attraction_loading
 
@@ -451,6 +452,8 @@ module ocn_forward_mode
       ierr = ior(ierr, err_tmp)
       call ocn_tidal_forcing_init(err_tmp)
       ierr = ior(ierr, err_tmp)
+      call ocn_river_inflow_init(domain, err_tmp)
+      ierr = ior(ierr, err_tmp)
       call ocn_vel_tidal_potential_init(domain,err_tmp)
       ierr = ior(ierr, err_tmp)
       call ocn_forcing_init(err_tmp)
@@ -726,6 +729,8 @@ module ocn_forward_mode
 
            call ocn_tidal_forcing_build_array(domain, meshPool, forcingPool, statePool, err)
 
+           call ocn_river_inflow_build_array(domain, err)
+
            ! Compute normalGMBolusVelocity, relativeSlope and RediDiffVertCoef if respective flags are turned on
 
            call ocn_eddy_compute_mixed_layer_depth(statePool, forcingPool)
@@ -795,7 +800,8 @@ module ocn_forward_mode
                 config_use_ecosysTracers .or. &
                 (config_use_activeTracers_surface_restoring .and. config_use_surface_salinity_monthly_restoring) .or. &
                 config_use_time_varying_atmospheric_forcing .or. &
-                config_use_time_varying_land_ice_forcing) then
+                config_use_time_varying_land_ice_forcing .or. &
+                config_use_river_inflow_forcing) then
 
                 call ocn_time_varying_forcing_write_restart_times(domain)
             end if
@@ -853,9 +859,10 @@ module ocn_forward_mode
            call ocn_time_varying_forcing_get(domain % streamManager, domain, domain % clock)
          else
            if (config_use_time_varying_atmospheric_forcing .or. &
-               config_use_time_varying_land_ice_forcing) then
-             ! increment forcing clock to next time-step
-             call mpas_advance_forcing_clock(forcingGroupHead, dt)
+               config_use_time_varying_land_ice_forcing .or. &
+               config_use_river_inflow_forcing) then
+             ! increment the clock of every forcing group to the next time-step
+             call ocn_time_varying_forcing_advance_clocks(dt)
            endif
          endif
 

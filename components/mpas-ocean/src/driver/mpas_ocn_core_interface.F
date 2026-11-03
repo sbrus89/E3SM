@@ -138,6 +138,9 @@ module ocn_core_interface
       logical, pointer :: submesoActive
       logical, pointer :: timeVaryingAtmosphericForcingPKGActive
       logical, pointer :: timeVaryingLandIceForcingPKGActive
+      logical, pointer :: riverInflowForcingPKGActive
+      logical, pointer :: riverInflowMomentumPKGActive
+      logical, pointer :: riverInflowVelocityPKGActive
       logical, pointer :: gotmPKGActive
       logical, pointer :: verticalRemapPKGActive
       logical, pointer :: activeWavePKGActive
@@ -176,6 +179,9 @@ module ocn_core_interface
       logical, pointer :: config_use_vegetation_drag
       logical, pointer :: config_use_time_varying_atmospheric_forcing
       logical, pointer :: config_use_time_varying_land_ice_forcing
+      logical, pointer :: config_use_river_inflow_forcing
+      logical, pointer :: config_use_river_inflow_momentum
+      character (len=StrKIND), pointer :: config_river_inflow_velocity_source
       logical, pointer :: config_use_gotm
       logical, pointer :: config_use_active_wave
       logical, pointer :: config_use_subgrid_wetting_drying
@@ -439,6 +445,22 @@ module ocn_core_interface
       call mpas_pool_get_config(configPool, 'config_use_time_varying_land_ice_forcing', config_use_time_varying_land_ice_forcing)
       if (config_use_time_varying_land_ice_forcing) then
          timeVaryingLandIceForcingPKGActive = .true.
+      endif
+
+      call mpas_pool_get_package(packagePool, 'riverInflowForcingPKGActive', riverInflowForcingPKGActive)
+      call mpas_pool_get_config(configPool, 'config_use_river_inflow_forcing', config_use_river_inflow_forcing)
+      call mpas_pool_get_package(packagePool, 'riverInflowMomentumPKGActive', riverInflowMomentumPKGActive)
+      call mpas_pool_get_package(packagePool, 'riverInflowVelocityPKGActive', riverInflowVelocityPKGActive)
+      call mpas_pool_get_config(configPool, 'config_use_river_inflow_momentum', config_use_river_inflow_momentum)
+      call mpas_pool_get_config(configPool, 'config_river_inflow_velocity_source', config_river_inflow_velocity_source)
+      if (config_use_river_inflow_forcing) then
+         riverInflowForcingPKGActive = .true.
+         if (config_use_river_inflow_momentum) then
+            riverInflowMomentumPKGActive = .true.
+            if (trim(config_river_inflow_velocity_source) == 'file') then
+               riverInflowVelocityPKGActive = .true.
+            endif
+         endif
       endif
 
       !

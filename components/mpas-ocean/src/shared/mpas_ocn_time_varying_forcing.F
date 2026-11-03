@@ -31,7 +31,8 @@ module ocn_time_varying_forcing
   public :: &
        ocn_time_varying_forcing_init, &
        ocn_time_varying_forcing_get, &
-       ocn_time_varying_forcing_write_restart_times
+       ocn_time_varying_forcing_write_restart_times, &
+       ocn_time_varying_forcing_advance_clocks
 
 contains
 
@@ -63,6 +64,11 @@ contains
     ! init other forcings, to be added later as needed
     if (config_use_time_varying_land_ice_forcing) then
       call init_land_ice_forcing(domain)
+    endif
+
+    ! init prescribed river inflow through specified mesh edges
+    if (config_use_river_inflow_forcing) then
+      call init_river_inflow_forcing(domain)
     endif
 
     ! init other forcings, to be added later as needed
@@ -213,6 +219,15 @@ contains
     if (config_use_time_varying_land_ice_forcing) then
 
         call land_ice_forcing(&
+             streamManager, &
+             domain, &
+             simulationClock)
+
+    endif
+
+    if (config_use_river_inflow_forcing) then
+
+        call river_inflow_forcing(&
              streamManager, &
              domain, &
              simulationClock)
@@ -481,6 +496,197 @@ contains
          .true.)                                 ! interpolateAtInit
 
   end subroutine init_land_ice_forcing!}}}
+
+!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+!
+!  init_river_inflow_forcing
+!
+!> \brief Initialize the forcing object for prescribed river inflow
+!> \details
+!>  The forcing field is dimensioned on nRiverInflowEdges rather than on
+!>  the mesh, so it is not decomposed: the MPAS forcing framework reads
+!>  it on the IO task and broadcasts the whole array to every task. The
+!>  framework itself is dimension-agnostic, so no special handling is
+!>  needed here.
+!
+!-----------------------------------------------------------------------
+
+  subroutine init_river_inflow_forcing(domain)!{{{
+
+    type(domain_type) :: domain
+
+    ! create the river inflow forcing group
+    call MPAS_forcing_init_group(&
+         forcingGroupHead, &                                  ! forcingGroupHead
+         "ocn_river_inflow_forcing", &                        ! forcingGroupName
+         domain, &                                            ! domain
+         config_river_inflow_forcing_start_time, &            ! startTimeStr
+         config_river_inflow_forcing_cycle_start, &           ! forcingCycleStart
+         config_river_inflow_forcing_cycle_duration, &        ! forcingCycleDuration
+         config_do_restart)                                   ! restart
+
+    ! riverInflowVolumeFlux init
+    call MPAS_forcing_init_field(&
+         domain % streamManager, &                            ! streamManager
+         forcingGroupHead, &                                  ! forcingGroupHead
+         "ocn_river_inflow_forcing", &                        ! forcingGroupName
+         "riverInflowVolumeFlux", &                           ! forcingName
+         "river_inflow_forcing", &                            ! forcingStreamID
+         "timeVaryingForcing", &                              ! poolname
+         "riverInflowVolumeFlux", &                           ! fieldname
+         "linear", &                                          ! interpolationType
+         config_river_inflow_forcing_reference_time, &        ! forcingReferenceTimeStr
+         config_river_inflow_forcing_interval)                ! forcingIntervalStr
+
+    ! riverInflowVelocity init, only when its package is active. It shares
+    ! the stream with riverInflowVolumeFlux, so it must be registered too:
+    ! an unregistered field in a forcing stream is overwritten by each raw
+    ! read and never interpolated.
+    if (config_use_river_inflow_momentum .and. &
+        trim(config_river_inflow_velocity_source) == 'file') then
+       call MPAS_forcing_init_field(&
+            domain % streamManager, &                         ! streamManager
+            forcingGroupHead, &                               ! forcingGroupHead
+            "ocn_river_inflow_forcing", &                     ! forcingGroupName
+            "riverInflowVelocity", &                          ! forcingName
+            "river_inflow_forcing", &                         ! forcingStreamID
+            "timeVaryingForcing", &                           ! poolname
+            "riverInflowVelocity", &                          ! fieldname
+            "linear", &                                       ! interpolationType
+            config_river_inflow_forcing_reference_time, &     ! forcingReferenceTimeStr
+            config_river_inflow_forcing_interval)             ! forcingIntervalStr
+    endif
+
+    call MPAS_forcing_init_field_data(&
+         forcingGroupHead, &                                  ! forcingGroupHead
+         "ocn_river_inflow_forcing", &                        ! forcingGroupName
+         domain % streamManager, &                            ! streamManager
+         config_do_restart, &                                 ! restart
+         .true.)                                              ! interpolateAtInit
+
+  end subroutine init_river_inflow_forcing!}}}
+
+!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+!
+!  river_inflow_forcing
+!
+!> \brief Retrieve the prescribed river inflow for the current time
+!> \details
+!>  Interpolates riverInflowVolumeFlux, and riverInflowVelocity when it is
+!>  in use, to the current forcing time. The interpolated arrays are
+!>  consumed by ocn_river_inflow_build_array, so
+!>  there is no post-forcing step here.
+!
+!-----------------------------------------------------------------------
+
+  subroutine river_inflow_forcing(streamManager, domain, simulationClock)!{{{
+
+    type (MPAS_streamManager_type), intent(inout) :: streamManager
+
+    type (domain_type) :: domain
+
+    type (MPAS_clock_type) :: simulationClock
+
+    type (MPAS_time_type) :: currentForcingTime
+
+    type (MPAS_timeInterval_type) :: timeStepESMF
+
+    type (mpas_pool_type), pointer :: forcingPool
+
+    character(len=StrKIND) :: timeStamp
+
+    real (kind=RKIND) :: dtSim, dtSimReverse
+
+    real (kind=RKIND), pointer :: forcingTimeIncrement
+
+    integer :: err
+
+    call mpas_pool_get_subpool(domain % blocklist % structs, 'forcing', forcingPool)
+    call mpas_pool_get_array(forcingPool, 'forcingTimeIncrement', forcingTimeIncrement)
+
+    ! convert config_dt to real
+    call mpas_set_timeInterval(timeStepESMF, timeString=config_dt, ierr=err)
+    dtSim = forcingTimeIncrement
+    dtSimReverse = -dtSim
+
+    ! use the forcing layer to get data
+    call MPAS_forcing_get_forcing(&
+         forcingGroupHead, &                 ! forcingGroupHead
+         "ocn_river_inflow_forcing", &       ! forcingGroupName
+         streamManager, &                    ! streamManager
+         dtSim)                              ! dt
+
+    call MPAS_forcing_get_forcing_time(&
+         forcingGroupHead, &                 ! forcingGroupHead
+         "ocn_river_inflow_forcing", &       ! forcingGroupName
+         currentForcingTime)                 ! forcingTime
+    call mpas_get_time(curr_time=currentForcingTime, dateTimeString=timeStamp, ierr=err)
+
+    ! MPAS_forcing_get_forcing advanced this group's clock, so it is this
+    ! group that must be stepped back. forcingGroupHead is the first group
+    ! created, normally the atmospheric one, not this group.
+    call advance_group_clock("ocn_river_inflow_forcing", dtSimReverse)
+
+    call MPAS_forcing_get_forcing_time(&
+         forcingGroupHead, &                 ! forcingGroupHead
+         "ocn_river_inflow_forcing", &       ! forcingGroupName
+         currentForcingTime)                 ! forcingTime
+    call mpas_get_time(curr_time=currentForcingTime, dateTimeString=timeStamp, ierr=err)
+
+  end subroutine river_inflow_forcing!}}}
+
+!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+!
+!  ocn_time_varying_forcing_advance_clocks
+!
+!> \brief Advance the clock of every forcing group by dt
+!> \details
+!>  mpas_advance_forcing_clock acts on the single group it is given, so
+!>  passing forcingGroupHead advances only the first group in the list.
+!>  When more than one group is active, each must be advanced.
+!
+!-----------------------------------------------------------------------
+
+  subroutine ocn_time_varying_forcing_advance_clocks(dt)!{{{
+
+    real (kind=RKIND), intent(in) :: dt
+
+    type (mpas_forcing_group_type), pointer :: forcingGroup
+
+    forcingGroup => forcingGroupHead
+    do while (associated(forcingGroup))
+       call mpas_advance_forcing_clock(forcingGroup, dt)
+       forcingGroup => forcingGroup % next
+    enddo
+
+  end subroutine ocn_time_varying_forcing_advance_clocks!}}}
+
+!|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+!
+!  advance_group_clock
+!
+!> \brief Advance the clock of the named forcing group by dt
+!
+!-----------------------------------------------------------------------
+
+  subroutine advance_group_clock(forcingGroupName, dt)!{{{
+
+    character(len=*), intent(in) :: forcingGroupName
+
+    real (kind=RKIND), intent(in) :: dt
+
+    type (mpas_forcing_group_type), pointer :: forcingGroup
+
+    forcingGroup => forcingGroupHead
+    do while (associated(forcingGroup))
+       if (trim(forcingGroup % forcingGroupName) == trim(forcingGroupName)) then
+          call mpas_advance_forcing_clock(forcingGroup, dt)
+          return
+       endif
+       forcingGroup => forcingGroup % next
+    enddo
+
+  end subroutine advance_group_clock!}}}
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 !

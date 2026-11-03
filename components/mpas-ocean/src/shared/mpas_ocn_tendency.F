@@ -38,6 +38,7 @@ module ocn_tendency
    use ocn_surface_land_ice_fluxes
    use ocn_frazil_forcing
    use ocn_tidal_forcing
+   use ocn_river_inflow
 
    use ocn_tracer_hmix
    use ocn_high_freq_thickness_hmix_del2
@@ -263,6 +264,10 @@ contains
       ! Compute thickness change due to tidal forcing
       call ocn_tidal_forcing_layer_thickness(forcingPool, &
                                              tendThick, err)
+
+      ! Compute thickness change due to prescribed river inflow
+      call ocn_river_inflow_layer_thickness(forcingPool, &
+                                            tendThick, err)
 
       ! Compute thickness tendency to manufactured solution
       call ocn_manufactured_solution_tend_thick(forcingPool, &
@@ -503,6 +508,10 @@ contains
                                 layerThickEdgeDrag, &
                                 layerThickEdgeMean, tendVel, err)
  
+      ! Add momentum carried in by prescribed river inflow
+      call ocn_river_inflow_vel_tend(forcingPool, normalVelocity, &
+                                     tendVel, err)
+
       ! Compute tendency term for manufactured solution
       call ocn_manufactured_solution_tend_vel(forcingPool, &
                                               tendVel, err)

@@ -39,6 +39,7 @@ module ocn_time_integration_rk4
    use ocn_vmix
    use ocn_time_average_coupled
    use ocn_wetting_drying
+   use ocn_river_inflow
 
    use ocn_effective_density_in_land_ice
    use ocn_surface_land_ice_fluxes
@@ -502,6 +503,9 @@ module ocn_time_integration_rk4
         end do
 
         call ocn_time_varying_forcing_get(domain % streamManager, domain, domain % clock)
+
+        ! rebuild the river inflow tendency so it tracks the forcing at this substage
+        call ocn_river_inflow_build_array(domain, err)
 
         block => domain % blocklist
         do while (associated(block))

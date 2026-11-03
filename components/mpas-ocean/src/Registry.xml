@@ -122,6 +122,9 @@
 		<dim name="nGlcZLevels" definition="namelist:config_n_glc_z_levels"
                         description="The number of z-levels to use for passing ocean properties to GLC for indirect ice-sheet/ocean coupling"
 		/>
+		<dim name="nRiverInflowEdges"
+			description="Number of mesh edges carrying a prescribed river inflow volume flux. Read from the river inflow forcing file; the associated fields are not decomposed, so every task holds the full array."
+		/>
 	</dims>
 
 	<!--*************************************-->
@@ -897,6 +900,58 @@
 		<nml_option name="config_time_varying_land_ice_forcing_interval" type="character" default_value="01:00:00"
 			description="Time between forcing inputs"
 			possible_values="'YYYY-MM-DD_HH:MM:SS"
+		/>
+		<nml_option name="config_use_river_inflow_forcing" type="logical" default_value=".false."
+			description="If true, apply a prescribed, time-varying volume flux through the mesh edges listed in the river inflow forcing file."
+			possible_values=".true. or .false."
+		/>
+		<nml_option name="config_river_inflow_forcing_start_time" type="character" default_value="0001-01-01_00:00:00"
+			description="Forcing time to use at the simulation start time"
+			possible_values="'YYYY-MM-DD_HH:MM:SS"
+		/>
+		<nml_option name="config_river_inflow_forcing_reference_time" type="character" default_value="0001-01-01_00:00:00"
+			description="Reference time for the forcing"
+			possible_values="'YYYY-MM-DD_HH:MM:SS"
+		/>
+		<nml_option name="config_river_inflow_forcing_cycle_start" type="character" default_value="0001-01-01_00:00:00"
+			description="Start time for the forcing cycle."
+			possible_values="'YYYY-MM-DD_HH:MM:SS"
+		/>
+		<nml_option name="config_river_inflow_forcing_cycle_duration" type="character" default_value="2-00-00_00:00:00"
+			description="Duration of the forcing cycle."
+			possible_values="'YYYY-MM-DD_HH:MM:SS"
+		/>
+		<nml_option name="config_river_inflow_forcing_interval" type="character" default_value="01:00:00"
+			description="Time between forcing inputs"
+			possible_values="'YYYY-MM-DD_HH:MM:SS"
+		/>
+		<nml_option name="config_river_inflow_ramp" type="real" default_value="0.0" units="days"
+			description="Time scale for ramping up the river inflow discharge from zero. The discharge is multiplied by tanh(2*(t - config_river_inflow_ramp_delay)/config_river_inflow_ramp), where t is days since the start of the simulation, so it reaches 96% of full strength after config_river_inflow_ramp days. The momentum source ramps with it. 0 disables the ramp."
+			possible_values="Any non-negative real number"
+		/>
+		<nml_option name="config_river_inflow_ramp_delay" type="real" default_value="0.0" units="days"
+			description="Number of days after the start of the simulation before the river inflow ramp begins. The discharge is zero until then. Only used when config_river_inflow_ramp is positive."
+			possible_values="Any non-negative real number"
+		/>
+		<nml_option name="config_river_inflow_vertical_distribution" type="character" default_value="uniform"
+			description="How the river inflow volume flux is distributed over the vertical levels of the receiving cell. 'uniform' weights each level by its layer thickness; 'surface' puts the entire flux in the topmost active level."
+			possible_values="'uniform' or 'surface'"
+		/>
+		<nml_option name="config_use_river_inflow_momentum" type="logical" default_value=".false."
+			description="If true, the river inflow also carries momentum into the receiving cell, in addition to mass. The source is Q*(v_in - u)/(areaCell*layerThickness): velocities around the receiving cell relax toward the inflow velocity v_in at the rate Q/(areaCell*layerThickness), capped at 1/dt so that it stays stable as the cell dries."
+			possible_values=".true. or .false."
+		/>
+		<nml_option name="config_river_inflow_velocity_source" type="character" default_value="derived"
+			description="Where the river inflow speed used for the momentum source comes from. 'derived' computes it from the volume flux as Q/(dvEdge*layerThickness), which underestimates the discharge velocity when the mesh edge is much wider than the real river mouth. 'file' reads riverInflowVelocity from the river inflow forcing file. Only used when config_use_river_inflow_momentum is .true."
+			possible_values="'derived' or 'file'"
+		/>
+		<nml_option name="config_river_inflow_momentum_scaling" type="real" default_value="1.0" units="unitless"
+			description="Scale factor applied to the river inflow momentum source, allowing the momentum to be tapered independently of the mass flux."
+			possible_values="Any non-negative real number"
+		/>
+		<nml_option name="config_river_inflow_max_speed" type="real" default_value="3.0" units="m s^-1"
+			description="Upper bound on the river inflow speed used for the momentum source, whether derived or read from file. Guards against the derived speed Q/(dvEdge*layerThickness) growing without bound as the receiving cell dries."
+			possible_values="Any positive real number"
 		/>
 	</nml_record>
 	<nml_record name="coupling" mode="init;forward">
@@ -1938,6 +1993,9 @@
 	<packages>
 		<package name="timeVaryingAtmosphericForcingPKG" description="This package includes variables required for time varying atmospheric forcing"/>
 		<package name="timeVaryingLandIceForcingPKG" description="This package includes variavles required for time varying land-ice forcing"/>
+		<package name="riverInflowForcingPKG" description="This package includes variables required for prescribed, time varying river inflow through specified mesh edges"/>
+		<package name="riverInflowMomentumPKG" description="This package includes variables required for the momentum source that accompanies prescribed river inflow"/>
+		<package name="riverInflowVelocityPKG" description="This package includes the river inflow speed read from the forcing file, used for the river inflow momentum source"/>
 		<package name="variableShortwave" description="This package includes variables required to compute spatially variable shortwave extinction coefficients"/>
 
 		<package name="splitTimeIntegrator" description="This package includes variables required for either the split or unsplit explicit time integrators."/>
@@ -2434,6 +2492,27 @@
 			<var name="landIceFractionForcing"/>
 			<var name="landIceFloatingFractionForcing"/>
 			<var name="landIceDraftForcing"/>
+		</stream>
+		<!-- The static edge list is read once, from its own stream, because the
+		     MPAS forcing framework replaces the fields of the stream it manages. -->
+		<stream name="river_inflow"
+				type="input"
+				filename_template="river_inflow_forcing.nc"
+				filename_interval="none"
+				input_interval="initial_only"
+				packages="riverInflowForcingPKG"
+				immutable="true">
+			<var name="riverInflowEdgeGlobalID"/>
+		</stream>
+		<stream name="river_inflow_forcing"
+				type="input"
+				filename_template="river_inflow_forcing.nc"
+				filename_interval="none"
+				input_interval="none"
+				packages="riverInflowForcingPKG"
+				immutable="true">
+			<var name="riverInflowVolumeFlux"/>
+			<var name="riverInflowVelocity"/>
 		</stream>
 
 		<!-- Diagnostics streams for forward mode -->
@@ -4487,6 +4566,28 @@
 			 packages="tidalForcing"
 		/>
 
+		<!-- Output fields for prescribed river inflow through mesh edges -->
+		<var name="riverInflowLayerThicknessTendency" type="real" dimensions="nVertLevels nCells Time" units="m s^-1"
+			 description="layer thickness tendency due to prescribed river inflow through mesh edges"
+			 packages="riverInflowForcingPKG"
+		/>
+		<var name="riverInflowVolumeFluxOnCell" type="real" dimensions="nCells Time" units="m^3 s^-1"
+			 description="Total prescribed river inflow volume flux received by each cell, summed over the river inflow edges that feed it. Used by the barotropic subcycle of the split time integrators."
+			 packages="riverInflowForcingPKG"
+		/>
+		<var name="riverInflowAccelZonal" type="real" dimensions="nVertLevels nCells Time" units="m s^-2"
+			 description="Zonal component of the cell-centered momentum source carried in by the prescribed river inflow, riverInflowMomentumRate times the zonal inflow velocity. The full source is this minus riverInflowMomentumRate times the local velocity."
+			 packages="riverInflowMomentumPKG"
+		/>
+		<var name="riverInflowAccelMeridional" type="real" dimensions="nVertLevels nCells Time" units="m s^-2"
+			 description="Meridional component of the cell-centered momentum source carried in by the prescribed river inflow, riverInflowMomentumRate times the meridional inflow velocity. The full source is this minus riverInflowMomentumRate times the local velocity."
+			 packages="riverInflowMomentumPKG"
+		/>
+		<var name="riverInflowMomentumRate" type="real" dimensions="nVertLevels nCells Time" units="s^-1"
+			 description="Rate at which velocities around a river inflow cell relax toward the inflow velocity: the inflow volume flux per unit cell volume at each level, capped at 1/dt."
+			 packages="riverInflowMomentumPKG"
+		/>
+
 		<!-- Input fields for forcing due to frazil ice -->
 
 		<!-- Output fields for forcing due to frazil ice -->
@@ -4601,6 +4702,18 @@
 		<var name="landIceDraftForcing" type="real" dimensions="nCells Time" units="m"
 			description="The elevation of the interface between land ice and the ocean."
 			packages="timeVaryingLandIceForcingPKG"
+		/>
+		<var name="riverInflowEdgeGlobalID" type="integer" dimensions="nRiverInflowEdges"
+			description="Global edge ID (a value of indexToEdgeID) of each edge carrying a prescribed river inflow. Not decomposed: every task holds the full list."
+			packages="riverInflowForcingPKG"
+		/>
+		<var name="riverInflowVolumeFlux" type="real" dimensions="nRiverInflowEdges Time" units="m^3 s^-1"
+			description="Prescribed volume flux through each river inflow edge, positive in the direction of positive normalVelocity (from cellsOnEdge(1) toward cellsOnEdge(2)). Not decomposed: every task holds the full array."
+			packages="riverInflowForcingPKG"
+		/>
+		<var name="riverInflowVelocity" type="real" dimensions="nRiverInflowEdges Time" units="m s^-1"
+			description="Speed at which water enters through each river inflow edge, used for the momentum source. Read only when config_use_river_inflow_momentum is .true. and config_river_inflow_velocity_source is 'file'. Not decomposed: every task holds the full array."
+			packages="riverInflowVelocityPKG"
 		/>
 	</var_struct>
 	<var_struct name="scratch" time_levs="1">
