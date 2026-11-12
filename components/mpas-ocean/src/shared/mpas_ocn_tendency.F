@@ -458,7 +458,7 @@ contains
 
       ! Scale surface stress by wet area fraction
       if (config_use_subgrid_wetting_drying) then
-         call ocn_subgrid_scale_sfcStress(sfcStress)
+         call ocn_subgrid_scale_sfcStress(ssh, sfcStress)
       endif
 
       ! Add nonlinear Coriolis term and horizontal advection of

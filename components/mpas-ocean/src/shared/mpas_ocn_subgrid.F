@@ -73,14 +73,7 @@ module ocn_subgrid
       subgridVertexBathymetryMin, &
       subgridLayerThicknessDebug, &
       subgridEdgeArea
-   real(kind=RKIND), public, dimension(:), pointer :: &
-      subgridSSH
-
    integer, public, pointer :: nSubgridTableLevels
-
-   real(kind=RKIND), public, dimension(:), pointer :: &
-      wetFractionCell, &
-      wetFractionEdge
 
    !--------------------------------------------------------------------
    !
@@ -282,7 +275,14 @@ contains
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_subgrid_scale_sfcStress(sfcStress)!{{{
+   subroutine ocn_subgrid_scale_sfcStress(ssh, sfcStress)!{{{
+
+      !-----------------------------------------------------------------
+      ! input variables
+      !-----------------------------------------------------------------
+
+      real (kind=RKIND), dimension(:), intent(in) :: &
+         ssh                 !< [in] sea surface height at current time level
 
       !-----------------------------------------------------------------
       ! input/output variables
@@ -306,7 +306,7 @@ contains
       do iEdge = 1, nEdgesOwned
          cell1 = cellsOnEdge(1,iEdge)
          cell2 = cellsOnEdge(2,iEdge)
-         sshMean = 0.5_RKIND * (subgridSSH(cell1) + subgridSSH(cell2))
+         sshMean = 0.5_RKIND * (ssh(cell1) + ssh(cell2))
 
          call ocn_subgrid_wet_fraction_lookup(sshMean, &
                                               subgridWetFractionEdgeTable(:,iEdge), &
@@ -680,9 +680,7 @@ contains
       !-----------------------------------------------------------------
 
       type(block_type), pointer :: block
-      type(mpas_pool_type), pointer :: meshPool, statePool
-
-      integer :: timeLevel
+      type(mpas_pool_type), pointer :: meshPool
 
       err = 0
       if (.not. config_use_subgrid_wetting_drying) then
@@ -735,12 +733,6 @@ contains
 
       call mpas_pool_get_dimension(meshPool, 'nSubgridTableLevels', &
                                      nSubgridTableLevels)
-
-      timeLevel = 1
-      call mpas_pool_get_subpool(block%structs, 'state', statePool)
-      call mpas_pool_get_array(statePool, 'ssh', subgridSSH, timeLevel)
-      call mpas_pool_get_array(statePool, 'wetFractionCell', wetFractionCell, timeLevel)
-      call mpas_pool_get_array(statePool, 'wetFractionEdge', wetFractionEdge, timeLevel)
 
    end subroutine ocn_subgrid_init!}}}
 

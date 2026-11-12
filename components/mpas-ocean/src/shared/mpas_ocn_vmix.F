@@ -413,7 +413,7 @@ contains
 
    subroutine ocn_vel_vmix_tend_implicit(dt, kineticEnergyCell, vertViscTopOfEdge, layerThickness, & !{{{
                                          layerThickEdgeDrag, layerThickEdgeMean, &
-                                         landIceEdgeFraction, normalVelocity, err)
+                                         landIceEdgeFraction, ssh, normalVelocity, err)
 
       !-----------------------------------------------------------------
       !
@@ -439,6 +439,9 @@ contains
 
       real (kind=RKIND), dimension(:), intent(in) :: &
          landIceEdgeFraction !< Input: land ice fraction
+
+      real (kind=RKIND), dimension(:), intent(in) :: &
+         ssh !< Input: sea surface height at current time level
 
       !-----------------------------------------------------------------
       !
@@ -478,7 +481,7 @@ contains
       if (config_use_subgrid_wetting_drying) then
          allocate(wetFractionLookup(nEdgesOwned))
 #ifdef MPAS_OPENACC
-      !$acc update host(wetFractionLookup, subgridSSH)
+      !$acc update host(wetFractionLookup, ssh)
 #else
       !$omp parallel
       !$omp do schedule(runtime) private(cell1, cell2, sshMean)
@@ -486,7 +489,7 @@ contains
          do iEdge = 1, nEdgesOwned
             cell1 = cellsOnEdge(1,iEdge)
             cell2 = cellsOnEdge(2,iEdge)
-            sshMean = 0.5_RKIND * (subgridSSH(cell1) + subgridSSH(cell2))
+            sshMean = 0.5_RKIND * (ssh(cell1) + ssh(cell2))
             call ocn_subgrid_wet_fraction_lookup(sshMean, &
                                                  subgridWetFractionEdgeTable(:,iEdge), &
                                                  subgridSshEdgeTableRange(:,iEdge), &
@@ -869,7 +872,7 @@ contains
       if (config_use_subgrid_wetting_drying) then
          allocate(implicitCdLookup(nEdgesOwned))
 #ifdef MPAS_OPENACC
-      !$acc update host(implicitCdLookup, layerThickEdgeMean, subgridSSH)
+      !$acc update host(implicitCdLookup, layerThickEdgeMean, ssh)
 #else
       !$omp parallel
       !$omp do schedule(runtime) private(cell1, cell2, sshMean)
@@ -878,7 +881,7 @@ contains
             columnThicknessDrag = layerThickEdgeMean(1,iEdge)
             cell1 = cellsOnEdge(1,iEdge)
             cell2 = cellsOnEdge(2,iEdge)
-            sshMean = 0.5_RKIND * (subgridSSH(cell1) + subgridSSH(cell2))
+            sshMean = 0.5_RKIND * (ssh(cell1) + ssh(cell2))
             call ocn_subgrid_drag_lookup(sshMean, &
                                           subgridDragEdgeTable(:,iEdge), &
                                           subgridSshDragEdgeTableRange(:,iEdge), &
@@ -1059,7 +1062,7 @@ contains
 
    subroutine ocn_vel_vmix_tend_implicit_spatially_variable_loglaw(forcingPool, dt, & !{{{
                                          kineticEnergyCell, layerThickEdgeDrag, layerThickEdgeMean, &
-                                         normalVelocity, vertViscTopOfEdge, err)
+                                         ssh, normalVelocity, vertViscTopOfEdge, err)
 
       !-----------------------------------------------------------------
       !
@@ -1079,6 +1082,9 @@ contains
       real (kind=RKIND), dimension(:,:), intent(in) :: &
          layerThickEdgeDrag, &!< Input: thickness at edge for drag
          layerThickEdgeMean !< Input: mean thickness at edge
+
+      real (kind=RKIND), dimension(:), intent(in) :: &
+         ssh !< Input: sea surface height at current time level
 
       !-----------------------------------------------------------------
       !
@@ -1135,7 +1141,7 @@ contains
          do iEdge = 1, nEdgesOwned
             cell1 = cellsOnEdge(1,iEdge)
             cell2 = cellsOnEdge(2,iEdge)
-            sshMean = 0.5_RKIND * (subgridSSH(cell1) + subgridSSH(cell2))
+            sshMean = 0.5_RKIND * (ssh(cell1) + ssh(cell2))
             call ocn_subgrid_wet_fraction_lookup(sshMean, &
                                                  subgridWetFractionEdgeTable(:,iEdge), &
                                                  subgridSshEdgeTableRange(:,iEdge), &
@@ -1618,7 +1624,7 @@ contains
 
         call ocn_vel_vmix_tend_implicit(dt, kineticEnergyCell, &
           vertViscTopOfEdge, layerThickness, layerThickEdgeDrag, layerThickEdgeMean, &
-          landIceEdgeFraction, normalVelocity, err)
+          landIceEdgeFraction, ssh, normalVelocity, err)
 
       case (dragTypeRayleigh)
 
@@ -1629,7 +1635,7 @@ contains
       case (dragTypeLogLaw)
 
         call ocn_vel_vmix_tend_implicit_spatially_variable_loglaw(forcingPool, dt, &
-          kineticEnergyCell, layerThickEdgeDrag, layerThickEdgeMean, normalVelocity, &
+          kineticEnergyCell, layerThickEdgeDrag, layerThickEdgeMean, ssh, normalVelocity, &
           vertViscTopOfEdge, err)
 
       case (dragTypeVariable)
